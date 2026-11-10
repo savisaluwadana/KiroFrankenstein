@@ -1,0 +1,17 @@
+# Build outputs
+node_modules/
+.next/
+out/
+coverage/
+playwright-report/
+test-results/
+
+# Local environment and generated data
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite-journal
+.DS_Store
+
+# Important: DO NOT ignore .kiro/; it is required for the hackathon.
