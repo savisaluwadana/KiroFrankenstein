@@ -7,9 +7,9 @@ inclusion: always
 - Project repository: `KiroFrankenstein`
 - Hackathon: Kiroween 2026
 - Intended category: Frankenstein
-- **Product idea: undecided**
+- **Product idea: Parallel (approved by the user on 2026-11-26).** See `product.md`. The "before approval" section below no longer restricts work; specs come before application code.
 
-## Before the idea is approved
+## Before the idea is approved (historical)
 
 Act as a rigorous product research and feasibility partner. Propose **multiple original ideas**, compare real user problems, and challenge novelty, technical feasibility, meaningful technology combinations, and demonstration potential. Do not assume any particular product, technology stack, architecture, user story, or business model.
 
@@ -23,6 +23,12 @@ Act as a rigorous product research and feasibility partner. Propose **multiple o
 - Keep the GitHub repo public with an open-source LICENSE and a tracked `.kiro/` directory at the root.
 - Deliver a working demo, setup instructions, and a publicly accessible demo video under three minutes.
 - Follow official rules at https://kiroween.devpost.com/rules.
+
+## Credit and scope budget
+
+- 4000 Kiro development credits in total, including a 500-credit emergency reserve (3500 for planned work). Kiro credits are independent of runtime LLM API usage, which the configured external provider bills.
+- Keep tasks small, independently testable and dependency-ordered; the vertical slice comes first so the plan can stop at any tier with a working product.
+- Avoid unnecessary infrastructure, dependencies and abstraction; justify each new dependency in the design.
 
 ## After user approval
 

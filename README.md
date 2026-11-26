@@ -4,9 +4,9 @@ A new project repository for the **Kiroween 2026** hackathon, **Frankenstein** c
 
 ## Current status
 
-**Idea selection, not implementation.** No product idea has been selected or approved, and no application code has been started.
+**Concept approved: Parallel.** *Reality has no undo button. We built one.* A playable, forkable simulation of an e-commerce business in a Black Friday crisis, where a human and an AI manager compete under identical conditions.
 
-The goal is to create an original, useful working application that *stitches together unexpected technologies* to solve a real problem. Do not treat the repository name as the product name.
+**Specification in progress.** Steering lives in `.kiro/steering/` and the MVP requirements in `.kiro/specs/parallel-simulation-mvp/requirements.md`. Design and tasks follow after review. No application code has been written yet.
 
 ## First steps
 
@@ -31,7 +31,7 @@ This is **planning scaffolding** created before the first Kiro build session. It
 - [x] Public GitHub repository
 - [x] Open-source LICENSE
 - [x] Root `.kiro/` directory
-- [ ] Select and approve a product concept
+- [x] Select and approve a product concept
 - [ ] Develop working software using Kiro during the eligible submission period
 - [ ] Demonstrate and document actual Kiro workflows
 - [ ] Deploy and test a public application

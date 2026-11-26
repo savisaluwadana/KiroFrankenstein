@@ -1,0 +1,38 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* Night Shift Operations palette (ui-design-system.md). */
+:root {
+  --ink: #0b0e14;
+  --surface: #121722;
+  --line: #232b3a;
+  --text: #e6e9ef;
+  --muted: #8a93a6;
+  --human: #f2a93b;
+  --ai: #3bc9db;
+  --disruption: #ff5c5c;
+  --gain: #7bd88f;
+  --loss: #ff7a7a;
+  --radius: 4px;
+}
+
+@theme inline {
+  --color-ink: var(--ink);
+  --color-surface: var(--surface);
+  --color-line: var(--line);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-human: var(--human);
+  --color-ai: var(--ai);
+  --color-disruption: var(--disruption);
+  --color-gain: var(--gain);
+  --color-loss: var(--loss);
+  --radius-sm: var(--radius);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius);
+}
+
+body {
+  background: var(--ink);
+  color: var(--text);
+}

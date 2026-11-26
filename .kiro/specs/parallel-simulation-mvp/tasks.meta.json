@@ -1,0 +1,79 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Create the Go module skeleton": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795678066775
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795679676358
+      }
+    ],
+    "1.2 Add the `internal/sim` architecture import test": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795679680996
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795680937535
+      }
+    ],
+    "1.3 Create the Next.js web skeleton": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795679681780
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795680937758
+      }
+    ],
+    "1.4 Add Docker Compose for PostgreSQL and `.env.example`": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795679682459
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795681510672
+      }
+    ],
+    "1.5 Add CI for amd64 and arm64": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795681166086
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795681517887
+      }
+    ],
+    "1.6 Checkpoint — M0 complete": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795681539097
+      }
+    ],
+    "1. M0 — Repository and development environment (~150 credits)": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795681539103
+      }
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: parallel
+      POSTGRES_PASSWORD: parallel_dev_password
+      POSTGRES_DB: parallel
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - parallel_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U parallel -d parallel"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  parallel_pgdata:
