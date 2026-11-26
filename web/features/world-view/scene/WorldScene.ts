@@ -1,304 +1,876 @@
 /**
- * Pixi drawing for the warehouse diorama. It consumes a WorldViewModel and
- * draws only what the model holds. Graphics and Text only, no external assets.
+ * Isometric warehouse scene (PixiJS v8, procedural graphics only).
  *
- * Decorative motion (worker and conveyor markers easing to their slots, the
- * Disruption edge pulse) is display interpolation between two authoritative
- * ticks. It never encodes a number the model does not hold, and reduced motion
- * turns it off.
+ * Persistent state (stacks, people, tickets, parked vans, signs) is always set
+ * straight from the SceneModel, so it equals the authoritative frame. Transient
+ * actors (trucks, flying boxes, departing vans, incoming tickets, onset flash)
+ * exist only for events returned by deriveSceneEvents and are skipped under
+ * reduced motion, when scrubbing, and at playback speeds too fast to read.
+ * Rendering is on demand: the ticker runs only while a tween or ambient cue is
+ * active.
  */
-import { Container, Graphics, Text, type Application, type Ticker } from "pixi.js";
-import type { Palette } from "./palette";
-import type { InboundGroup, WorldViewModel, ZoneId } from "./worldViewModel";
+import { Container, Graphics, Sprite, type Application, type Ticker } from "pixi.js";
+import type { SceneEvent } from "./deriveSceneEvents";
+import {
+  drawBackground,
+  drawBarrier,
+  drawBench,
+  drawBoard,
+  drawLight,
+  drawRackBack,
+  drawRackFront,
+  drawTicket,
+  drawTruck,
+  drawVan,
+  drawWarning,
+  makeBoxTexture,
+  makeFigureTexture,
+  Tag,
+  type FigureVariant,
+  type SpriteTexture,
+} from "./drawing";
+import { fitScale, project, SCENE_H, SCENE_W, zIndex, type Pt } from "./iso";
+import {
+  BENCH_D,
+  benchOrigin,
+  breakSpot,
+  CONVEYOR_GY,
+  figureSpot,
+  MAX_ABSENT_DRAWN,
+  MAX_FIGURES,
+  MAX_TICKETS,
+  MAX_TRAINING_DRAWN,
+  MAX_TRUCKS,
+  MAX_VANS,
+  rackOrigin,
+  RACK_D,
+  RACK_SLOTS,
+  RACK_W,
+  slotOffset,
+  STATIONS,
+  ticketSlot,
+  TRUCK_LANE_GX,
+  TRUCK_LEN,
+  TRUCK_START_GY,
+  TRUCK_W,
+  truckBay,
+  VAN_D,
+  VAN_EXIT_GX,
+  VAN_W,
+  vanBay,
+  ZONES,
+  BOX_D,
+  BOX_W,
+  type ZoneName,
+} from "./layout";
+import { PALETTE } from "./palette";
+import { easeInOut, easeOut, Pool, TweenList } from "./pools";
+import type { SceneModel } from "./sceneModel";
+import type { ZoneId } from "./worldViewModel";
 
-export const SCENE_WIDTH = 960;
-export const SCENE_HEIGHT = 540;
-
-interface Rect {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-
-const ZONES: Record<ZoneId, Rect & { label: string }> = {
-  inbound_dock: { x: 20, y: 40, w: 200, h: 250, label: "INBOUND DOCK" },
-  storage_racks: { x: 240, y: 40, w: 500, h: 250, label: "STORAGE RACKS" },
-  pick_line: { x: 240, y: 310, w: 500, h: 100, label: "PICK / PACK LINE" },
-  order_queue: { x: 20, y: 430, w: 920, h: 90, label: "ORDER QUEUE" },
+const ZONE_OF: Record<ZoneId, ZoneName> = {
+  inbound_dock: "inbound",
+  storage_racks: "storage",
+  pick_line: "packing",
+  order_queue: "orderLine",
 };
-const OUTBOUND: Rect = { x: 760, y: 40, w: 180, h: 370 };
 
-const FONT = "IBM Plex Mono, ui-monospace, monospace";
-const MAX_WORKER_MARKERS = 24;
-const MAX_QUEUE_MARKERS = 40;
-const MAX_TRUCKS = 6;
+/** Base (1x) durations in ms. */
+const BASE = { truckIn: 700, unload: 500, truckOut: 600, flight: 900, vanOut: 600, slide: 180, flash: 1200 };
+const BASE_TOTAL = 1900;
+/** Below this display interval (16x playback and faster) only counts change. */
+const MIN_TRAVEL_INTERVAL_MS = 120;
 
-interface Mover {
-  g: Graphics;
-  tx: number;
-  ty: number;
+export interface UpdateOptions {
+  /** Time between displayed frames. Unknown or large means a full-length animation. */
+  tickIntervalMs?: number;
+  /** False snaps with no travel (scrubbing, jumping). */
+  animate?: boolean;
 }
 
-function label(text: string, fill: number, size = 11): Text {
-  return new Text({ text, style: { fontFamily: FONT, fontSize: size, fill } });
+interface RackView {
+  back: Graphics;
+  front: Graphics;
+  boxes: Sprite[];
+  sign: Tag;
+  waiting: Tag;
+  more: Tag;
+  style: number;
+}
+
+interface Figure {
+  sprite: Sprite;
+  baseY: number;
+  bob: boolean;
 }
 
 export class WorldScene {
   private readonly root = new Container();
-  private readonly staticLayer = new Container();
-  private readonly workerLayer = new Container();
-  private readonly queueLayer = new Container();
-  private readonly workers: Mover[] = [];
-  private readonly queue: Mover[] = [];
-  private pulses: Graphics[] = [];
-  private reducedMotion = false;
-  private elapsed = 0;
-  private readonly onTick = (t: Ticker): void => this.animate(t);
+  private readonly bg = new Container();
+  private readonly world = new Container();
+  private readonly labels = new Container();
+  private readonly tweens = new TweenList();
+  private readonly onTick = (t: Ticker): void => this.tick(t);
+  private reduced = false;
+  private active = true;
+  private clock = 0;
+  private model: SceneModel | null = null;
+  private destroyed = false;
+
+  private readonly boxTex: SpriteTexture[] = [];
+  private readonly figTex: Record<FigureVariant, SpriteTexture>;
+
+  private racks: RackView[] = [];
+  private readonly benches: Graphics[] = [];
+  private readonly lights: Graphics[] = [];
+  private readonly figures: Figure[] = [];
+  private readonly training: Sprite[] = [];
+  private readonly ghosts: Sprite[] = [];
+  private readonly crowd: Sprite[] = [];
+  private readonly tickets: Graphics[] = [];
+  private readonly parkedVans: Graphics[] = [];
+  private readonly leavingVans: Graphics[] = [];
+  private readonly trucks: Graphics[] = [];
+  private readonly flyers: Pool<Sprite>;
+  private readonly zoneFlash = new Map<ZoneName, Graphics>();
+  private readonly zoneOutline = new Map<ZoneName, Graphics>();
+  private readonly barrier = new Graphics();
+  private readonly warnIcons: Graphics[] = [];
+  private readonly tags: Record<
+    "dock" | "orders" | "packing" | "outbound" | "training" | "absent" | "peopleMore" | "ticketsMore" | "vansMore" | "syncing" | "moves",
+    Tag
+  >;
+  private readonly disruptionTags: Tag[] = [];
+  private lightsCrisis = false;
+  private stationLit: boolean[] = [];
+  private disruptionZones = new Set<ZoneName>();
 
   constructor(
     private readonly app: Application,
-    private readonly palette: Palette,
+    private readonly fontFamily: string,
   ) {
-    this.root.addChild(this.staticLayer, this.workerLayer, this.queueLayer);
+    this.root.eventMode = "none";
+    this.world.sortableChildren = true;
+    this.world.eventMode = "none";
+    this.labels.eventMode = "none";
+    this.root.addChild(this.bg, this.world, this.labels);
     app.stage.addChild(this.root);
+
+    drawBackground(this.bg);
+    this.bg.cacheAsTexture(true);
+
+    const r = app.renderer;
+    for (let i = 0; i < 6; i++) this.boxTex.push(makeBoxTexture(r, i));
+    this.figTex = {
+      regular: makeFigureTexture(r, "regular"),
+      temp: makeFigureTexture(r, "temp"),
+      ghost: makeFigureTexture(r, "ghost"),
+    };
+
+    this.buildFixtures();
+    const T = (): Tag => new Tag(fontFamily);
+    this.tags = {
+      dock: T(),
+      orders: T(),
+      packing: T(),
+      outbound: T(),
+      training: T(),
+      absent: T(),
+      peopleMore: T(),
+      ticketsMore: T(),
+      vansMore: T(),
+      syncing: T(),
+      moves: T(),
+    };
+    for (const t of Object.values(this.tags)) {
+      t.visible = false;
+      this.labels.addChild(t);
+    }
+    for (let i = 0; i < 3; i++) {
+      const t = T();
+      t.visible = false;
+      this.disruptionTags.push(t);
+      const w = new Graphics();
+      drawWarning(w, PALETTE.clay);
+      w.visible = false;
+      this.warnIcons.push(w);
+      this.labels.addChild(t, w);
+    }
+
+    this.flyers = new Pool<Sprite>(24, () => {
+      const s = new Sprite(this.boxTex[0]?.texture);
+      s.visible = false;
+      this.world.addChild(s);
+      return s;
+    });
+
     app.ticker.add(this.onTick);
+    app.ticker.stop();
+    app.ticker.maxFPS = 0;
   }
 
-  /** Fit the logical scene into a pixel box. */
+  /* ---------- public API ---------- */
+
   resize(width: number, height: number): void {
-    const s = Math.min(width / SCENE_WIDTH, height / SCENE_HEIGHT);
+    const s = fitScale(width, height);
     this.root.scale.set(s);
-    this.root.position.set((width - SCENE_WIDTH * s) / 2, (height - SCENE_HEIGHT * s) / 2);
+    this.root.position.set((width - SCENE_W * s) / 2, (height - SCENE_H * s) / 2);
+    this.renderNow();
   }
 
   setReducedMotion(reduced: boolean): void {
-    this.reducedMotion = reduced;
-    if (reduced) this.snap();
+    if (this.reduced === reduced) return;
+    this.reduced = reduced;
+    this.tweens.finish();
+    this.hideActors();
+    if (this.model !== null) this.applyAmbient(true);
+    this.ensureLoop();
+    this.renderNow();
   }
 
-  update(model: WorldViewModel): void {
-    this.drawStatic(model);
-    this.syncMovers(this.workers, this.workerLayer, Math.min(model.workers.onShift, MAX_WORKER_MARKERS), (i) => ({
-      x: ZONES.pick_line.x + 24 + i * 20,
-      y: ZONES.pick_line.y + 60,
-    }), this.palette.human);
-    this.syncMovers(this.queue, this.queueLayer, Math.min(model.orderQueueLen, MAX_QUEUE_MARKERS), (i) => ({
-      x: ZONES.order_queue.x + 20 + i * 20,
-      y: ZONES.order_queue.y + 58,
-    }), this.palette.text);
+  /** Pause all ticker work while the canvas is off screen or the tab is hidden. */
+  setActive(active: boolean): void {
+    this.active = active;
+    this.ensureLoop();
+    if (active) this.renderNow();
+  }
+
+  update(model: SceneModel, opts: UpdateOptions = {}): void {
+    if (this.destroyed) return;
+    const prev = this.model;
+    this.model = model;
+    const T = opts.tickIntervalMs ?? 1000;
+    // The same tick re-rendered (for example new interventions) never replays motion.
+    const sameTick = prev !== null && prev.tick === model.tick;
+    const animate = !sameTick && !this.reduced && opts.animate !== false && !model.syncing && T >= MIN_TRAVEL_INTERVAL_MS && model.events.length > 0;
+    if (!animate && !sameTick) {
+      this.tweens.finish();
+      this.hideActors();
+    }
+    this.ensureRacks(model);
+    this.applyState(model);
+    if (animate) this.playEvents(model, prev, Math.min(1, (T * 2) / BASE_TOTAL));
     this.root.alpha = model.syncing ? 0.45 : 1;
-    if (this.reducedMotion) this.snap();
+    this.applyAmbient(true);
+    this.ensureLoop();
+    this.renderNow();
   }
 
   destroy(): void {
+    if (this.destroyed) return;
+    this.destroyed = true;
     this.app.ticker.remove(this.onTick);
+    this.app.ticker.stop();
+    this.tweens.finish();
     this.root.destroy({ children: true });
+    for (const t of this.boxTex) t.texture.destroy(true);
+    for (const t of Object.values(this.figTex)) t.texture.destroy(true);
   }
 
-  private zoneBox(id: ZoneId, highlighted: boolean): Graphics {
-    const z = ZONES[id];
-    const g = new Graphics();
-    g.roundRect(z.x, z.y, z.w, z.h, 4).fill(this.palette.surface).stroke({ width: 1, color: highlighted ? this.palette.disruption : this.palette.line });
-    return g;
+  /* ---------- construction ---------- */
+
+  private sprite(tex: SpriteTexture): Sprite {
+    const s = new Sprite(tex.texture);
+    s.pivot.set(tex.pivotX, tex.pivotY);
+    s.visible = false;
+    s.eventMode = "none";
+    this.world.addChild(s);
+    return s;
   }
 
-  private drawStatic(model: WorldViewModel): void {
-    const p = this.palette;
-    for (const c of this.staticLayer.removeChildren()) c.destroy({ children: true });
-    this.pulses = [];
-    const lit = new Set(model.highlightedZones);
-
-    for (const id of Object.keys(ZONES) as ZoneId[]) {
-      const z = ZONES[id];
-      this.staticLayer.addChild(this.zoneBox(id, lit.has(id)));
-      const t = label(z.label, p.muted, 10);
-      t.position.set(z.x + 8, z.y + 6);
-      this.staticLayer.addChild(t);
+  private buildFixtures(): void {
+    // Benches and lights.
+    for (let k = 0; k < STATIONS; k++) {
+      const o = benchOrigin(k);
+      const b = new Graphics();
+      drawBench(b);
+      const p = project(o.gx, o.gy);
+      b.position.set(p.x, p.y);
+      b.zIndex = zIndex(o.gx + 2, o.gy + BENCH_D);
+      this.world.addChild(b);
+      this.benches.push(b);
+      const l = new Graphics();
+      drawLight(l, PALETTE.edge);
+      const lp = project(o.gx + 1.75, o.gy + 0.35, 1.35);
+      l.position.set(lp.x, lp.y);
+      l.zIndex = zIndex(o.gx + 2, o.gy + BENCH_D) + 1;
+      this.world.addChild(l);
+      this.lights.push(l);
     }
-    const out = new Graphics();
-    out.roundRect(OUTBOUND.x, OUTBOUND.y, OUTBOUND.w, OUTBOUND.h, 4).fill(p.surface).stroke({ width: 1, color: p.line });
-    this.staticLayer.addChild(out);
-    const outLabel = label("OUTBOUND DOCK", p.muted, 10);
-    outLabel.position.set(OUTBOUND.x + 8, OUTBOUND.y + 6);
-    this.staticLayer.addChild(outLabel);
-
-    this.drawBins(model);
-    this.drawInbound(model);
-    this.drawPickLine(model);
-    this.drawQueueText(model);
-    this.drawDisruptions(model);
-    this.drawInterventions(model);
-
-    const clock = label(`TICK ${model.tick}`, p.text, 12);
-    clock.position.set(SCENE_WIDTH - 90, 8);
-    this.staticLayer.addChild(clock);
-    if (model.syncing) {
-      const s = label("SYNCING", p.muted, 12);
-      s.position.set(SCENE_WIDTH / 2 - 30, 8);
-      this.staticLayer.addChild(s);
+    // Order board and tickets.
+    const board = new Graphics();
+    drawBoard(board);
+    const bp = project(16.6, 9.7);
+    board.position.set(bp.x, bp.y);
+    board.zIndex = zIndex(22, 9.7);
+    this.world.addChild(board);
+    for (let i = 0; i < MAX_TICKETS; i++) {
+      const t = new Graphics();
+      drawTicket(t);
+      const s = ticketSlot(i);
+      const p = project(s.gx, 9.68, s.gz);
+      t.position.set(p.x, p.y);
+      t.zIndex = zIndex(22, 9.7) + 1 + i * 0.001;
+      t.visible = false;
+      this.world.addChild(t);
+      this.tickets.push(t);
+    }
+    // Figures.
+    for (let i = 0; i < MAX_FIGURES; i++) {
+      this.figures.push({ sprite: this.sprite(this.figTex.regular), baseY: 0, bob: false });
+    }
+    for (let i = 0; i < MAX_TRAINING_DRAWN; i++) {
+      const s = this.sprite(this.figTex.temp);
+      s.alpha = 0.55;
+      this.training.push(s);
+    }
+    for (let i = 0; i < MAX_ABSENT_DRAWN; i++) this.ghosts.push(this.sprite(this.figTex.ghost));
+    for (let i = 0; i < 8; i++) {
+      const s = this.sprite(this.figTex.regular);
+      s.alpha = 0.7;
+      s.scale.set(0.85);
+      this.crowd.push(s);
+    }
+    // Vans and trucks.
+    for (let i = 0; i < MAX_VANS; i++) {
+      for (const list of [this.parkedVans, this.leavingVans]) {
+        const v = new Graphics();
+        drawVan(v, VAN_W, VAN_D);
+        v.visible = false;
+        this.world.addChild(v);
+        list.push(v);
+      }
+    }
+    for (let i = 0; i < MAX_TRUCKS; i++) {
+      const t = new Graphics();
+      drawTruck(t, TRUCK_LEN, TRUCK_W);
+      t.visible = false;
+      this.world.addChild(t);
+      this.trucks.push(t);
+    }
+    // Dock barrier.
+    drawBarrier(this.barrier);
+    const bar = project(TRUCK_LANE_GX - 0.2, 11.4);
+    this.barrier.position.set(bar.x, bar.y);
+    this.barrier.zIndex = zIndex(TRUCK_LANE_GX + 1.8, 11.5);
+    this.barrier.visible = false;
+    this.world.addChild(this.barrier);
+    // Zone outlines (disruption) and onset flashes.
+    for (const name of Object.keys(ZONES) as ZoneName[]) {
+      const z = ZONES[name];
+      const pts = [project(z.gx, z.gy), project(z.gx + z.w, z.gy), project(z.gx + z.w, z.gy + z.h), project(z.gx, z.gy + z.h)].flatMap((q) => [q.x, q.y]);
+      const o = new Graphics();
+      o.poly(pts).stroke({ width: 3, color: PALETTE.clay });
+      o.visible = false;
+      this.root.addChildAt(o, 1);
+      this.zoneOutline.set(name, o);
+      const f = new Graphics();
+      f.poly(pts).fill({ color: PALETTE.clay, alpha: 0.35 });
+      f.alpha = 0;
+      this.root.addChildAt(f, 1);
+      this.zoneFlash.set(name, f);
     }
   }
 
-  private drawBins(model: WorldViewModel): void {
-    const p = this.palette;
-    const z = ZONES.storage_racks;
-    const n = Math.max(1, model.bins.length);
-    const slot = Math.min(110, (z.w - 20) / n);
-    const binW = Math.max(24, slot - 16);
-    const binH = 150;
-    model.bins.forEach((b, i) => {
-      const x = z.x + 12 + i * slot;
-      const y = z.y + 36;
-      const box = new Graphics();
-      box.rect(x, y, binW, binH).stroke({ width: 1, color: b.stockBoundOrders > 0 ? p.disruption : p.line });
-      const fillH = Math.floor((binH * b.fillBps) / 10000);
-      if (fillH > 0) box.rect(x + 1, y + binH - fillH, binW - 2, fillH).fill(p.ai);
-      this.staticLayer.addChild(box);
-      const name = label(`SKU ${b.sku}`, p.text, 11);
-      name.position.set(x, y + binH + 6);
-      const qty = label(`${b.onHand} u`, p.muted, 11);
-      qty.position.set(x, y + binH + 20);
-      this.staticLayer.addChild(name, qty);
-      if (b.stockBoundOrders > 0) {
-        const m = label(`STOCK-BOUND ${b.stockBoundOrders}`, p.disruption, 9);
-        m.position.set(x, y - 14);
-        this.staticLayer.addChild(m);
+  private ensureRacks(model: SceneModel): void {
+    const n = model.racks.length;
+    if (this.racks.length === n) return;
+    for (const r of this.racks) {
+      r.back.destroy();
+      r.front.destroy();
+      for (const b of r.boxes) b.destroy();
+      r.sign.destroy({ children: true });
+      r.waiting.destroy({ children: true });
+      r.more.destroy({ children: true });
+    }
+    this.racks = [];
+    for (let k = 0; k < n; k++) {
+      const o = rackOrigin(k, n);
+      const p = project(o.gx, o.gy);
+      const back = new Graphics();
+      drawRackBack(back);
+      back.position.set(p.x, p.y);
+      back.zIndex = zIndex(o.gx, o.gy) - 50;
+      const front = new Graphics();
+      drawRackFront(front);
+      front.position.set(p.x, p.y);
+      front.zIndex = zIndex(o.gx + RACK_W, o.gy + RACK_D) + 500;
+      this.world.addChild(back, front);
+      const boxes: Sprite[] = [];
+      for (let i = 0; i < RACK_SLOTS; i++) {
+        const s = new Sprite(this.boxTex[0]?.texture);
+        const so = slotOffset(i);
+        const bp = project(o.gx + so.dx, o.gy + so.dy, so.level * 1 + 0.12);
+        s.position.set(bp.x, bp.y);
+        s.zIndex = zIndex(o.gx + so.dx + BOX_W, o.gy + so.dy + BOX_D, so.level);
+        s.visible = false;
+        s.eventMode = "none";
+        this.world.addChild(s);
+        boxes.push(s);
+      }
+      const sign = new Tag(this.fontFamily);
+      const sp = project(o.gx + RACK_W / 2, o.gy + RACK_D + 0.55, 0.1);
+      sign.position.set(sp.x, sp.y);
+      const waiting = new Tag(this.fontFamily, 11);
+      const wp = project(o.gx + RACK_W / 2, o.gy, 3.5);
+      waiting.position.set(wp.x, wp.y);
+      waiting.visible = false;
+      const more = new Tag(this.fontFamily, 11);
+      const mp = project(o.gx + RACK_W, o.gy + 0.2, 3.1);
+      more.position.set(mp.x, mp.y);
+      more.visible = false;
+      this.labels.addChild(sign, waiting, more);
+      this.racks.push({ back, front, boxes, sign, waiting, more, style: -1 });
+    }
+  }
+
+  /* ---------- persistent state from the model ---------- */
+
+  private applyState(m: SceneModel): void {
+    // Racks and boxes.
+    m.racks.forEach((r, k) => {
+      const v = this.racks[k];
+      if (v === undefined) return;
+      const style = r.styleIndex % this.boxTex.length;
+      const tex = this.boxTex[style];
+      if (tex === undefined) return;
+      if (v.style !== style) {
+        for (const s of v.boxes) {
+          s.texture = tex.texture;
+          s.pivot.set(tex.pivotX, tex.pivotY);
+        }
+        v.style = style;
+      }
+      v.boxes.forEach((s, i) => (s.visible = i < r.boxes));
+      v.sign.set(`${r.name}  ${r.onHand} in stock`);
+      v.waiting.visible = r.waitingForInventory > 0;
+      if (r.waitingForInventory > 0) v.waiting.set(`Waiting for inventory: ${r.waitingForInventory}`, "crisis");
+      v.more.visible = r.moreBoxes > 0;
+      if (r.moreBoxes > 0) v.more.set(`+${r.moreBoxes} more boxes`, "muted");
+    });
+
+    // People at stations.
+    let f = 0;
+    const p = m.people;
+    p.perStation.forEach((count, k) => {
+      for (let j = 0; j < count; j++, f++) {
+        const fig = this.figures[f];
+        if (fig === undefined) return;
+        const isTemp = f >= p.drawnRegular;
+        const tex = isTemp ? this.figTex.temp : this.figTex.regular;
+        fig.sprite.texture = tex.texture;
+        const spot = figureSpot(k, j);
+        const pt = project(spot.gx, spot.gy);
+        fig.sprite.position.set(pt.x, pt.y);
+        fig.baseY = pt.y;
+        fig.bob = true;
+        fig.sprite.zIndex = zIndex(spot.gx, spot.gy) + 0.5;
+        fig.sprite.visible = true;
       }
     });
-    const scale = label(`bin full = ${model.stockScaleMax} u`, p.muted, 9);
-    scale.position.set(z.x + z.w - 120, z.y + 6);
-    this.staticLayer.addChild(scale);
+    for (; f < this.figures.length; f++) {
+      const fig = this.figures[f];
+      if (fig !== undefined) fig.sprite.visible = false;
+    }
+    this.stationLit = p.perStation.map((c) => c > 0);
+    this.lightsCrisis = m.bottlenecks.waitingForCapacityOrders > 0;
+    this.placeRow(this.training, p.onboardingDrawn, 0);
+    this.placeRow(this.ghosts, p.absentDrawn, 1);
+
+    // Crowd at the order line during a demand surge.
+    const surge = m.disruptions.some((d) => d.kind === "demand_surge");
+    this.crowd.forEach((s, i) => {
+      s.visible = surge;
+      if (!surge) return;
+      const gx = 16.9 + i * 0.55;
+      const gy = 13.2 + (i % 2) * 0.5;
+      const pt = project(gx, gy);
+      s.position.set(pt.x, pt.y);
+      s.zIndex = zIndex(gx, gy);
+    });
+
+    // Tickets.
+    this.tickets.forEach((t, i) => {
+      t.visible = i < m.queue.tickets;
+      const s = ticketSlot(i);
+      const pt = project(s.gx, 9.68, s.gz);
+      t.position.set(pt.x, pt.y);
+      t.alpha = 1;
+    });
+
+    // Parked vans (this hour's shipments).
+    this.parkedVans.forEach((v, k) => {
+      v.visible = k < m.outbound.vans;
+      const b = vanBay(k);
+      const pt = project(b.gx, b.gy);
+      v.position.set(pt.x, pt.y);
+      v.alpha = 1;
+      v.zIndex = zIndex(b.gx + VAN_W, b.gy + VAN_D);
+    });
+
+    // Dock closure.
+    this.barrier.visible = m.dock.closed;
+
+    // Zone highlight set.
+    this.disruptionZones = new Set(m.disruptions.map((d) => ZONE_OF[d.zone]));
+
+    this.applyTags(m);
   }
 
-  private drawInbound(model: WorldViewModel): void {
-    const p = this.palette;
-    const z = ZONES.inbound_dock;
-    let y = z.y + 28;
-    const groups: InboundGroup[] = model.inbound;
-    let trucks = 0;
-    for (const g of groups) {
-      const count = Math.min(g.pos, MAX_TRUCKS - trucks);
-      for (let i = 0; i < count; i++, trucks++) {
-        const t = new Graphics();
-        t.rect(z.x + 12 + i * 26, y, 20, 12).fill(p.human);
-        t.poly([z.x + 32 + i * 26, y, z.x + 40 + i * 26, y + 6, z.x + 32 + i * 26, y + 12]).fill(p.human);
-        this.staticLayer.addChild(t);
-      }
-      const txt = label(`SKU ${g.sku}: ${g.pos} PO, ${g.units} u`, p.text, 10);
-      txt.position.set(z.x + 12, y + 16);
-      this.staticLayer.addChild(txt);
-      y += 40;
-      if (y > z.y + z.h - 30) break;
-    }
-    if (groups.length === 0) {
-      const none = label("no inbound POs", p.muted, 10);
-      none.position.set(z.x + 12, y);
-      this.staticLayer.addChild(none);
-    }
+  private placeRow(list: Sprite[], count: number, row: 0 | 1): void {
+    list.forEach((s, i) => {
+      s.visible = i < count;
+      if (i >= count) return;
+      const spot = breakSpot(row, i);
+      const pt = project(spot.gx, spot.gy);
+      s.position.set(pt.x, pt.y);
+      s.zIndex = zIndex(spot.gx, spot.gy);
+    });
   }
 
-  private drawPickLine(model: WorldViewModel): void {
-    const p = this.palette;
-    const z = ZONES.pick_line;
-    const w = model.workers;
-    const t = label(
-      `${w.onShift} on shift (${w.regular} regular, ${w.temps} temp), ${w.onboarding} onboarding`,
-      p.text,
-      10,
+  private place(tag: Tag, gx: number, gy: number, gz: number): void {
+    const p = project(gx, gy, gz);
+    tag.position.set(p.x, p.y);
+  }
+
+  private applyTags(m: SceneModel): void {
+    const t = this.tags;
+    t.dock.visible = true;
+    this.place(t.dock, 4.6, 1.6, 2.4);
+    if (m.dock.closed) t.dock.set("Dock closed: supplier outage", "crisis");
+    else if (m.dock.openPOs > 0) t.dock.set(`Deliveries on the way: ${m.dock.openPOs}`);
+    else t.dock.set("No deliveries on order", "muted");
+
+    t.orders.visible = true;
+    this.place(t.orders, 19.2, 9.7, 3.3);
+    t.orders.set(`Orders waiting: ${m.queue.length}`, m.disruptions.some((d) => d.kind === "demand_surge") ? "crisis" : "normal");
+    t.ticketsMore.visible = m.queue.more > 0;
+    if (m.queue.more > 0) {
+      this.place(t.ticketsMore, 21.4, 9.7, 3.0);
+      t.ticketsMore.set(`+${m.queue.more} more orders`, "muted");
+    }
+
+    t.packing.visible = m.bottlenecks.waitingForCapacityOrders > 0;
+    if (t.packing.visible) {
+      this.place(t.packing, 11, 10, 2.4);
+      t.packing.set(`Waiting for packing capacity: ${m.bottlenecks.waitingForCapacityOrders}`, "crisis");
+    }
+
+    t.outbound.visible = true;
+    this.place(t.outbound, 19.5, 1, 1.4);
+    t.outbound.set(
+      m.outbound.shippedOrders > 0 ? `Shipped this hour: ${m.outbound.shippedOrders} orders` : "Nothing shipped this hour",
+      "muted",
     );
-    t.position.set(z.x + 8, z.y + 24);
-    this.staticLayer.addChild(t);
-    const cap = model.bottlenecks;
-    const c = label(`capacity ${cap.capacityUsed}/${cap.capacity} u`, p.muted, 10);
-    c.position.set(z.x + 8, z.y + 38);
-    this.staticLayer.addChild(c);
-    if (cap.capacityBoundOrders > 0) {
-      const m = label(`CAPACITY-BOUND ${cap.capacityBoundOrders}`, p.disruption, 10);
-      m.position.set(z.x + z.w - 150, z.y + 6);
-      this.staticLayer.addChild(m);
+    t.vansMore.visible = m.outbound.hiddenVans > 0;
+    if (m.outbound.hiddenVans > 0) {
+      this.place(t.vansMore, 20.5, 8.6, 1.4);
+      t.vansMore.set(`+${m.outbound.hiddenVans} more vans`, "muted");
     }
-  }
 
-  private drawQueueText(model: WorldViewModel): void {
-    const z = ZONES.order_queue;
-    const t = label(`${model.orderQueueLen} open orders`, this.palette.text, 10);
-    t.position.set(z.x + z.w - 120, z.y + 6);
-    this.staticLayer.addChild(t);
-  }
-
-  private drawDisruptions(model: WorldViewModel): void {
-    const p = this.palette;
-    const rowByZone = new Map<ZoneId, number>();
-    for (const d of model.disruptions) {
-      const z = ZONES[d.zone];
-      const edge = new Graphics();
-      edge.roundRect(z.x, z.y, z.w, z.h, 4).stroke({ width: 3, color: p.disruption });
-      edge.alpha = 0.5;
-      this.pulses.push(edge);
-      this.staticLayer.addChild(edge);
-      const row = rowByZone.get(d.zone) ?? 0;
-      rowByZone.set(d.zone, row + 1);
-      const t = label(`${d.label.toUpperCase()}  +${d.ticksSinceOnset} ticks`, p.disruption, 10);
-      t.position.set(z.x + 8, z.y + z.h - 18 - row * 14);
-      this.staticLayer.addChild(t);
+    t.training.visible = m.people.onboarding > 0;
+    if (t.training.visible) {
+      this.place(t.training, 2.2, 10.45, 1.6);
+      t.training.set(`In training: ${m.people.onboarding}`, "muted");
     }
-  }
+    const absent = m.people.absent ?? 0;
+    t.absent.visible = absent > 0;
+    if (absent > 0) {
+      this.place(t.absent, 2.2, 11.95, 1.6);
+      t.absent.set(`Absent: ${absent}`, "crisis");
+    }
+    t.peopleMore.visible = m.people.hiddenOnFloor > 0;
+    if (m.people.hiddenOnFloor > 0) {
+      this.place(t.peopleMore, 15, 12.4, 1.2);
+      t.peopleMore.set(`+${m.people.hiddenOnFloor} more people`, "muted");
+    }
 
-  private drawInterventions(model: WorldViewModel): void {
-    const p = this.palette;
-    model.interventions.forEach((m, i) => {
-      const y = 28 + i * 14;
-      const pin = new Graphics();
-      pin.circle(SCENE_WIDTH - 300, y + 5, 4).fill(m.provenance.startsWith("Human") ? p.human : p.ai);
-      this.staticLayer.addChild(pin);
-      const t = label(`${m.provenance}: ${m.text}`, p.text, 10);
-      t.position.set(SCENE_WIDTH - 290, y);
-      this.staticLayer.addChild(t);
+    t.syncing.visible = m.syncing;
+    if (m.syncing) {
+      const sp = project(11, 14, 0);
+      t.syncing.position.set(sp.x, sp.y + 28);
+      t.syncing.set("Catching up…", "muted");
+    }
+
+    const moves = m.interventions;
+    t.moves.visible = moves.length > 0;
+    if (moves.length > 0) {
+      this.place(t.moves, 11, 0.2, 3.8);
+      t.moves.set(`Your move takes effect: ${moves.map((i) => i.text).join("; ")}`.slice(0, 90), "good");
+    }
+
+    // Disruption captions (three at most).
+    this.disruptionTags.forEach((tag, i) => {
+      const d = m.disruptions[i];
+      const icon = this.warnIcons[i];
+      tag.visible = d !== undefined;
+      if (icon !== undefined) icon.visible = d !== undefined;
+      if (d === undefined || icon === undefined) return;
+      const z = ZONES[ZONE_OF[d.zone]];
+      const anchor = project(z.gx + z.w / 2, z.gy + z.h - 0.4 - i * 0.2, 0.2);
+      tag.position.set(anchor.x + 10, anchor.y - 30 * (i + 1) + 14);
+      icon.position.set(anchor.x - tag.width / 2 + 2, anchor.y - 30 * (i + 1) - 4);
+      tag.set(`${d.title}: ${d.text}`, "crisis");
     });
   }
 
-  private syncMovers(
-    movers: Mover[],
-    layer: Container,
-    count: number,
-    slot: (i: number) => { x: number; y: number },
-    color: number,
-  ): void {
-    while (movers.length > count) {
-      const m = movers.pop();
-      m?.g.destroy();
+  /* ---------- events ---------- */
+
+  private playEvents(m: SceneModel, prev: SceneModel | null, f: number): void {
+    const d = (ms: number): number => Math.max(60, ms * f);
+    let truckSlot = 0;
+    const shipment = m.events.find((e): e is Extract<SceneEvent, { kind: "shipment" }> => e.kind === "shipment");
+
+    // Vans from the previous hour leave; this hour's vans pull in.
+    const leaving = prev?.outbound.vans ?? 0;
+    for (let k = 0; k < leaving; k++) this.vanDeparts(k, d(BASE.vanOut), 0);
+    if (shipment !== undefined) {
+      for (let k = 0; k < shipment.vans; k++) {
+        const van = this.parkedVans[k];
+        const b = vanBay(k);
+        if (van === undefined) continue;
+        van.alpha = 0;
+        this.tweens.add({
+          delay: d(BASE.vanOut) * 0.6,
+          dur: d(BASE.slide) * 2,
+          tag: van,
+          apply: (t) => {
+            const e = easeOut(t);
+            const pt = project(b.gx - (1 - e) * 2.5, b.gy);
+            van.position.set(pt.x, pt.y);
+            van.alpha = e;
+          },
+          onStart: () => {
+            van.visible = true;
+            van.alpha = 0;
+          },
+        });
+      }
     }
-    while (movers.length < count) {
-      const i = movers.length;
-      const g = new Graphics();
-      g.circle(0, 0, 6).fill(color);
-      const s = slot(i);
-      g.position.set(s.x, s.y);
-      layer.addChild(g);
-      movers.push({ g, tx: s.x, ty: s.y });
+
+    let pick = 0;
+    for (const e of m.events) {
+      switch (e.kind) {
+        case "delivery": {
+          const rackIdx = m.racks.findIndex((r) => r.sku === e.sku);
+          for (let i = 0; i < e.trucks && truckSlot < MAX_TRUCKS; i++, truckSlot++) {
+            this.truckVisit(truckSlot, f, i === 0 ? { rackIdx, rackCount: m.racks.length, boxes: e.boxes, style: m.racks[rackIdx]?.styleIndex ?? 0 } : null);
+          }
+          break;
+        }
+        case "stock_picked": {
+          const rackIdx = m.racks.findIndex((r) => r.sku === e.sku);
+          if (rackIdx < 0) break;
+          const vanCount = Math.max(1, m.outbound.vans);
+          for (let i = 0; i < e.boxes; i++, pick++) {
+            const bay = vanBay(pick % vanCount);
+            const ro = rackOrigin(rackIdx, m.racks.length);
+            const path: Pt[] = [
+              project(ro.gx + 1.9, ro.gy + RACK_D + 0.1, 1.4),
+              project(ro.gx + 1.9, CONVEYOR_GY + 0.25, 0.9),
+              project(16.2, CONVEYOR_GY + 0.25, 0.9),
+              project(bay.gx + 0.8, bay.gy + 0.5, 1.2),
+            ];
+            this.flyBox(m.racks[rackIdx]?.styleIndex ?? 0, path, i * d(120), d(BASE.flight));
+          }
+          break;
+        }
+        case "orders_arrived": {
+          const n = Math.min(e.drawn, m.queue.tickets);
+          for (let i = 0; i < n; i++) this.ticketSlides(m.queue.tickets - 1 - i, i, d(BASE.slide));
+          break;
+        }
+        case "disruption_onset": {
+          const kind = m.disruptions.find((x) => x.kind === e.disruption);
+          const flash = kind === undefined ? undefined : this.zoneFlash.get(ZONE_OF[kind.zone]);
+          if (flash !== undefined) {
+            this.tweens.add({ delay: 0, dur: d(BASE.flash), tag: flash, apply: (t) => (flash.alpha = 1 - t), onStart: () => (flash.alpha = 1), onEnd: () => (flash.alpha = 0) });
+          }
+          break;
+        }
+        case "shipment":
+          break;
+      }
     }
-    movers.forEach((m, i) => {
-      const s = slot(i);
-      m.tx = s.x;
-      m.ty = s.y;
+  }
+
+  private vanDeparts(k: number, dur: number, delay: number): void {
+    const van = this.leavingVans[k];
+    if (van === undefined) return;
+    const b = vanBay(k);
+    this.tweens.finish(van);
+    this.tweens.add({
+      delay,
+      dur,
+      tag: van,
+      apply: (t) => {
+        const gx = b.gx + (VAN_EXIT_GX - b.gx) * easeInOut(t);
+        const pt = project(gx, b.gy);
+        van.position.set(pt.x, pt.y);
+        van.zIndex = zIndex(gx + VAN_W, b.gy + VAN_D);
+      },
+      onStart: () => (van.visible = true),
+      onEnd: () => (van.visible = false),
     });
   }
 
-  private snap(): void {
-    for (const m of [...this.workers, ...this.queue]) m.g.position.set(m.tx, m.ty);
-    for (const g of this.pulses) g.alpha = 0.5;
+  private truckVisit(slot: number, f: number, cargo: { rackIdx: number; rackCount: number; boxes: number; style: number } | null): void {
+    const truck = this.trucks[slot];
+    if (truck === undefined) return;
+    const bay = truckBay(slot);
+    const tin = Math.max(80, BASE.truckIn * f);
+    const unload = Math.max(80, BASE.unload * f);
+    const tout = Math.max(80, BASE.truckOut * f);
+    this.tweens.finish(truck);
+    const setPos = (gy: number): void => {
+      const pt = project(bay.gx, gy);
+      truck.position.set(pt.x, pt.y);
+      truck.zIndex = zIndex(bay.gx + TRUCK_W, gy + TRUCK_LEN);
+    };
+    this.tweens.add({
+      delay: slot * 80,
+      dur: tin,
+      tag: truck,
+      apply: (t) => setPos(TRUCK_START_GY + (bay.gy - TRUCK_START_GY) * easeOut(t)),
+      onStart: () => (truck.visible = true),
+    });
+    this.tweens.add({ delay: slot * 80 + tin + unload, dur: tout, tag: truck, apply: (t) => setPos(bay.gy + (TRUCK_START_GY - bay.gy) * easeInOut(t)), onEnd: () => (truck.visible = false) });
+    if (cargo !== null && cargo.rackIdx >= 0) {
+      const ro = rackOrigin(cargo.rackIdx, cargo.rackCount);
+      for (let i = 0; i < cargo.boxes; i++) {
+        const path: Pt[] = [
+          project(bay.gx + TRUCK_W - 0.1, bay.gy + TRUCK_LEN - 0.6, 1.0),
+          project(5.9, bay.gy + 1.2, 1.4),
+          project(ro.gx + 0.4 + (i % 3) * 0.5, ro.gy + RACK_D + 0.2, 1.4),
+        ];
+        this.flyBox(cargo.style, path, slot * 80 + tin + (i * unload) / Math.max(1, cargo.boxes), unload * 1.4);
+      }
+    }
   }
 
-  private animate(t: Ticker): void {
-    if (this.reducedMotion) return;
-    this.elapsed += t.deltaMS;
-    const k = Math.min(1, t.deltaMS / 180);
-    for (const m of [...this.workers, ...this.queue]) {
-      m.g.x += (m.tx - m.g.x) * k;
-      m.g.y += (m.ty - m.g.y) * k;
+  private flyBox(style: number, path: Pt[], delay: number, dur: number): void {
+    const s = this.flyers.acquire();
+    const tex = this.boxTex[style % this.boxTex.length];
+    if (s === null || tex === undefined || path.length < 2) return;
+    s.texture = tex.texture;
+    s.pivot.set(tex.pivotX, tex.pivotY);
+    const segs = path.length - 1;
+    this.tweens.add({
+      delay,
+      dur,
+      tag: s,
+      apply: (t) => {
+        const u = easeInOut(t) * segs;
+        const i = Math.min(segs - 1, Math.floor(u));
+        const a = path[i];
+        const b = path[i + 1];
+        if (a === undefined || b === undefined) return;
+        const k = u - i;
+        s.position.set(a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k - Math.sin(Math.PI * k) * 12);
+        s.zIndex = 99999;
+      },
+      onStart: () => (s.visible = true),
+      onEnd: () => {
+        s.visible = false;
+        this.flyers.release(s);
+      },
+    });
+  }
+
+  private ticketSlides(index: number, order: number, dur: number): void {
+    const t = this.tickets[index];
+    if (t === undefined) return;
+    const home = { x: t.x, y: t.y };
+    t.alpha = 0;
+    this.tweens.add({
+      delay: order * dur * 0.4,
+      dur: dur * 1.5,
+      tag: t,
+      apply: (k) => {
+        const e = easeOut(k);
+        t.position.set(home.x + (1 - e) * 220, home.y - (1 - e) * 110);
+        t.alpha = e;
+      },
+      onStart: () => (t.alpha = 0),
+      onEnd: () => {
+        t.position.set(home.x, home.y);
+        t.alpha = 1;
+      },
+    });
+  }
+
+  private hideActors(): void {
+    for (const v of this.leavingVans) v.visible = false;
+    for (const t of this.trucks) t.visible = false;
+    for (const s of this.flyers.all()) s.visible = false;
+    this.flyers.releaseAll();
+    for (const f of this.zoneFlash.values()) f.alpha = 0;
+    this.tickets.forEach((t) => (t.alpha = 1));
+    this.parkedVans.forEach((v) => (v.alpha = 1));
+    if (this.model !== null) {
+      // Restore resting positions that a cancelled tween may have moved.
+      this.applyState(this.model);
     }
-    const a = 0.5 + 0.3 * Math.sin(this.elapsed / 300);
-    for (const g of this.pulses) g.alpha = a;
+  }
+
+  /* ---------- ambient and loop ---------- */
+
+  private ambientNeeded(): boolean {
+    if (this.reduced || this.model === null) return false;
+    return this.figures.some((f) => f.sprite.visible) || this.disruptionZones.size > 0 || this.lightsCrisis;
+  }
+
+  /** Static (or reduced-motion) ambient values; the loop overwrites them while running. */
+  private applyAmbient(force = false): void {
+    const bobStep = this.reduced ? 0 : Math.floor(this.clock / 500);
+    this.figures.forEach((f, i) => {
+      if (f.sprite.visible && f.bob) f.sprite.y = f.baseY - (this.reduced ? 0 : (bobStep + i) % 2) * 1.5;
+    });
+    const wave = this.reduced || !force ? 1 : 0.5 + 0.5 * Math.sin((this.clock / 1000) * Math.PI * 2);
+    const alpha = this.reduced ? 0.7 : 0.45 + 0.4 * wave;
+    for (const [name, g] of this.zoneOutline) {
+      g.visible = this.disruptionZones.has(name);
+      g.alpha = alpha;
+    }
+    this.lights.forEach((l, k) => {
+      const lit = this.stationLit[k] === true;
+      drawLightIfChanged(l, lit ? (this.lightsCrisis ? PALETTE.clay : PALETTE.sage) : PALETTE.edge);
+      l.alpha = lit && this.lightsCrisis ? alpha + 0.15 : lit ? 1 : 0.5;
+    });
+  }
+
+  private ensureLoop(): void {
+    if (this.destroyed) return;
+    const need = this.active && (this.tweens.active || this.ambientNeeded());
+    this.app.ticker.maxFPS = this.tweens.active ? 0 : 12;
+    if (need) {
+      if (!this.app.ticker.started) this.app.ticker.start();
+    } else if (this.app.ticker.started) {
+      this.app.ticker.stop();
+    }
+  }
+
+  private tick(t: Ticker): void {
+    if (this.destroyed) return;
+    this.clock += t.deltaMS;
+    this.tweens.step(t.deltaMS);
+    this.applyAmbient(true);
+    if (!this.active || !(this.tweens.active || this.ambientNeeded())) {
+      this.app.ticker.stop();
+      this.renderNow();
+    }
+  }
+
+  private renderNow(): void {
+    if (this.destroyed || !this.active) return;
+    if (!this.app.ticker.started) this.app.render();
   }
 }
+
+const lightColors = new WeakMap<Graphics, number>();
+function drawLightIfChanged(g: Graphics, color: number): void {
+  if (lightColors.get(g) === color) return;
+  lightColors.set(g, color);
+  drawLight(g, color);
+}
+

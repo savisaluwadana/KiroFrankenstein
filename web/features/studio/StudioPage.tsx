@@ -1,14 +1,23 @@
 "use client";
 
 /**
- * The world page: HUD and playback on top, Branch_Tree on the left, diorama in
- * the centre, context panel on the right and Timeline at the bottom
- * (ui-design-system.md). Every figure comes from an API response; this page
- * only wires the feature components to the studio and playback stores.
+ * The studio. The warehouse is the page: a compact header of plain-language
+ * figures on top, the isometric warehouse in the centre, a rail of crisis and
+ * decision cards on the right (a bottom sheet on phones), and a time strip
+ * with playback controls below. Every figure comes from an API response; this
+ * page only wires the feature components to the studio and playback stores.
+ *
+ * `StagePane` renders one reality's warehouse; the comparison view renders two
+ * of them side by side in its place, keeping the header, rail and one shared
+ * time strip and playback.
  */
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import {
+  ApiError,
+  advanceBranch,
+  getBranch,
   getBranchMetrics,
   getBranchState,
   getWorld,
@@ -22,17 +31,42 @@ import {
   type SubmitCommandsResult,
   type World,
 } from "@/lib/api/client";
-import { BranchTree } from "@/features/branches/BranchTree";
 import { ForkButton } from "@/features/branches/ForkButton";
-import { DecisionPanel } from "@/features/decisions/DecisionPanel";
+import { ForkSequence } from "@/features/branches/ForkSequence";
+import {
+  INITIAL_FORK_SEQUENCE,
+  forkSequenceReducer,
+  prefersReducedMotion,
+} from "@/features/branches/forkSequenceMachine";
+import { RealityBadge, laneFor, laneIndexOf, orderBranches, realityName } from "@/features/branches/lanes";
+import { RealitySwitcher } from "@/features/branches/RealitySwitcher";
+import { DecisionPanel, type Prefill, type Suggestion } from "@/features/decisions/DecisionPanel";
+import { EngineeringDrawer } from "@/features/engineering/EngineeringDrawer";
+import { EngineeringToggle } from "@/features/engineering/EngineeringToggle";
 import { ConnectedTimeline, type TimelineInput } from "@/features/timeline/Timeline";
-import { DISCLAIMER_TEXT, Hud } from "@/features/world-view/Hud";
+import { Hud, type MoneyFigure } from "@/features/world-view/Hud";
 import { PlaybackControls, usePlaybackKeybindings } from "@/features/world-view/PlaybackControls";
-import { maxOnHandSeen, type Intervention } from "@/features/world-view/scene/worldViewModel";
-import { WorldView } from "@/features/world-view/WorldView";
+import type { Intervention } from "@/features/world-view/scene/worldViewModel";
+import {
+  DISCLAIMER_FULL,
+  TERMS,
+  formatCount,
+  formatMoney,
+  formatSimTime,
+  productName,
+  supplierRoleName,
+} from "@/lib/glossary";
 import { usePlaybackStore } from "@/stores/playback";
 import { selectActiveBranch, selectDisplayedFrame, useStudioStore } from "@/stores/studio";
+import { useUiStore } from "@/stores/ui";
+import { AssumptionsPanel } from "./AssumptionsPanel";
+import { CrisisCards } from "./CrisisCards";
+import { deriveCrisisCards, type CrisisAction } from "./crisis";
+import { LedgerPanel } from "./LedgerPanel";
 import { loadDemoPlan } from "./demoPlanStorage";
+import { advanceRequestFor, defaultPartnerId, divergenceTick } from "./comparison";
+import { ComparisonView } from "./ComparisonView";
+import { StagePane } from "./StagePane";
 
 /** Largest frame range the API serves per request. */
 const FRAME_CHUNK = 240;
@@ -59,76 +93,15 @@ async function ensureFrames(branchId: string, head: number): Promise<void> {
   }
 }
 
-function describeCommand(a: AcceptedCommand): string {
+/** One accepted move as a sentence. Never shows product indexes. */
+function describeCommand(a: AcceptedCommand, names: readonly string[]): string {
   const c = a.command;
-  const parts: string[] = [c.kind];
-  if (c.sku !== undefined) parts.push(`SKU ${c.sku}`);
-  if (c.qty !== undefined) parts.push(`${c.qty} units`);
-  if (c.role !== undefined) parts.push(c.role);
-  return parts.join(", ");
-}
-
-function AssumptionsPanel({ world }: { world: World }) {
-  return (
-    <section aria-label="Assumptions" className="space-y-3 text-sm text-[#E6E9EF]">
-      <h2 className="text-base font-medium">Assumptions</h2>
-      <p className="text-xs text-[#8A93A6]">
-        Effective values for this world, with the allowed range and the rationale. Money is in cents and rates are in
-        basis points unless the unit says otherwise.
-      </p>
-      <ul className="space-y-2">
-        {world.assumptions.map((a) => (
-          <li key={a.path} className="border-t border-[#232B3A] pt-2" data-testid="assumption">
-            <div className="font-mono text-xs text-[#E6E9EF]">{a.path}</div>
-            <div className="font-mono text-xs tabular-nums">
-              {a.value} {a.unit}
-              {a.overridden ? ` (default ${a.default})` : ""} · range {a.min} to {a.max}
-            </div>
-            <div className="text-xs text-[#8A93A6]">{a.rationale}</div>
-          </li>
-        ))}
-      </ul>
-      <p className="text-xs text-[#8A93A6]">{DISCLAIMER_TEXT}</p>
-    </section>
-  );
-}
-
-function PlanHint({ plan, onGoToFork }: { plan: DemoPlan; onGoToFork: () => void }) {
-  return (
-    <section
-      aria-label="Demo plan hint"
-      className="space-y-1 rounded-[4px] border border-[#232B3A] bg-[#0B0E14] p-2 text-xs"
-      data-testid="plan-hint"
-    >
-      <h3 className="font-medium text-[#E6E9EF]">Demo plan hint</h3>
-      <p className="text-[#8A93A6]">
-        A suggestion computed by the server from the no-command run. It is not a guaranteed good decision.
-      </p>
-      <p className="font-mono tabular-nums text-[#E6E9EF]">Fork at tick {plan.forkTick}</p>
-      <ul className="font-mono tabular-nums text-[#E6E9EF]">
-        {plan.commands.map((c, i) => (
-          <li key={i}>
-            Order {c.qty} units of {c.skuId} from the {c.role} supplier
-          </li>
-        ))}
-      </ul>
-      <button
-        type="button"
-        onClick={onGoToFork}
-        className="rounded-[4px] border border-[#232B3A] px-2 py-1 text-[#E6E9EF] hover:border-[#F2A93B] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E6E9EF]"
-      >
-        Show tick {plan.forkTick}
-      </button>
-      <details>
-        <summary className="cursor-pointer text-[#8A93A6]">How the server derived it</summary>
-        <ul className="list-disc pl-4 text-[#8A93A6]">
-          {plan.reasons.map((r, i) => (
-            <li key={i}>{r}</li>
-          ))}
-        </ul>
-      </details>
-    </section>
-  );
+  const product = c.sku !== undefined ? (names[c.sku] ?? "a product") : "";
+  if (c.kind === "place_purchase_order") {
+    return `Ordered ${formatCount(c.qty ?? 0)} ${product} from the ${supplierRoleName(c.role ?? "primary").toLowerCase()}`;
+  }
+  if (c.kind === "set_price") return `Changed ${product} price to ${formatMoney(c.amountCents ?? 0)}`;
+  return "A decision";
 }
 
 interface HeadObservation {
@@ -136,6 +109,8 @@ interface HeadObservation {
   tick: number;
   observation: Observation;
 }
+
+type RailTab = "moves" | "alerts" | "model";
 
 export interface StudioPageProps {
   worldId: string;
@@ -148,21 +123,30 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const [tab, setTab] = useState<"context" | "assumptions">("context");
+  const [tab, setTab] = useState<RailTab>("moves");
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [ledger, setLedger] = useState<MoneyFigure | null>(null);
+  const [prefill, setPrefill] = useState<Prefill | null>(null);
   const [headObs, setHeadObs] = useState<HeadObservation | null>(null);
   const [parentMetrics, setParentMetrics] = useState<MetricsResponse | null>(null);
   const [accepted, setAccepted] = useState<Record<string, AcceptedCommand[]>>({});
   const [plan] = useState<DemoPlan | null>(() => (typeof window === "undefined" ? null : loadDemoPlan(worldId)));
+  const [prevAlert, setPrevAlert] = useState({ window: false, cards: 0 });
+  const [compareWith, setCompareWith] = useState<string | null>(null);
+  const [waiting, setWaiting] = useState<Record<string, number>>({});
+  const [advancingId, setAdvancingId] = useState<string | null>(null);
+  const [forkSeq, dispatchFork] = useReducer(forkSequenceReducer, INITIAL_FORK_SEQUENCE);
   const endedWindows = useRef<Set<string>>(new Set());
   const initialBranchId = useRef(branchId ?? null);
+  const startClockRef = useRef("Thu 00:00");
 
   usePlaybackKeybindings();
+  const engineering = useUiStore((s) => s.engineering);
 
   const active = useStudioStore(selectActiveBranch);
   const branches = useStudioStore((s) => s.branches);
   const activeBranchId = useStudioStore((s) => s.activeBranchId);
   const selectedTick = useStudioStore((s) => s.selectedTick);
-  const horizonTicks = useStudioStore((s) => s.horizonTicks);
   const syncing = useStudioStore((s) => s.syncing);
   const metrics = useStudioStore((s) => s.metrics);
   const openWindowTick = useStudioStore((s) => s.openWindowTick);
@@ -208,7 +192,7 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
     };
   }, [worldId, attempt]);
 
-  // Observation at the head of the active Branch: needed by the Decision_Panel and to detect an open window.
+  // Observation at the head of the active Branch: needed by the decision cards and to detect an open window.
   const headTick = active?.headTick;
   useEffect(() => {
     if (activeBranchId === null || headTick === undefined || world === null) return;
@@ -230,7 +214,7 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
     };
   }, [activeBranchId, headTick, world]);
 
-  // Parent Metrics at the displayed Tick, for forked Branches.
+  // The other reality's Metrics at the displayed hour, for forked Branches.
   const parentId = active?.parentBranchId ?? null;
   const metricsTick = metrics?.tick;
   useEffect(() => {
@@ -259,13 +243,22 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
       return;
     }
     const st = useStudioStore.getState();
+    const previous = st.activeBranchId;
     st.setActiveBranch(id);
+    // Switching to the reality being compared swaps the pair instead of comparing it with itself.
+    setCompareWith((cur) => (cur === id ? previous : cur));
     window.history.replaceState(null, "", `?branch=${encodeURIComponent(id)}`);
     await usePlaybackStore.getState().selectTick(Math.min(st.selectedTick, target.headTick));
   }, []);
 
   const onForked = useCallback(async (child: Branch) => {
     const s = useStudioStore.getState();
+    // The server has returned the new reality: only now does the split sequence start.
+    dispatchFork({
+      type: "server_returned",
+      info: { whenLabel: formatSimTime(child.forkTick, startClockRef.current) },
+      reducedMotion: prefersReducedMotion(),
+    });
     s.upsertBranch(child);
     try {
       await ensureFrames(child.id, child.headTick);
@@ -278,9 +271,75 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
     st.setSelectedTick(child.headTick);
     st.setOpenWindowTick(child.headTick);
     window.history.replaceState(null, "", `?branch=${encodeURIComponent(child.id)}`);
-    setTab("context");
+    setTab("moves");
+    setSheetOpen(true);
     await usePlaybackStore.getState().selectTick(child.headTick);
   }, []);
+
+
+  // Comparison: the other reality shown next to the active one.
+  const partner = compareWith === null ? undefined : branches.find((b) => b.id === compareWith && b.id !== activeBranchId);
+  const partnerId = partner?.id;
+  const partnerHead = partner?.headTick;
+  useEffect(() => {
+    if (partnerId === undefined || partnerHead === undefined) return;
+    let cancelled = false;
+    void ensureFrames(partnerId, partnerHead).catch((e: unknown) => {
+      if (!cancelled) useStudioStore.getState().setError(messageOf(e));
+    });
+    // Is a decision moment open at that reality's head? It is shown, never ended from here.
+    getBranchState(partnerId, partnerHead)
+      .then((st) => {
+        if (cancelled) return;
+        const open = st.observation.window.open && !endedWindows.current.has(`${partnerId}:${partnerHead}`);
+        setWaiting((w) =>
+          open ? { ...w, [partnerId]: partnerHead } : Object.fromEntries(Object.entries(w).filter(([k]) => k !== partnerId)),
+        );
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [partnerId, partnerHead]);
+
+  const startCompare = useCallback(() => {
+    const s = useStudioStore.getState();
+    const cur = s.branches.find((b) => b.id === s.activeBranchId);
+    if (cur) setCompareWith(defaultPartnerId(cur, s.branches));
+  }, []);
+
+  const advancePartner = useCallback(async (id: string) => {
+    const s = useStudioStore.getState();
+    const b = s.branches.find((x) => x.id === id);
+    if (!b) return;
+    const req = advanceRequestFor(b.headTick, s.selectedTick);
+    if (req === null) return;
+    setAdvancingId(id);
+    try {
+      const r = await advanceBranch(id, req);
+      const st = useStudioStore.getState();
+      st.addFrames(id, r.frames);
+      st.setBranchHead(id, r.headTick);
+      if (r.paused === "decision_window") setWaiting((w) => ({ ...w, [id]: r.headTick }));
+    } catch (e) {
+      if (e instanceof ApiError && e.type === "stale-head") {
+        try {
+          const fresh = await getBranch(id);
+          useStudioStore.getState().upsertBranch(fresh);
+          await ensureFrames(id, fresh.headTick);
+        } catch (e2) {
+          useStudioStore.getState().setError(messageOf(e2));
+        }
+      } else {
+        useStudioStore.getState().setError(messageOf(e));
+      }
+    } finally {
+      setAdvancingId(null);
+    }
+  }, []);
+
+  const goToPartnerReality = useCallback((id: string) => void activate(id), [activate]);
+  const onForkDone = useCallback(() => dispatchFork({ type: "skip" }), []);
 
   const onSubmitted = useCallback(
     (result: SubmitCommandsResult) => {
@@ -295,8 +354,46 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
     if (s.activeBranchId !== null && s.openWindowTick !== null) {
       endedWindows.current.add(`${s.activeBranchId}:${s.openWindowTick}`);
     }
+    if (s.activeBranchId !== null) {
+      const id = s.activeBranchId;
+      setWaiting((w) => {
+        return Object.fromEntries(Object.entries(w).filter(([k]) => k !== id));
+      });
+    }
     s.setOpenWindowTick(null);
   }, []);
+
+  const openModelTab = useCallback(() => {
+    setTab("model");
+    setSheetOpen(true);
+  }, []);
+
+  // F jumps to "Explore another future" (it never forks by itself).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent): void {
+      if (e.key !== "f" && e.key !== "F") return;
+      if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+      const t = e.target;
+      if (t instanceof HTMLElement && (["INPUT", "TEXTAREA", "SELECT", "BUTTON", "A"].includes(t.tagName) || t.isContentEditable)) return;
+      e.preventDefault();
+      setTab("moves");
+      setSheetOpen(true);
+      requestAnimationFrame(() => document.getElementById("explore-future")?.focus());
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  const productNames = useMemo(() => {
+    const names: string[] = [];
+    for (const s of world?.scenario.skus ?? []) names[s.index] = productName(s.id);
+    return names;
+  }, [world]);
+  const regularWorkers = world?.assumptions.find((a) => a.path === "workforce.regularWorkers")?.value;
+  const startClock = world?.scenario.startClock ?? "Thu 00:00";
+  useEffect(() => {
+    startClockRef.current = startClock;
+  }, [startClock]);
 
   const acceptedHere = activeBranchId !== null ? (accepted[activeBranchId] ?? []) : [];
   const inputs: TimelineInput[] = acceptedHere.map((a) => ({
@@ -306,34 +403,72 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
   }));
   const interventions: Intervention[] = acceptedHere.map((a) => ({
     tick: a.effectiveTick,
-    text: describeCommand(a),
+    text: describeCommand(a, productNames),
     manager: "human",
   }));
 
-  const stockScaleMax = useMemo(() => {
-    if (frames === undefined) return 0;
-    return maxOnHandSeen(Object.values(frames).filter((f) => f.tick <= selectedTick));
-  }, [frames, selectedTick]);
+  const interventionsFor = (id: string): Intervention[] =>
+    (accepted[id] ?? []).map((a) => ({ tick: a.effectiveTick, text: describeCommand(a, productNames), manager: "human" }));
+
+  const windowOpenHere = active !== undefined && openWindowTick !== null && openWindowTick === active.headTick;
+  const observation =
+    active !== undefined && headObs !== null && headObs.branchId === active.id && headObs.tick === active.headTick
+      ? headObs.observation
+      : null;
+  const atHead = active !== undefined && selectedTick === active.headTick;
+  const canAct = windowOpenHere && atHead && observation !== null;
+
+  const cards = useMemo(
+    () =>
+      frame === undefined
+        ? []
+        : deriveCrisisCards({
+            frame,
+            observation,
+            productNames,
+            regularWorkers,
+            startClock,
+            canAct,
+          }),
+    [frame, observation, productNames, regularWorkers, startClock, canAct],
+  );
+
+  // The sheet opens by itself for a new decision moment or a new alert.
+  if (prevAlert.window !== windowOpenHere || prevAlert.cards !== cards.length) {
+    setPrevAlert({ window: windowOpenHere, cards: cards.length });
+    if ((windowOpenHere && !prevAlert.window) || cards.length > prevAlert.cards) setSheetOpen(true);
+  }
+
+  const onCrisisAction = useCallback((a: CrisisAction) => {
+    setPrefill((p) => ({
+      nonce: (p?.nonce ?? 0) + 1,
+      kind: a.kind,
+      skuIndex: a.skuIndex,
+      ...(a.role !== undefined ? { role: a.role } : {}),
+    }));
+    setTab("moves");
+    setSheetOpen(true);
+  }, []);
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#0B0E14] text-[#8A93A6]">
-        <p role="status" className="font-mono text-sm">
-          Loading world…
+      <main className="flex min-h-screen items-center justify-center bg-ink text-ivory-dim">
+        <p role="status" className="text-sm">
+          Opening your business…
         </p>
       </main>
     );
   }
   if (loadError !== null || world === null || active === undefined) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center gap-3 bg-[#0B0E14] text-[#E6E9EF]">
-        <p role="alert" className="max-w-xl text-sm text-[#FF7A7A]">
+      <main className="flex min-h-screen flex-col items-center justify-center gap-3 bg-ink text-ivory">
+        <p role="alert" className="max-w-xl text-sm text-clay">
           {loadError ?? "The world could not be opened."}
         </p>
         <div className="flex gap-2 text-sm">
           <button
             type="button"
-            className="rounded-[4px] border border-[#232B3A] px-3 py-1 hover:border-[#F2A93B] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E6E9EF]"
+            className="min-h-11 rounded-[4px] border border-hairline px-3 hover:border-amber"
             onClick={() => {
               setLoadError(null);
               setLoading(true);
@@ -342,10 +477,7 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
           >
             Retry
           </button>
-          <Link
-            href="/"
-            className="rounded-[4px] border border-[#232B3A] px-3 py-1 hover:border-[#F2A93B] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E6E9EF]"
-          >
+          <Link href="/" className="inline-flex min-h-11 items-center rounded-[4px] border border-hairline px-3 hover:border-amber">
             Back to start
           </Link>
         </div>
@@ -353,46 +485,116 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
     );
   }
 
-  const windowOpenHere = openWindowTick !== null && openWindowTick === active.headTick;
-  const observation = headObs !== null && headObs.branchId === active.id && headObs.tick === active.headTick ? headObs.observation : null;
-  const atHead = selectedTick === active.headTick;
-  const tabBtn = (id: "context" | "assumptions", label: string) => (
+  const parent = parentId !== null ? branches.find((b) => b.id === parentId) : undefined;
+  const parentLabel = parent === undefined ? undefined : parent.parentBranchId === null ? TERMS.originalPath : parent.label;
+  const childCount = branches.filter((b) => b.parentBranchId !== null).length;
+  const suggestionCommand = plan !== null && selectedTick >= plan.forkTick ? plan.commands[0] : undefined;
+  const suggestion: Suggestion | null =
+    suggestionCommand !== undefined
+      ? { skuIndex: suggestionCommand.skuIndex, role: suggestionCommand.role, qty: suggestionCommand.qty }
+      : null;
+  const sharedUpTo =
+    partner !== undefined ? (divergenceTick(active, partner, branches) ?? undefined) : active.parentBranchId !== null ? active.forkTick : undefined;
+
+  const tabBtn = (id: RailTab, label: string, hideOnDesktop = false) => (
     <button
       type="button"
       role="tab"
       aria-selected={tab === id}
-      onClick={() => setTab(id)}
-      className={`rounded-[4px] border px-2 py-1 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E6E9EF] ${
-        tab === id ? "border-[#F2A93B] text-[#F2A93B]" : "border-[#232B3A] text-[#8A93A6]"
+      onClick={() => {
+        setTab(id);
+        setSheetOpen(true);
+      }}
+      className={`min-h-11 rounded-[4px] border px-3 text-sm whitespace-nowrap max-[768px]:px-2 max-[768px]:text-xs ${hideOnDesktop ? "min-[769px]:hidden" : ""} ${
+        tab === id ? "border-amber text-amber" : "border-hairline text-ivory-dim"
       }`}
     >
       {label}
     </button>
   );
 
+  const panelClass = (id: RailTab): string => {
+    if (id === "alerts") return tab === "alerts" ? "" : tab === "moves" ? "max-[768px]:hidden" : "hidden";
+    return tab === id ? "" : "hidden";
+  };
+
   return (
-    <main className="flex min-h-screen flex-col gap-2 bg-[#0B0E14] p-2 font-sans text-[#E6E9EF]">
+    <main className={`flex min-h-screen flex-col gap-3 bg-ink p-3 font-sans text-ivory min-[769px]:pb-3 ${sheetOpen ? "pb-[40vh]" : "pb-20"}`}>
       <header className="flex flex-col gap-2">
-        <div className="flex items-baseline justify-between gap-4">
-          <h1 className="text-sm">
-            <Link href="/" className="text-[#8A93A6] hover:text-[#E6E9EF]">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h1 className="flex items-baseline gap-3">
+            <Link href="/" className="text-sm text-ivory-dim hover:text-ivory">
               Parallel
-            </Link>{" "}
-            <span className="text-[#E6E9EF]">{world.name}</span>{" "}
-            <span className="text-[#8A93A6]">· {active.label}</span>
+            </Link>
+            <span className="font-display text-xl">{world.name}</span>
           </h1>
-          <span className="font-mono text-xs text-[#8A93A6]" aria-live="polite" data-testid="syncing-indicator">
-            {syncing ? "syncing" : ""}
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            {branches.length > 1 ? (
+              <div className={partner !== undefined ? "max-[768px]:hidden" : ""}>
+              <RealitySwitcher
+                label="Which future you are looking at"
+                activeId={active.id}
+                onSelect={(id) => void activate(id)}
+                items={orderBranches(branches).map((b, i) => ({ id: b.id, label: realityName(b), laneIndex: i }))}
+              />
+              </div>
+            ) : null}
+            {branches.length > 1 ? (
+              <button
+                type="button"
+                aria-pressed={partner !== undefined}
+                onClick={() => (partner !== undefined ? setCompareWith(null) : startCompare())}
+                className={`min-h-11 rounded-[4px] border px-3 text-sm ${
+                  partner !== undefined ? "border-amber text-amber" : "border-hairline text-ivory-dim hover:text-ivory"
+                }`}
+              >
+                {partner !== undefined ? "Back to one view" : "Compare futures"}
+              </button>
+            ) : null}
+            {partner !== undefined && branches.length > 2 ? (
+              <label className="flex items-center gap-1 text-xs text-ivory-dim">
+                Compare with
+                <select
+                  value={partner.id}
+                  onChange={(e) => setCompareWith(e.target.value)}
+                  className="min-h-11 rounded-[4px] border border-hairline bg-ink px-2 text-sm text-ivory"
+                >
+                  {orderBranches(branches)
+                    .filter((b) => b.id !== active.id)
+                    .map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {realityName(b)}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            ) : null}
+            <span className="text-xs text-ivory-dim" aria-live="polite" data-testid="syncing-indicator">
+              {syncing ? "Updating…" : ""}
+            </span>
+            <EngineeringToggle />
+          </div>
         </div>
-        <Hud metrics={metrics} parentMetrics={parentId !== null ? parentMetrics : null} {...(parentId !== null ? { parentLabel: branches.find((b) => b.id === parentId)?.label ?? "parent" } : {})} syncing={syncing} tick={selectedTick} />
-        <PlaybackControls />
+        <Hud
+          metrics={metrics}
+          parentMetrics={parentId !== null && partner === undefined ? parentMetrics : null}
+          {...(parentLabel !== undefined ? { parentLabel } : {})}
+          syncing={syncing}
+          tick={selectedTick}
+          startClock={startClock}
+          engineering={engineering}
+          onMoneyClick={(f) => {
+            setLedger(f);
+            setTab("moves");
+            setSheetOpen(true);
+          }}
+        />
         {error !== null ? (
-          <div role="alert" className="flex items-center justify-between rounded-[4px] border border-[#FF5C5C] px-3 py-1 text-xs text-[#FF7A7A]">
+          <div role="alert" className="flex items-center justify-between rounded-[4px] border border-clay px-3 py-1 text-sm text-clay">
             <span>{error}</span>
             <button
               type="button"
-              className="underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E6E9EF]"
+              className="min-h-11 underline"
               onClick={() => useStudioStore.getState().setError(null)}
             >
               Dismiss
@@ -401,74 +603,181 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
         ) : null}
       </header>
 
-      <div className="grid flex-1 grid-cols-1 gap-2 lg:grid-cols-[18rem_minmax(0,1fr)_24rem]">
-        <aside aria-label="Branches" className="flex flex-col gap-2">
-          <div className="h-72 rounded-[4px] border border-[#232B3A] bg-[#121722]">
-            <BranchTree branches={branches} activeBranchId={activeBranchId} onSelect={(id) => void activate(id)} />
-          </div>
-          <ForkButton
-            branchId={active.id}
-            tick={selectedTick}
-            headTick={active.headTick}
-            onForked={(b) => void onForked(b)}
-          />
-        </aside>
-
-        <section aria-label="World view" className="flex flex-col gap-2">
-          <WorldView
-            frame={frame ?? null}
-            syncing={syncing}
-            interventions={interventions}
-            {...(stockScaleMax > 0 ? { stockScaleMax } : {})}
-          />
-          <p className="text-xs text-[#8A93A6]" data-testid="world-disclaimer">
-            {DISCLAIMER_TEXT}
-          </p>
-        </section>
-
-        <aside aria-label="Context panel" className="flex flex-col gap-2 rounded-[4px] border border-[#232B3A] bg-[#121722] p-3">
-          <div role="tablist" aria-label="Context panel" className="flex gap-1">
-            {tabBtn("context", "Decisions")}
-            {tabBtn("assumptions", "Assumptions")}
-          </div>
-          {tab === "assumptions" ? (
-            <AssumptionsPanel world={world} />
+      <div className="grid flex-1 grid-cols-1 gap-3 min-[769px]:grid-cols-[minmax(0,1fr)_22.5rem]">
+        <section aria-label="Your warehouse" className="relative flex min-w-0 flex-col gap-2">
+          {partner !== undefined ? (
+            (() => {
+              const [left, right] =
+                laneIndexOf(branches, active.id) <= laneIndexOf(branches, partner.id) ? [active, partner] : [partner, active];
+              return (
+                <ComparisonView
+                  left={left}
+                  right={right}
+                  branches={branches}
+                  startClock={startClock}
+                  productNames={productNames}
+                  regularWorkers={regularWorkers}
+                  interventionsFor={interventionsFor}
+                  engineering={engineering}
+                  waiting={waiting}
+                  advancingId={advancingId}
+                  onAdvance={(id) => void advancePartner(id)}
+                  onGoTo={goToPartnerReality}
+                />
+              );
+            })()
           ) : (
             <>
-              {plan !== null ? (
-                <PlanHint
-                  plan={plan}
-                  onGoToFork={() => void usePlaybackStore.getState().selectTick(plan.forkTick)}
-                />
+              <StagePane
+                frame={frame ?? null}
+                syncing={syncing}
+                branchKey={active.id}
+                productNames={productNames}
+                regularWorkers={regularWorkers}
+                interventions={interventions}
+              />
+              {branches.length > 1 ? (
+                <div className="pointer-events-none absolute left-2 top-2 z-[5]">
+                  <RealityBadge name={realityName(active)} lane={laneFor(laneIndexOf(branches, active.id))} />
+                </div>
               ) : null}
-              {windowOpenHere && observation !== null && atHead ? (
-                <DecisionPanel
-                  key={`${active.id}:${active.headTick}`}
-                  observation={observation}
-                  windowTick={active.headTick}
-                  branchId={active.id}
-                  budgetRemaining={observation.window.commandBudget}
-                  onSubmitted={onSubmitted}
-                  onWindowEnded={onWindowEnded}
-                />
-              ) : windowOpenHere ? (
-                <p className="text-sm text-[#8A93A6]" data-testid="window-elsewhere">
-                  A decision window is open at tick {active.headTick}. Show that tick to act.
-                </p>
-              ) : (
-                <p className="text-sm text-[#8A93A6]" data-testid="no-window">
-                  No decision window is open on this branch. Play to the next window, or fork to decide differently.
-                </p>
-              )}
             </>
           )}
+          <ForkSequence state={forkSeq} onDone={onForkDone} />
+        </section>
+
+        <aside
+          aria-label="Your move and alerts"
+          className="rounded-[8px] border border-hairline bg-raised max-[768px]:fixed max-[768px]:inset-x-0 max-[768px]:bottom-0 max-[768px]:z-20 max-[768px]:rounded-b-none"
+        >
+          <div className="flex items-center gap-1 p-2 min-[769px]:flex-wrap">
+            <button
+              type="button"
+              aria-expanded={sheetOpen}
+              aria-controls="rail-content"
+              onClick={() => setSheetOpen((o) => !o)}
+              className="inline-flex min-h-11 items-center gap-2 rounded-[4px] border border-hairline px-3 text-sm min-[769px]:hidden"
+            >
+              {sheetOpen ? <ChevronDown aria-hidden size={18} /> : <ChevronUp aria-hidden size={18} />}
+              <span className="max-[768px]:sr-only">{sheetOpen ? "Hide" : "Show"} your move</span>
+              {cards.length > 0 ? (
+                <span className="rounded-full bg-clay px-2 text-xs font-semibold text-ink" data-testid="alert-badge">
+                  {cards.length}
+                </span>
+              ) : null}
+            </button>
+            <div role="tablist" aria-label="Rail" className="flex gap-1 min-[769px]:flex-wrap">
+              {tabBtn("moves", TERMS.yourMove)}
+              {tabBtn("alerts", cards.length > 0 ? `Alerts (${cards.length})` : "Alerts", true)}
+              {tabBtn("model", TERMS.assumptions)}
+            </div>
+          </div>
+          <div
+            id="rail-content"
+            className={`space-y-4 overflow-y-auto p-3 pt-1 max-[768px]:max-h-[30vh] min-[769px]:max-h-[36rem] ${
+              sheetOpen ? "" : "max-[768px]:hidden"
+            }`}
+          >
+            {ledger !== null ? (
+              <LedgerPanel
+                branchId={active.id}
+                tick={selectedTick}
+                title="Where this number comes from"
+                startClock={startClock}
+                engineering={engineering}
+                {...(ledger === "cash" ? { account: "Cash" as const } : {})}
+                onClose={() => setLedger(null)}
+              />
+            ) : (
+              <>
+                <div className={panelClass("alerts")} role="tabpanel" aria-label="Alerts">
+                  <CrisisCards cards={cards} canAct={canAct} onAction={onCrisisAction} />
+                </div>
+                <div className={`space-y-4 ${panelClass("moves")}`} role="tabpanel" aria-label={TERMS.yourMove}>
+                  {canAct && observation !== null ? (
+                    <DecisionPanel
+                      key={`${active.id}:${active.headTick}`}
+                      observation={observation}
+                      windowTick={active.headTick}
+                      branchId={active.id}
+                      budgetRemaining={observation.window.commandBudget}
+                      startClock={startClock}
+                      suggestion={suggestion}
+                      prefill={prefill}
+                      onSubmitted={onSubmitted}
+                      onWindowEnded={onWindowEnded}
+                    />
+                  ) : windowOpenHere ? (
+                    <div className="space-y-2 text-sm" data-testid="window-elsewhere">
+                      <p className="text-ivory-dim">
+                        A decision moment is open at {formatSimTime(active.headTick, startClock)}. Show that hour to
+                        make your move.
+                      </p>
+                      <button
+                        type="button"
+                        className="min-h-11 rounded-[4px] border border-amber px-3 text-amber"
+                        onClick={() => void usePlaybackStore.getState().selectTick(active.headTick)}
+                      >
+                        Go to that hour
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-ivory-dim" data-testid="no-window">
+                      No decision is needed right now. Press Play, or skip to your next move.
+                    </p>
+                  )}
+                  <ForkButton
+                    key={active.id}
+                    branchId={active.id}
+                    tick={selectedTick}
+                    headTick={active.headTick}
+                    defaultLabel={TERMS.alternativeFuture(childCount + 1)}
+                    whenLabel={formatSimTime(selectedTick, startClock)}
+                    onForked={(b) => void onForked(b)}
+                  />
+                </div>
+                <div className={panelClass("model")} role="tabpanel" aria-label={TERMS.assumptions}>
+                  <AssumptionsPanel world={world} />
+                </div>
+              </>
+            )}
+          </div>
         </aside>
       </div>
 
-      <ConnectedTimeline inputs={inputs} />
-      <p className="text-center font-mono text-[10px] text-[#8A93A6]">
-        Horizon {horizonTicks} ticks · inputs shown are those submitted in this session
-      </p>
+      <div className="space-y-2">
+        <PlaybackControls />
+        <ConnectedTimeline
+          inputs={inputs}
+          startClock={startClock}
+          engineering={engineering}
+          {...(sharedUpTo !== undefined ? { sharedUpTo } : {})}
+        />
+      </div>
+
+      {engineering ? (
+        <EngineeringDrawer
+          world={world}
+          branch={active}
+          branches={branches}
+          tick={selectedTick}
+          frame={frame ?? null}
+          frames={frames}
+          metrics={metrics}
+          observation={observation}
+          plan={plan}
+          accepted={acceptedHere}
+          onSelectBranch={(id) => void activate(id)}
+          onGoToTick={(t) => void usePlaybackStore.getState().selectTick(t)}
+        />
+      ) : null}
+
+      <footer className="flex flex-wrap items-center justify-between gap-2 text-xs text-ivory-dim">
+        <p data-testid="world-disclaimer">{DISCLAIMER_FULL}</p>
+        <button type="button" onClick={openModelTab} className="min-h-11 underline">
+          {TERMS.assumptions}
+        </button>
+      </footer>
     </main>
   );
 }

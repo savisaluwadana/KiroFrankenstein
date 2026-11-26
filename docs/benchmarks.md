@@ -90,3 +90,15 @@ Counts run (`go test ./internal/sim -run TestFlagshipReplayCounts -v -count=1`):
 ```
 bench_test.go:55: seed=2026 ticks=120 outcomes=11385 ledger_entries=3041 event_seq=726 hash=96e7d8d94bc1b3d0e81598272df984b0e0afe86c8e848bc34275781b513bce08
 ```
+
+
+## Warehouse canvas frame times (browser, measured)
+
+Method: `web/e2e/setup-and-perf.spec.ts` starts the demo, sets "Pause automatically at: surprises only", selects Quick (4x, 8 ticks per second), presses Play and records `requestAnimationFrame` deltas for 5 s. Headless Chromium 159 (Playwright 1.65.1) on an Apple Silicon Mac (macOS), production build, device scale factor 1 (desktop) and 2.625 (Pixel 7 emulation). The numbers measure the page's frame cadence while the scene animates and the API streams ticks; they are not a GPU profile, and headless Chromium may not be vsync-limited like a visible window. One run each, not averaged.
+
+| Project | Frames in 5 s | Mean ms | p50 | p95 | p99 | Max | Frames over 33 ms |
+|---|---|---|---|---|---|---|---|
+| desktop 1440x900 | 301 | 16.67 | 16.7 | 16.7 | 16.8 | 16.8 | 0 |
+| mobile 390x844 (emulated) | 302 | 16.67 | 16.7 | 16.8 | 16.8 | 16.8 | 0 |
+
+Earlier runs the same day varied: desktop 300 frames, mean 16.83 ms, p99 33.3 ms, max 33.4 ms; emulated phone 297 frames, mean 16.89 ms, p99 33.3 ms, max 50.1 ms (2 frames over 33 ms). So occasional single dropped frames occur; the table shows the final run. Emulated phone CPU throttling was not applied, so real phones will be slower.

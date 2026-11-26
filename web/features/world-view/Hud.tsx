@@ -1,79 +1,84 @@
 "use client";
 
 /**
- * HUD: sim clock, Cash, Net_Profit, Service_Level and Backlog of the displayed
- * Tick, from the Metrics response. It formats API integers for display only.
- * Parent differences are a display subtraction of two API values for the same
- * Tick and are labelled as such (Requirements 31.5, 35.5).
+ * Header figures for the displayed hour: the time, Cash, Profit so far, Orders
+ * delivered on time and Orders waiting, from the Metrics response. It formats
+ * API integers for display only. The difference from the original path is a
+ * display subtraction of two API values for the same tick, labelled as such.
+ * Tick numbers appear only in Engineering Mode.
  */
 import type { MetricsResponse } from "@/lib/api/client";
-import { selectActiveBranch, useStudioStore } from "@/stores/studio";
+import {
+  METRIC_LABELS,
+  formatCount,
+  formatMoney,
+  formatPercentBps,
+  formatSimTime,
+  metricExplanation,
+  type MetricKey,
+} from "@/lib/glossary";
+import { InfoPopover } from "@/features/studio/InfoPopover";
 
-export const DISCLAIMER_TEXT =
-  "Synthetic simulation output under the stated assumptions. Not a forecast or guarantee of real-world results.";
-
-const DAY_NAMES = ["Thursday", "Friday", "Saturday", "Sunday", "Monday"];
-
-/** Scenario start label: Tick 0 is Thursday 00:00. */
-export function formatSimClock(tick: number): string {
-  const day = Math.floor(tick / 24);
-  const hour = tick % 24;
-  const name = DAY_NAMES[day] ?? `Day ${day + 1}`;
-  return `${name} ${String(hour).padStart(2, "0")}:00`;
-}
-
-type Decimal = `${number}`;
-
-/** Formats integer cents as currency using integer division for the split only. */
-export function formatCents(cents: number, currency: string, signed = false): string {
-  const negative = cents < 0;
-  const abs = Math.abs(cents);
-  const whole = Math.trunc(abs / 100);
-  const frac = abs % 100;
-  const nf = new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const body = nf.format(`${whole}.${String(frac).padStart(2, "0")}` as Decimal as unknown as number);
-  if (negative) return `-${body}`;
-  return signed && abs !== 0 ? `+${body}` : body;
-}
-
-/** Formats basis points as a percentage with two decimals. */
-export function formatBps(bps: number, signed = false): string {
-  const negative = bps < 0;
-  const abs = Math.abs(bps);
-  const body = `${Math.trunc(abs / 100)}.${String(abs % 100).padStart(2, "0")}%`;
-  if (negative) return `-${body}`;
-  return signed && abs !== 0 ? `+${body}` : body;
-}
-
-function signedInt(n: number): string {
-  return n > 0 ? `+${n}` : String(n);
-}
+export type MoneyFigure = "cash" | "net_profit";
 
 export interface HudProps {
-  /** Metrics response for the displayed Tick of the displayed Branch. */
+  /** Metrics response for the displayed hour of the displayed reality. */
   metrics: MetricsResponse | null;
-  /** Parent Branch Metrics at the same Tick, when the displayed Branch is a fork. */
+  /** The other reality's Metrics at the same tick, when the displayed one is an alternative. */
   parentMetrics?: MetricsResponse | null;
-  /** Label of the parent Branch. */
+  /** Name of that other reality, for example "Original path". */
   parentLabel?: string;
   syncing?: boolean;
   /** Tick used for the clock while Metrics are not loaded. */
   tick?: number;
-  /** Makes money figures clickable; opens the ledger lines behind the figure. */
-  onMoneyClick?: (figure: "cash" | "net_profit") => void;
+  /** Scenario start label such as "Thu 00:00". */
+  startClock?: string;
+  /** Adds the tick number next to the time. */
+  engineering?: boolean;
+  /** Makes money figures buttons that open "Where this number comes from". */
+  onMoneyClick?: (figure: MoneyFigure) => void;
 }
 
-function Figure(props: { label: string; value: string; onClick?: () => void; testId: string }) {
+function signedMoney(cents: number): string {
+  return formatMoney(cents, { signed: true });
+}
+
+/** "+2.5 points" / "-1.0 points" / "0.0 points" from a basis point difference. */
+function pointsDiff(bps: number): string {
+  const body = formatPercentBps(Math.abs(bps)).replace("%", "");
+  return `${bps > 0 ? "+" : bps < 0 ? "-" : ""}${body} points`;
+}
+
+function signedCount(n: number): string {
+  return n > 0 ? `+${formatCount(n)}` : formatCount(n);
+}
+
+function Figure(props: {
+  metric: MetricKey;
+  value: string;
+  testId: string;
+  explanation: string;
+  onClick?: () => void;
+}) {
+  const label = METRIC_LABELS[props.metric];
   const value = (
-    <span className="font-mono tabular-nums text-[#E6E9EF]" data-testid={props.testId}>
+    <span className="text-lg font-semibold tabular-nums text-ivory max-[768px]:text-base" data-testid={props.testId}>
       {props.value}
     </span>
   );
   return (
-    <div className="flex flex-col">
-      <span className="text-[10px] uppercase tracking-wide text-[#8A93A6]">{props.label}</span>
+    <div className="flex min-w-[8.5rem] flex-col max-[768px]:min-w-0">
+      <span className="flex items-center gap-1 text-xs text-ivory-dim">
+        {label}
+        <InfoPopover label={label}>{props.explanation}</InfoPopover>
+      </span>
       {props.onClick ? (
-        <button type="button" onClick={props.onClick} className="text-left underline decoration-dotted underline-offset-2">
+        <button
+          type="button"
+          onClick={props.onClick}
+          title="Where this number comes from"
+          className="text-left underline decoration-dotted underline-offset-4 max-[768px]:min-h-11"
+        >
           {value}
         </button>
       ) : (
@@ -83,111 +88,81 @@ function Figure(props: { label: string; value: string; onClick?: () => void; tes
   );
 }
 
-export function Hud({ metrics, parentMetrics, parentLabel, syncing, tick, onMoneyClick }: HudProps) {
+export function Hud({ metrics, parentMetrics, parentLabel, syncing, tick, startClock, engineering, onMoneyClick }: HudProps) {
   const m = metrics?.metrics;
-  const currency = metrics?.currency ?? "USD";
   const displayTick = metrics?.tick ?? tick ?? 0;
   const p = parentMetrics && metrics && parentMetrics.tick === metrics.tick ? parentMetrics.metrics : null;
-  const disclaimer = metrics?.disclaimer ?? DISCLAIMER_TEXT;
+  const other = parentLabel ?? "Original path";
+  const clock = formatSimTime(displayTick, startClock ?? "Thu 00:00");
 
   return (
     <section
-      aria-label="Heads-up display"
+      aria-label="Business figures"
       data-syncing={syncing ? "true" : "false"}
-      className="rounded-[4px] border border-[#232B3A] bg-[#121722] px-3 py-2 text-sm text-[#E6E9EF]"
+      className="text-sm text-ivory"
     >
-      <div className={`flex flex-wrap items-end gap-x-6 gap-y-1 ${syncing ? "opacity-60" : ""}`}>
-        <div className="flex flex-col">
-          <span className="text-[10px] uppercase tracking-wide text-[#8A93A6]">Sim clock</span>
-          <span className="font-mono tabular-nums" data-testid="hud-clock">
-            {formatSimClock(displayTick)} · tick {displayTick}
+      <div className={`flex items-end gap-x-6 gap-y-2 max-[768px]:grid max-[768px]:grid-cols-2 max-[768px]:gap-y-1.5 min-[769px]:flex-wrap ${syncing ? "opacity-60" : ""}`}>
+        <div className="flex min-w-[10rem] flex-col max-[768px]:col-span-2">
+          <span className="text-xs text-ivory-dim">Time</span>
+          <span className="text-lg font-semibold max-[768px]:text-base" data-testid="hud-clock">
+            {clock}
+            {engineering ? <span className="ml-2 font-mono text-xs text-ivory-dim">tick {displayTick}</span> : null}
           </span>
         </div>
         {m ? (
           <>
             <Figure
-              label="Cash"
+              metric="cash"
               testId="hud-cash"
-              value={formatCents(m.cashCents, currency)}
+              value={formatMoney(m.cashCents)}
+              explanation={metricExplanation("cash")}
               {...(onMoneyClick ? { onClick: () => onMoneyClick("cash") } : {})}
             />
             <Figure
-              label="Net profit"
+              metric="netProfit"
               testId="hud-net-profit"
-              value={formatCents(m.netProfitCents, currency)}
+              value={formatMoney(m.netProfitCents, { signed: true })}
+              explanation={metricExplanation("netProfit")}
               {...(onMoneyClick ? { onClick: () => onMoneyClick("net_profit") } : {})}
             />
-            <Figure label="Service level" testId="hud-service-level" value={formatBps(m.serviceLevelBps)} />
             <Figure
-              label="Backlog"
+              metric="serviceLevel"
+              testId="hud-service-level"
+              value={formatPercentBps(m.serviceLevelBps)}
+              explanation={metricExplanation("serviceLevel")}
+            />
+            <Figure
+              metric="backlog"
               testId="hud-backlog"
-              value={`${m.backlogOrders} orders / ${m.backlogUnits} units`}
+              value={`${formatCount(m.backlogOrders)} ${m.backlogOrders === 1 ? "order" : "orders"}`}
+              explanation={metricExplanation("backlog", { lateBacklogOrders: m.lateBacklogOrders })}
             />
           </>
         ) : (
-          <span className="font-mono text-[#8A93A6]">No metrics loaded</span>
+          <span className="text-ivory-dim">Loading figures…</span>
         )}
-        {syncing ? <span className="font-mono text-xs text-[#8A93A6]">syncing</span> : null}
+        {syncing ? <span className="text-xs text-ivory-dim">Updating…</span> : null}
       </div>
 
       {m && p ? (
-        <div className={`mt-2 border-t border-[#232B3A] pt-2 ${syncing ? "opacity-60" : ""}`} data-testid="hud-parent">
-          <div className="text-[10px] uppercase tracking-wide text-[#8A93A6]">
-            Parent{parentLabel ? ` (${parentLabel})` : ""} at tick {displayTick}
-          </div>
-          <div className="flex flex-wrap gap-x-6 font-mono tabular-nums">
-            <span data-testid="parent-net-profit">Net profit {formatCents(p.netProfitCents, currency)}</span>
-            <span data-testid="parent-service-level">Service level {formatBps(p.serviceLevelBps)}</span>
+        <div className={`mt-2 border-t border-hairline pt-2 text-xs ${syncing ? "opacity-60" : ""}`} data-testid="hud-parent">
+          <p className="tabular-nums text-ivory-dim">
+            {other} at this hour:{" "}
+            <span data-testid="parent-cash">Cash {formatMoney(p.cashCents)}</span> ·{" "}
+            <span data-testid="parent-net-profit">Profit so far {signedMoney(p.netProfitCents)}</span> ·{" "}
+            <span data-testid="parent-service-level">On time {formatPercentBps(p.serviceLevelBps)}</span> ·{" "}
             <span data-testid="parent-backlog">
-              Backlog {p.backlogOrders} orders / {p.backlogUnits} units
+              Orders waiting {formatCount(p.backlogOrders)}
             </span>
-          </div>
-          <div className="text-[10px] text-[#8A93A6]">difference vs parent (display)</div>
-          <div className="flex flex-wrap gap-x-6 font-mono tabular-nums" data-testid="hud-diff">
-            <span data-testid="diff-net-profit">
-              Net profit {formatCents(m.netProfitCents - p.netProfitCents, currency, true)}
-            </span>
-            <span data-testid="diff-service-level">
-              Service level {formatBps(m.serviceLevelBps - p.serviceLevelBps, true)}
-            </span>
-            <span data-testid="diff-backlog">
-              Backlog {signedInt(m.backlogOrders - p.backlogOrders)} orders /{" "}
-              {signedInt(m.backlogUnits - p.backlogUnits)} units
-            </span>
-          </div>
+          </p>
+          <p className="tabular-nums text-ivory-dim" data-testid="hud-diff">
+            Difference from {other} (shown for comparison):{" "}
+            <span data-testid="diff-net-profit">Profit so far {signedMoney(m.netProfitCents - p.netProfitCents)}</span> ·{" "}
+            <span data-testid="diff-service-level">On time {pointsDiff(m.serviceLevelBps - p.serviceLevelBps)}</span> ·{" "}
+            <span data-testid="diff-backlog">Orders waiting {signedCount(m.backlogOrders - p.backlogOrders)}</span>
+          </p>
         </div>
       ) : null}
-
-      <p className="mt-2 text-xs text-[#8A93A6]" data-testid="hud-disclaimer">
-        {disclaimer}
-      </p>
     </section>
-  );
-}
-
-/**
- * HUD wired to the studio store. `parentMetrics` is the parent Branch's Metrics
- * response at the displayed Tick, fetched by the caller (it is shown only when
- * its Tick equals the displayed Tick).
- */
-export function ConnectedHud(props: {
-  parentMetrics?: MetricsResponse | null;
-  onMoneyClick?: HudProps["onMoneyClick"];
-}) {
-  const metrics = useStudioStore((s) => s.metrics);
-  const syncing = useStudioStore((s) => s.syncing);
-  const tick = useStudioStore((s) => s.selectedTick);
-  const branches = useStudioStore((s) => s.branches);
-  const active = useStudioStore(selectActiveBranch);
-  const parent = active?.parentBranchId ? branches.find((b) => b.id === active.parentBranchId) : undefined;
-  return (
-    <Hud
-      metrics={metrics}
-      parentMetrics={props.parentMetrics ?? null}
-      {...(parent ? { parentLabel: parent.label } : {})}
-      syncing={syncing}
-      tick={tick}
-      {...(props.onMoneyClick ? { onMoneyClick: props.onMoneyClick } : {})}
-    />
   );
 }

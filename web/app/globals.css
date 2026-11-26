@@ -1,38 +1,137 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/* Night Shift Operations palette (ui-design-system.md). */
+/* "Dusk shift" palette (docs/ux-redesign.md section 2). */
 :root {
-  --ink: #0b0e14;
-  --surface: #121722;
-  --line: #232b3a;
-  --text: #e6e9ef;
-  --muted: #8a93a6;
-  --human: #f2a93b;
-  --ai: #3bc9db;
-  --disruption: #ff5c5c;
-  --gain: #7bd88f;
-  --loss: #ff7a7a;
+  --ink: #17161a;
+  --surface: #201f24;
+  --raised: #2a292f;
+  --hairline: #4a4750;
+  --edge: #7a7680;
+  --ivory: #f3ede0;
+  --ivory-dim: #b9b2a3;
+  --amber: #e8a33d;
+  --amber-hot: #f5b954;
+  --clay: #ee7b63;
+  --sage: #9cc48a;
   --radius: 4px;
 }
 
 @theme inline {
   --color-ink: var(--ink);
   --color-surface: var(--surface);
-  --color-line: var(--line);
-  --color-text: var(--text);
-  --color-muted: var(--muted);
-  --color-human: var(--human);
-  --color-ai: var(--ai);
-  --color-disruption: var(--disruption);
-  --color-gain: var(--gain);
-  --color-loss: var(--loss);
+  --color-raised: var(--raised);
+  --color-hairline: var(--hairline);
+  --color-edge: var(--edge);
+  --color-ivory: var(--ivory);
+  --color-ivory-dim: var(--ivory-dim);
+  --color-amber: var(--amber);
+  --color-amber-hot: var(--amber-hot);
+  --color-clay: var(--clay);
+  --color-sage: var(--sage);
+  --font-display: var(--font-display), Georgia, "Times New Roman", serif;
+  --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono-eng), ui-monospace, Menlo, monospace;
   --radius-sm: var(--radius);
-  --radius-md: var(--radius);
-  --radius-lg: var(--radius);
+  --radius-md: 8px;
+  --radius-lg: 8px;
+}
+
+html {
+  background: var(--ink);
 }
 
 body {
   background: var(--ink);
-  color: var(--text);
+  color: var(--ivory);
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ivory);
+  outline-offset: 2px;
+}
+
+/* Intro illustration motion: CSS only, off for reduced motion. */
+@keyframes dusk-drift {
+  from {
+    transform: translateX(-6%);
+  }
+  to {
+    transform: translateX(106%);
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.intro-drift {
+  animation: dusk-drift 40s linear infinite;
+}
+.intro-sky {
+  animation: fade-in 600ms ease-out both;
+}
+.intro-title {
+  animation: rise-in 800ms ease-out 600ms both;
+}
+.intro-premise {
+  animation: rise-in 600ms ease-out 1400ms both;
+}
+.intro-cta {
+  animation: fade-in 400ms ease-out 2000ms both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intro-drift,
+  .intro-sky,
+  .intro-title,
+  .intro-premise,
+  .intro-cta {
+    animation: none;
+  }
+  * {
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes fork-trunk-in {
+  from { opacity: 0; transform: translateX(-16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes fork-split {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+@keyframes fork-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+.fork-trunk { animation: fork-trunk-in 350ms ease-out both; }
+.fork-lanes { animation: fork-split 750ms ease-out 350ms both; }
+.fork-labels { animation: fade-in 300ms ease-out 900ms both; }
+.fork-caption { animation: fade-in 300ms ease-out 700ms both; }
+.fork-overlay { animation: fork-out 200ms ease-in 1300ms forwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fork-trunk, .fork-lanes, .fork-labels, .fork-caption, .fork-overlay { animation: none; }
 }

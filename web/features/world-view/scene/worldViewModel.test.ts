@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TickFrame } from "@/lib/api/client";
-import { buildWorldViewModel, maxOnHandSeen, provenanceLabel, summarize } from "./worldViewModel";
+import { buildWorldViewModel, maxOnHandSeen, provenanceLabel } from "./worldViewModel";
 
 function frame(over: Partial<TickFrame> = {}): TickFrame {
   return {
@@ -119,15 +119,5 @@ describe("helpers", () => {
     expect(provenanceLabel({ manager: "ai_llm", fallbackReason: "timeout" })).toBe(
       "Rule-based AI (LLM fallback: timeout)",
     );
-  });
-
-  it("summary lists bottlenecks, Disruptions and interventions", () => {
-    const s = summarize(
-      buildWorldViewModel(frame(), { interventions: [{ tick: 30, text: "Expedite", manager: "human" }] }),
-    );
-    expect(s.headline).toContain("8 workers on shift");
-    expect(s.bottlenecks).toHaveLength(2);
-    expect(s.disruptions[0]).toContain("2 ticks since onset");
-    expect(s.interventions).toEqual(["Human: Expedite"]);
   });
 });

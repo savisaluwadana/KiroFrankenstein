@@ -5,6 +5,8 @@ fileMatchPattern: "web/**"
 
 # UI design system: "Night Shift Operations"
 
+> **Update (UX redesign, Phase A, see `docs/ux-redesign.md`).** The visual language below is superseded for `web/` once Phase B lands: palette becomes restrained charcoal `#17161A`, ivory `#F3EDE0` and amber `#E8A33D` (clay `#EE7B63` for crisis, sage `#9CC48A` for gain); type becomes Fraunces (display) + Inter (body), with IBM Plex Mono only in Engineering Mode; the scene becomes an isometric procedural warehouse; the UI uses business language (no tick numbers, hashes or SKU indexes outside Engineering Mode); the branch tree rail becomes a reality switcher and a shared-history time strip. The authoritative-state rules, disclaimer, disruption-script secrecy, accessibility and reduced-motion requirements below still apply unchanged. Where this file and `docs/ux-redesign.md` disagree on colour, type, layout or labels, the redesign document wins.
+
 Parallel should feel like a tabletop strategy game crossed with a control room at 2 a.m. on Black Friday: a living diorama of the warehouse in the center, a timeline you can scrub like a video editor, and reality branches you can see split apart. It must not look like a generic AI analytics dashboard.
 
 ## Layout

@@ -30,6 +30,7 @@ Tests:
 
 - `cd backend && go test ./...`
 - `cd web && npx tsc --noEmit && npx eslint . && npx vitest --run`
+- `cd web && npm run e2e` runs the real-browser suite (Playwright, chromium, desktop 1440x900 and phone 390x844) against the real Go API and a production build of the web app. It starts both servers itself on ports 18080 and 3199 and writes screenshots to `docs/screenshots/`. One-time setup: `npx playwright install chromium`.
 
 PostgreSQL via Docker Compose is optional and unused until M3.
 
@@ -39,7 +40,7 @@ PostgreSQL via Docker Compose is optional and unused until M3.
 - Assumptions are synthetic and uncalibrated.
 - Results are not predictions or guarantees.
 - No LLM manager yet.
-- The PixiJS view has not been manually browser-tested by the agent.
+- The studio is browser-tested with Playwright in headless Chromium only (see `docs/ux-redesign.md`, Verification results); other browsers and real touch devices are untested.
 
 ## First steps
 

@@ -56,8 +56,8 @@ describe("ForkButton", () => {
     const onForked = vi.fn();
     const store = createStudioStore();
     store.getState().openWorld({ worldId: "w", horizonTicks: 120, branches: [br("a", null, 0)], activeBranchId: "a" });
-    render(<ForkButton branchId="a" tick={5} headTick={10} onForked={(b) => { store.getState().upsertBranch(b); onForked(b); }} />);
-    await userEvent.type(screen.getByLabelText(/fork label/i), "Plan B");
+    render(<ForkButton defaultLabel="Alternative future 1" whenLabel="Thursday, 5:00 AM" branchId="a" tick={5} headTick={10} onForked={(b) => { store.getState().upsertBranch(b); onForked(b); }} />);
+    await userEvent.type(screen.getByLabelText(/name/i), "Plan B");
     await userEvent.click(screen.getByRole("button"));
     await waitFor(() => expect(onForked).toHaveBeenCalledWith(child));
     expect(forkMock).toHaveBeenCalledTimes(1);
@@ -66,17 +66,17 @@ describe("ForkButton", () => {
   });
 
   it("limits the label to 64 characters and disables beyond head", async () => {
-    render(<ForkButton branchId="a" tick={11} headTick={10} onForked={() => undefined} />);
+    render(<ForkButton defaultLabel="Alternative future 1" whenLabel="Thursday, 5:00 AM" branchId="a" tick={11} headTick={10} onForked={() => undefined} />);
     expect((screen.getByRole("button") as HTMLButtonElement).disabled).toBe(true);
     cleanup();
-    render(<ForkButton branchId="a" tick={1} headTick={10} onForked={() => undefined} />);
-    await userEvent.type(screen.getByLabelText(/fork label/i), "x".repeat(80));
-    expect((screen.getByLabelText(/fork label/i) as HTMLInputElement).value).toHaveLength(64);
+    render(<ForkButton defaultLabel="Alternative future 1" whenLabel="Thursday, 5:00 AM" branchId="a" tick={1} headTick={10} onForked={() => undefined} />);
+    await userEvent.type(screen.getByLabelText(/name/i), "x".repeat(80));
+    expect((screen.getByLabelText(/name/i) as HTMLInputElement).value).toHaveLength(64);
   });
 
   it("shows the ApiError message and re-enables", async () => {
     forkMock.mockRejectedValue(new ApiError({ status: 409, type: "unknown", title: "Conflict", detail: "too many branches" }));
-    render(<ForkButton branchId="a" tick={1} headTick={10} onForked={() => undefined} />);
+    render(<ForkButton defaultLabel="Alternative future 1" whenLabel="Thursday, 5:00 AM" branchId="a" tick={1} headTick={10} onForked={() => undefined} />);
     await userEvent.click(screen.getByRole("button"));
     expect((await screen.findByRole("alert")).textContent).toBe("Conflict: too many branches");
     expect((screen.getByRole("button") as HTMLButtonElement).disabled).toBe(false);

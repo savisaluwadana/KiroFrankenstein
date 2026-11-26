@@ -1,29 +1,51 @@
-import type { TickFrame } from "@/lib/api/client";
-import { buildWorldViewModel, summarize, type BuildOptions } from "./scene/worldViewModel";
+import { describeScene, type SceneModel } from "./scene/sceneModel";
 
-export interface WorldViewSummaryProps extends BuildOptions {
-  frame: TickFrame | null;
+export interface WorldViewSummaryProps {
+  model: SceneModel | null;
+  /** Announce changes to assistive technology. Leave off during playback; turn on at pauses and decision windows. */
+  announce?: boolean;
+  id?: string;
 }
 
-/** Accessible text summary of the displayed Tick. Announced politely on change. */
-export function WorldViewSummary({ frame, ...opts }: WorldViewSummaryProps) {
-  if (frame === null) {
+/** Accessible text summary of the displayed hour, in business language. */
+export function WorldViewSummary({ model, announce = false, id }: WorldViewSummaryProps) {
+  const live = announce ? "polite" : "off";
+  if (model === null) {
     return (
-      <div aria-live="polite" className="font-mono text-xs text-muted">
-        No tick loaded.
+      <div id={id} aria-live={live} className="text-sm text-[#B9B2A3]">
+        The warehouse has not loaded yet.
       </div>
     );
   }
-  const s = summarize(buildWorldViewModel(frame, opts));
+  const s = describeScene(model);
   return (
-    <div aria-live="polite" className="font-mono text-xs text-text">
-      <p>{s.headline}</p>
-      <p className="text-muted">Bottlenecks</p>
-      {s.bottlenecks.length === 0 ? <p>None.</p> : <ul>{s.bottlenecks.map((l) => <li key={l}>{l}</li>)}</ul>}
-      <p className="text-muted">Disruptions</p>
-      {s.disruptions.length === 0 ? <p>None in effect.</p> : <ul>{s.disruptions.map((l) => <li key={l}>{l}</li>)}</ul>}
-      <p className="text-muted">Interventions at this tick</p>
-      {s.interventions.length === 0 ? <p>None.</p> : <ul>{s.interventions.map((l) => <li key={l}>{l}</li>)}</ul>}
+    <div id={id} aria-live={live} className="text-sm text-[#F3EDE0]" data-testid="world-summary">
+      <p className="font-medium">{s.headline}</p>
+      <ul className="mt-1 list-disc pl-5">
+        {s.lines.map((l) => (
+          <li key={l}>{l}</li>
+        ))}
+      </ul>
+      {s.disruptions.length > 0 ? (
+        <>
+          <p className="mt-2 text-[#B9B2A3]">What is going wrong</p>
+          <ul className="list-disc pl-5">
+            {s.disruptions.map((l) => (
+              <li key={l}>{l}</li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+      {s.interventions.length > 0 ? (
+        <>
+          <p className="mt-2 text-[#B9B2A3]">Moves taking effect this hour</p>
+          <ul className="list-disc pl-5">
+            {s.interventions.map((l) => (
+              <li key={l}>{l}</li>
+            ))}
+          </ul>
+        </>
+      ) : null}
     </div>
   );
 }

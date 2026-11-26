@@ -12,6 +12,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import type { Branch, DemoPlan, TickFrame } from "@/lib/api/client";
 import { selectActiveBranch, useStudioStore } from "@/stores/studio";
 import { usePlaybackStore } from "@/stores/playback";
+import { useUiStore } from "@/stores/ui";
 import { saveDemoPlan } from "./demoPlanStorage";
 import { StudioPage } from "./StudioPage";
 
@@ -67,9 +68,12 @@ function frameAt(tick: number): TickFrame {
   return {
     tick,
     stateHash: `hash-${tick}`,
-    skus: [{ sku: 2, onHand: 100 - tick }],
+    skus: [{ sku: 2, onHand: 100 - tick, inboundPOs: 0, inboundUnits: 0 }],
+    workersOnShift: 20,
+    orderQueueLen: 0,
     markers,
     disruptions: [],
+    report: { tick, capacity: 100, capacityUsed: 0, shippedOrders: 0, skus: [] },
   } as unknown as TickFrame;
 }
 
@@ -128,7 +132,18 @@ function makeFakeApi() {
     scenarioHash: "abc",
     createdAt: iso,
     currency: "USD",
-    scenario: { name: "Black Friday Meltdown", horizonTicks: HORIZON, startClock: "Thu 00:00", decisionCadenceTicks: 4, commandBudget: 5, skus: [], scoreWeights: {} },
+    scenario: {
+      name: "Black Friday Meltdown",
+      horizonTicks: HORIZON,
+      startClock: "Thu 00:00",
+      decisionCadenceTicks: 4,
+      commandBudget: 5,
+      skus: [
+        { index: 0, id: "widget", referencePriceCents: 2000, openingUnits: 10, promiseTicks: 24 },
+        { index: 2, id: "speaker", referencePriceCents: 2000, openingUnits: 10, promiseTicks: 24 },
+      ],
+      scoreWeights: {},
+    },
     assumptions: [
       { path: "demand.baseUnits", value: 10, unit: "units/h", default: 10, min: 1, max: 100, rationale: "synthetic", overridden: false },
     ],
@@ -147,7 +162,10 @@ function makeFakeApi() {
       marketingCents: 0,
       inboundPOs: 0,
       inboundUnits: 0,
-      suppliers: [],
+      suppliers: [
+        { role: "primary", unitCostCents: 1000, leadTimeTicks: 24, available: true, availableFromTick: 0 },
+        { role: "backup", unitCostCents: 1250, leadTimeTicks: 8, available: true, availableFromTick: 0 },
+      ],
     })),
     openOrders: [],
     purchaseOrders: [],
@@ -190,9 +208,28 @@ function makeFakeApi() {
       return json(200, { branchId: b.id, from, to, frames });
     }
     if (method === "GET" && sub === "state") {
-      return json(200, { branchId: b.id, tick: q("tick"), stateHash: "h", observation: observation(b, q("tick")), currency: "USD", disclaimer: "d" });
+      return json(200, { branchId: b.id, tick: q("tick"), stateHash: `h-${b.id}-${q("tick")}`, observation: observation(b, q("tick")), currency: "USD", disclaimer: "d" });
     }
-    if (method === "GET" && sub === "metrics") return json(200, { branchId: b.id, ...metricsAt(q("tick")) });
+    if (method === "GET" && sub === "metrics") {
+      const base = metricsAt(q("tick"));
+      // Alternatives hold 500 cents more cash, so differences are visible.
+      const metrics = b.id === "r1" ? base.metrics : { ...base.metrics, cashCents: base.metrics.cashCents + 500 };
+      return json(200, { branchId: b.id, ...base, metrics });
+    }
+    if (method === "GET" && sub === "ledger") {
+      return json(200, {
+        branchId: b.id,
+        from: 0,
+        to: q("to"),
+        total: 1,
+        offset: 0,
+        entries: [
+          { index: 0, tick: 0, simMinute: 0, description: "Opening balances", cause: { kind: "opening", ref: 0 }, lines: [{ account: "Cash", debitCents: 1000000, creditCents: 0 }] },
+        ],
+        currency: "USD",
+        disclaimer: "d",
+      });
+    }
     if (method === "POST" && sub === "advance") {
       const req = body as { expectedHeadTick: number; runToTick?: number };
       if (req.expectedHeadTick !== b.headTick) {
@@ -272,6 +309,8 @@ function press(key: string, init: KeyboardEventInit = {}): void {
 }
 
 const clock = (): string => screen.getByTestId("hud-clock").textContent ?? "";
+const AT = (tick: number): string =>
+  `Thursday, ${tick === 0 ? 12 : tick % 12 === 0 ? 12 : tick % 12}:00 ${tick < 12 ? "AM" : "PM"}`;
 const advanceCalls = (calls: Call[]): Call[] => calls.filter((c) => c.method === "POST" && c.path.endsWith("/advance"));
 
 beforeEach(() => {
@@ -279,6 +318,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
   window.sessionStorage.clear();
   window.history.replaceState(null, "", "/");
+  useUiStore.setState({ engineering: false });
 });
 
 afterEach(() => {
@@ -308,84 +348,88 @@ describe("studio flow", () => {
 
     // Open: world, branches, frames, state and metrics are requested; hints and disclaimer are visible.
     expect(api.calls.slice(0, 2).map((c) => c.path).sort()).toEqual([`/worlds/${WORLD_ID}`, `/worlds/${WORLD_ID}/branches`]);
-    expect(screen.getByTestId("plan-hint").textContent).toContain("Fork at tick 4");
-    expect(screen.getByTestId("plan-hint").textContent).toContain("computed by the server");
+    // Normal mode never shows the plan or its reasons (they leak crisis timing), nor tick numbers.
+    expect(screen.queryByTestId("plan-hint")).toBeNull();
+    expect(document.body.textContent).not.toContain("fixture reason");
     expect(screen.getByTestId("world-disclaimer").textContent).toContain("Synthetic simulation output");
-    expect(clock()).toContain("tick 0");
+    expect(clock()).toBe(AT(0));
+    expect(clock()).not.toMatch(/tick/);
     expect(screen.getByTestId("no-window")).toBeTruthy();
 
     // Assumptions are one action away and show bounds and rationale.
-    fireEvent.click(screen.getByRole("tab", { name: "Assumptions" }));
+    fireEvent.click(screen.getByRole("tab", { name: "How this is modelled" }));
     expect(screen.getByTestId("assumption").textContent).toContain("range 1 to 100");
     expect(screen.getByTestId("assumption").textContent).toContain("synthetic");
-    fireEvent.click(screen.getByRole("tab", { name: "Decisions" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Your move" }));
 
     // Play at 16x: the first advance runs to the window at tick 4 and playback pauses there.
-    fireEvent.click(screen.getByRole("button", { name: "16x" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fast" }));
     fireEvent.click(screen.getByRole("button", { name: "Play" }));
     await pump(10);
     expect(usePlaybackStore.getState().pauseReason).toBe("decision_window");
-    expect(clock()).toContain("tick 4");
+    expect(clock()).toBe(AT(4));
     expect(advanceCalls(api.calls).map((c) => c.body)).toEqual([{ expectedHeadTick: 0 }]);
-    expect(screen.getByTestId("obs-budget").textContent).toBe("5 commands");
+    expect(screen.getByTestId("obs-budget").textContent).toBe("Decisions remaining: 5 of 5");
 
     // End the root window, then play on to the window at tick 8.
-    fireEvent.click(screen.getByRole("button", { name: "End decision window" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     await settle();
     fireEvent.click(screen.getByRole("button", { name: "Play" }));
     await pump(10);
-    expect(clock()).toContain("tick 8");
+    expect(clock()).toBe(AT(8));
     expect(usePlaybackStore.getState().pauseReason).toBe("decision_window");
     expect(advanceCalls(api.calls)).toHaveLength(2);
 
     // Rewind to the previous window with Shift+Left: a read, never an advance.
     press("ArrowLeft", { shiftKey: true });
     await settle();
-    expect(clock()).toContain("tick 4");
+    expect(clock()).toBe(AT(4));
     expect(advanceCalls(api.calls)).toHaveLength(2);
     expect(useStudioStore.getState().branches.find((b) => b.id === "r1")?.headTick).toBe(8);
 
     // Fork at the displayed tick; the child opens its fork window.
-    fireEvent.click(screen.getByRole("button", { name: "Fork at tick 4" }));
+    fireEvent.click(screen.getByRole("button", { name: "Explore another future" }));
     await settle();
     const forkCall = api.calls.find((c) => c.path === "/branches/r1/fork");
-    expect(forkCall?.body).toMatchObject({ atTick: 4 });
+    expect(forkCall?.body).toMatchObject({ atTick: 4, label: "Alternative future 1" });
     const child = selectActiveBranch(useStudioStore.getState());
     expect(child?.parentBranchId).toBe("r1");
     expect(child?.headTick).toBe(4);
     expect(window.location.search).toContain("branch=c1");
-    expect(screen.getByTestId("obs-budget").textContent).toBe("5 commands");
+    expect(screen.getByTestId("obs-budget").textContent).toBe("Decisions remaining: 5 of 5");
     expect(screen.getByTestId("hud-parent")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Original path" })).toBeTruthy();
 
     // Submit the demo plan command.
-    fireEvent.change(screen.getByLabelText("PO SKU"), { target: { value: "2" } });
+    fireEvent.change(screen.getByLabelText("Product"), { target: { value: "2" } });
     fireEvent.change(screen.getByLabelText("Supplier"), { target: { value: "backup" } });
     fireEvent.change(screen.getByLabelText("Quantity"), { target: { value: "315" } });
-    fireEvent.click(screen.getByRole("button", { name: "Add order" }));
-    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Add to my moves" })[0] as HTMLElement);
+    fireEvent.click(screen.getByRole("button", { name: "Lock in decisions" }));
     await settle();
     const submit = api.calls.find((c) => c.path === "/branches/c1/commands");
     expect(submit?.body).toMatchObject({
       windowTick: 4,
       commands: [{ kind: "place_purchase_order", sku: 2, role: "backup", qty: 315 }],
     });
-    expect(screen.getByTestId("accepted-command").textContent).toContain("effective Tick 5");
+    expect(screen.getByTestId("accepted-command").textContent).toContain("Ordered 315 Speakers from the backup supplier");
+    expect(screen.getByTestId("accepted-command").textContent).toContain("Takes effect at Thursday, 5:00 AM");
     expect(document.querySelector('[data-marker="input"]')).not.toBeNull();
 
     // End the fork window, then play to the next window and on to the horizon.
-    fireEvent.click(screen.getByRole("button", { name: "End decision window" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     await settle();
     expect(api.calls.some((c) => c.path === "/branches/c1/decision-window/end")).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "Play" }));
     await pump(10);
-    expect(clock()).toContain("tick 8");
-    fireEvent.click(screen.getByRole("button", { name: "End decision window" }));
+    expect(clock()).toBe(AT(8));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     await settle();
     fireEvent.click(screen.getByRole("button", { name: "Play" }));
     await pump(10);
-    expect(clock()).toContain("tick 12");
+    expect(clock()).toBe(AT(12));
     expect(usePlaybackStore.getState().pauseReason).toBe("horizon");
-    expect(screen.getByTestId("playback-status").textContent).toContain("Reached the horizon");
+    expect(screen.getByTestId("playback-status").textContent).toContain("Reached the end of the week");
 
     const childAdvances = advanceCalls(api.calls).filter((c) => c.path === "/branches/c1/advance");
     expect(childAdvances.map((c) => c.body)).toEqual([{ expectedHeadTick: 4 }, { expectedHeadTick: 8 }]);
@@ -395,6 +439,36 @@ describe("studio flow", () => {
     expect(violations).toEqual([]);
     expect(shownTicks.every((t) => t !== null)).toBe(true);
     unsubscribe();
+  });
+
+  it("opens the ledger behind a money figure and keeps engineering detail behind the toggle", async () => {
+    const api = makeFakeApi();
+    vi.stubGlobal("fetch", vi.fn(api.fetchImpl));
+    saveDemoPlan(WORLD_ID, plan);
+    render(<StudioPage worldId={WORLD_ID} branchId="r1" />);
+    await settle();
+
+    expect(screen.queryByLabelText("Engineering drawer")).toBeNull();
+    fireEvent.click(screen.getByTestId("hud-cash"));
+    await settle();
+    expect(screen.getByTestId("ledger-panel").textContent).toContain("Opening balances");
+    const ledgerCall = api.calls.find((c) => c.path === "/branches/r1/ledger");
+    expect(ledgerCall).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByTestId("ledger-panel")).toBeNull();
+
+    act(() => {
+      useUiStore.setState({ engineering: true });
+    });
+    expect(screen.getByLabelText("Engineering drawer")).toBeTruthy();
+    expect(screen.getByTestId("eng-tick").textContent).toBe("0");
+    expect(screen.getByTestId("eng-hash").textContent).toBe("hash-0");
+    expect(screen.getByTestId("eng-branch-id").textContent).toBe("r1");
+    expect(screen.getByTestId("eng-world-id").textContent).toBe(WORLD_ID);
+    expect(clock()).toContain("tick 0");
+    fireEvent.click(screen.getByRole("tab", { name: "Plan" }));
+    expect(screen.getByTestId("plan-hint").textContent).toContain("fork at tick 4");
+    expect(screen.getByTestId("plan-hint").textContent).toContain("fixture reason");
   });
 
   it("shows the API error message when the world cannot be loaded", async () => {
@@ -410,5 +484,159 @@ describe("studio flow", () => {
     render(<StudioPage worldId="missing" />);
     await settle();
     expect(screen.getByRole("alert").textContent).toContain("World not found: no such world");
+  });
+
+  describe("fork, compare and synchronized stepping", () => {
+    /** Root to window 4 and 8, rewind to 4, fork (response held until released), end the fork window, step to 5. */
+    async function reachForkedAhead(api: ReturnType<typeof makeFakeApi>, gate: Promise<void> | null) {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+          if (gate !== null && String(input).endsWith("/branches/r1/fork")) await gate;
+          return api.fetchImpl(input, init);
+        }),
+      );
+      render(<StudioPage worldId={WORLD_ID} branchId="r1" />);
+      await settle();
+      fireEvent.click(screen.getByRole("button", { name: "Fast" }));
+      fireEvent.click(screen.getByRole("button", { name: "Play" }));
+      await pump(10);
+      fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+      await settle();
+      fireEvent.click(screen.getByRole("button", { name: "Play" }));
+      await pump(10);
+      press("ArrowLeft", { shiftKey: true });
+      await settle();
+      expect(clock()).toBe(AT(4));
+    }
+
+    async function forkAndStepToFive(api: ReturnType<typeof makeFakeApi>) {
+      fireEvent.click(screen.getByRole("button", { name: "Explore another future" }));
+      await settle();
+      fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+      await settle();
+      press("ArrowRight");
+      await settle();
+      expect(clock()).toBe(AT(5));
+      expect(api.branches.get("c1")?.headTick).toBe(8);
+    }
+
+    it("starts the split sequence only after the server returns, and Esc skips it", async () => {
+      const api = makeFakeApi();
+      let release: () => void = () => undefined;
+      const gate = new Promise<void>((r) => {
+        release = r;
+      });
+      await reachForkedAhead(api, gate);
+      fireEvent.click(screen.getByRole("button", { name: "Explore another future" }));
+      await settle();
+      expect(screen.queryByTestId("fork-sequence")).toBeNull();
+      expect(api.calls.some((c) => c.path === "/branches/r1/fork")).toBe(false);
+      await act(async () => {
+        release();
+      });
+      await settle();
+      const seq = screen.getByTestId("fork-sequence");
+      expect(seq.textContent).toContain("Same history up to Thursday, 4:00 AM. Different futures from here.");
+      expect(seq.dataset.phase).toBe("playing");
+      // The canvas already continues on the new reality, with a badge naming it.
+      expect(screen.getByTestId("reality-badge").textContent).toContain("Alternative future 1");
+      fireEvent.keyDown(document, { key: "Escape" });
+      expect(screen.queryByTestId("fork-sequence")).toBeNull();
+    });
+
+    it("compares two futures at one shared hour and steps both without advancing", async () => {
+      const api = makeFakeApi();
+      await reachForkedAhead(api, null);
+      await forkAndStepToFive(api);
+      const advancesBefore = advanceCalls(api.calls).length;
+
+      fireEvent.click(screen.getByRole("button", { name: "Compare futures" }));
+      await settle();
+      expect(screen.getByTestId("pane-r1")).toBeTruthy();
+      expect(screen.getByTestId("pane-c1")).toBeTruthy();
+      expect(screen.getAllByTestId("worldview").map((n) => n.getAttribute("data-tick"))).toEqual(["5", "5"]);
+      const summary = screen.getByTestId("comparison-summary");
+      expect(summary.textContent).toContain("Observed differences at Thursday, 5:00 AM");
+      expect(summary.textContent).toContain("A different outcome is not proof of which decision caused it.");
+      expect(summary.textContent).toContain("Synthetic simulation output");
+      // Display subtraction of the two server values: alternative cash is 500 cents higher.
+      expect(screen.getByTestId("diff-cash").textContent).toContain("+$5.00");
+      expect(api.calls.filter((c) => c.path === "/branches/r1/metrics").length).toBeGreaterThan(0);
+
+      // One shared step moves both panes; no advance request is needed inside the simulated range.
+      press("ArrowRight");
+      await settle();
+      expect(clock()).toBe(AT(6));
+      expect(screen.getAllByTestId("worldview").map((n) => n.getAttribute("data-tick"))).toEqual(["6", "6"]);
+      press("ArrowLeft");
+      await settle();
+      press("ArrowLeft");
+      await settle();
+      expect(screen.getAllByTestId("worldview").map((n) => n.getAttribute("data-tick"))).toEqual(["4", "4"]);
+      expect(advanceCalls(api.calls)).toHaveLength(advancesBefore);
+      const metricTicks = api.calls
+        .filter((c) => c.method === "GET" && c.path.endsWith("/metrics"))
+        .map((c) => c.path);
+      expect(metricTicks.filter((p) => p === "/branches/r1/metrics").length).toBeGreaterThanOrEqual(3);
+
+      // Back to one view.
+      fireEvent.click(screen.getByRole("button", { name: "Back to one view" }));
+      expect(screen.queryByTestId("comparison-view")).toBeNull();
+    });
+
+    it("shows a waiting move instead of advancing, then advances an idle future only on request", async () => {
+      const api = makeFakeApi();
+      await reachForkedAhead(api, null);
+      await forkAndStepToFive(api);
+      // Move c1 to its next window at 8 and past it, so the original path (head 8) is behind.
+      press("ArrowRight", { shiftKey: true });
+      await settle();
+      expect(clock()).toBe(AT(8));
+      fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+      await settle();
+      press("ArrowRight");
+      await settle();
+      expect(clock()).toBe(AT(9));
+      expect(api.branches.get("c1")?.headTick).toBe(12);
+      const advancesBefore = advanceCalls(api.calls).length;
+
+      // The original path still has its own decision moment open at hour 8.
+      fireEvent.click(screen.getByRole("button", { name: "Compare futures" }));
+      await settle();
+      expect(screen.getByTestId("not-simulated-r1").textContent).toContain("has not been simulated up to Thursday, 9:00 AM");
+      expect(screen.getByTestId("waiting-r1").textContent).toContain("Your move is waiting in Original path");
+      expect(screen.queryByRole("button", { name: "Advance this future" })).toBeNull();
+      expect(screen.getByTestId("common-tick-note").textContent).toContain("Thursday, 8:00 AM");
+      expect(screen.getByTestId("comparison-summary").textContent).toContain("Observed differences at Thursday, 8:00 AM");
+      expect(advanceCalls(api.calls)).toHaveLength(advancesBefore);
+
+      // Engineering Mode: both hashes at the compared hour and a note.
+      act(() => {
+        useUiStore.setState({ engineering: true });
+      });
+      await settle();
+      expect(screen.getByTestId("compare-hashes").textContent).toContain("h-r1-8");
+      expect(screen.getByTestId("compare-hashes").textContent).toContain("h-c1-8");
+      expect(screen.getByTestId("compare-hash-note").textContent).toContain("diverged after tick 4");
+      act(() => {
+        useUiStore.setState({ engineering: false });
+      });
+
+      // Leave the comparison, free the original path's window, compare again and advance it on request.
+      fireEvent.click(screen.getByRole("button", { name: "Back to one view" }));
+      const r1 = api.branches.get("r1");
+      if (r1) r1.windowOpen = false;
+      fireEvent.click(screen.getByRole("button", { name: "Compare futures" }));
+      await settle();
+      expect(screen.queryByTestId("waiting-r1")).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Advance this future" }));
+      await settle();
+      const added = advanceCalls(api.calls).slice(advancesBefore);
+      expect(added.map((c) => c.path)).toEqual(["/branches/r1/advance"]);
+      expect(added[0]?.body).toEqual({ expectedHeadTick: 8, runToTick: 9 });
+      expect(screen.queryByTestId("not-simulated-r1")).toBeNull();
+      expect(screen.getAllByTestId("worldview").map((n) => n.getAttribute("data-tick"))).toEqual(["9", "9"]);
+    });
   });
 });

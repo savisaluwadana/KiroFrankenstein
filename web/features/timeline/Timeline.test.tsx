@@ -2,7 +2,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Timeline, markersFromFrames, type TimelineProps } from "./Timeline";
+import { Timeline, markersFromFrames, useHighWater, type TimelineProps } from "./Timeline";
+import { renderHook } from "@testing-library/react";
 import { createPlaybackStore, type PlaybackClient } from "@/stores/playback";
 import { createStudioStore } from "@/stores/studio";
 import type { Branch, TickFrame } from "@/lib/api/client";
@@ -22,23 +23,47 @@ function props(over: Partial<TimelineProps> = {}): TimelineProps {
       { effectiveTick: 9, provenance: "human", kind: "place_purchase_order" },
       { effectiveTick: 9, provenance: "ai_rule_based_fallback", kind: "set_price" },
     ],
-    forkPoints: [{ tick: 8, label: "Human" }],
-    divergenceTick: 12,
+    forkPoints: [{ tick: 8, label: "Alternative future 1" }],
+    startClock: "Thu 00:00",
+    revealedUpTo: 60,
     onSelectTick: () => {},
     ...over,
   };
 }
 
 describe("Timeline", () => {
-  it("renders markers by kind and Input provenance", () => {
+  it("marks shared history only when asked", () => {
+    const { rerender } = render(<Timeline {...props()} />);
+    expect(screen.queryByTestId("shared-history")).toBeNull();
+    rerender(<Timeline {...props({ sharedUpTo: 8 })} />);
+    expect(screen.getByTestId("shared-history")).toBeTruthy();
+    expect(screen.getByTestId("timeline-readout").textContent).toContain("Same history until Thursday, 8:00 AM");
+  });
+
+  it("renders markers in plain language", () => {
     render(<Timeline {...props()} />);
-    expect(screen.getAllByRole("button", { name: /Decision window at tick 8/ })).toHaveLength(1);
-    expect(screen.getByRole("button", { name: /Disruption onset at tick 30: supplier_outage/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Fork point at tick 8: Human/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /First divergence.*tick 12/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /by Human, effective tick 9/ }).getAttribute("data-provenance")).toBe("human");
-    expect(screen.getByRole("button", { name: /Rule-based AI \(LLM fallback\)/ })).toBeTruthy();
-    expect(document.querySelectorAll("[data-day-band]")).toHaveLength(5);
+    expect(screen.getAllByRole("button", { name: "Decision moment at Thursday, 8:00 AM" })).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Surprise at Friday, 6:00 AM: Supplier down" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Futures split at Thursday, 8:00 AM: Alternative future 1/ })).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "Your move, takes effect at Thursday, 9:00 AM" }).length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: /Move by Rule-based AI \(LLM fallback\)/ })).toBeTruthy();
+    const bands = [...document.querySelectorAll("[data-day-band]")].map((b) => b.textContent);
+    expect(bands).toEqual(["Thursday", "Friday", "Saturday", "Sunday", "Monday"]);
+    expect(document.body.textContent).not.toMatch(/tick/i);
+  });
+
+  it("does not draw markers beyond what the displayed reality has already reached", () => {
+    render(<Timeline {...props({ revealedUpTo: 20 })} />);
+    expect(screen.getByRole("button", { name: /Decision moment at Thursday, 8:00 AM/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Surprise at/ })).toBeNull();
+    expect(document.querySelectorAll('[data-marker="disruption"]')).toHaveLength(0);
+  });
+
+  it("shows tick numbers only in Engineering Mode", () => {
+    const { rerender } = render(<Timeline {...props()} />);
+    expect(screen.getByTestId("timeline-readout").textContent).toBe("Showing Thursday, 10:00 AM");
+    rerender(<Timeline {...props({ engineering: true })} />);
+    expect(screen.getByTestId("timeline-readout").textContent).toContain("tick 10");
   });
 
   it("exposes the displayed tick as a keyboard slider and selects with arrow keys", async () => {
@@ -94,6 +119,15 @@ describe("Timeline", () => {
     expect(client.advanceBranch).not.toHaveBeenCalled();
     expect(client.getBranchState).toHaveBeenCalledWith("b1", 11);
     expect(studio.getState().branches[0]?.headTick).toBe(20);
+  });
+
+  it("high-water mark only grows while scrubbing back", () => {
+    const { result, rerender } = renderHook(({ t }) => useHighWater("b1", t), { initialProps: { t: 5 } });
+    expect(result.current).toBe(5);
+    rerender({ t: 12 });
+    expect(result.current).toBe(12);
+    rerender({ t: 3 });
+    expect(result.current).toBe(12);
   });
 
   it("markersFromFrames flattens frame markers in tick order", () => {

@@ -3,31 +3,39 @@
 /**
  * Playback controls. Playback is presentation only: these buttons pace the
  * display of authoritative frames through the playback store and never change
- * what the engine computes (Requirements 33.2, 33.10). Key bindings are
- * installed once by the page through `usePlaybackKeybindings`.
+ * what the engine computes. Key bindings are installed once by the page through
+ * `usePlaybackKeybindings`.
  */
 import { useEffect } from "react";
+import { FastForward, Pause, Play, StepBack, StepForward, TriangleAlert } from "lucide-react";
+import { InfoPopover } from "@/features/studio/InfoPopover";
 import { usePlaybackStore, type AutoPauseMode, type PlaybackPauseReason, type PlaybackSpeed } from "@/stores/playback";
 
-const SPEEDS: readonly PlaybackSpeed[] = [1, 4, 16];
+/** Plain speed names. Pace is unchanged: 2, 8 and 32 hours per second. */
+export const SPEEDS: readonly { speed: PlaybackSpeed; label: string; hint: string }[] = [
+  { speed: 1, label: "Calm", hint: "about 2 hours per second" },
+  { speed: 4, label: "Quick", hint: "about 8 hours per second" },
+  { speed: 16, label: "Fast", hint: "about 32 hours per second" },
+];
 
 export const KEY_HINTS: readonly { keys: string; action: string }[] = [
-  { keys: "Space", action: "play / pause" },
-  { keys: "← →", action: "step one tick" },
-  { keys: "Shift+← →", action: "step one decision window" },
-  { keys: "Shift+D", action: "next disruption" },
+  { keys: "Space", action: "Play or pause" },
+  { keys: "← →", action: "Previous or next hour" },
+  { keys: "Shift + ← →", action: "Previous or next decision moment" },
+  { keys: "Shift + D", action: "Skip to the next surprise" },
+  { keys: "F", action: "Jump to Explore another future" },
 ];
 
 const PAUSE_TEXT: Record<PlaybackPauseReason, string> = {
   user: "Paused",
-  decision_window: "Paused at a decision window",
-  disruption_onset: "Paused at a disruption onset",
-  horizon: "Reached the horizon",
-  error: "Paused after an error",
+  decision_window: "Paused for your move",
+  disruption_onset: "Paused: something just happened",
+  horizon: "Reached the end of the week",
+  error: "Paused after a problem",
 };
 
 const btn =
-  "rounded-[4px] border border-[#232B3A] bg-[#121722] px-2 py-1 font-mono text-xs text-[#E6E9EF] transition-colors duration-150 ease-out hover:border-[#F2A93B] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E6E9EF] disabled:opacity-40 motion-reduce:transition-none";
+  "inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-[4px] border border-hairline bg-surface px-3 text-sm text-ivory transition-colors duration-150 ease-out hover:border-amber disabled:opacity-40 motion-reduce:transition-none";
 
 function isEditable(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -88,70 +96,55 @@ export function PlaybackControls() {
   const pb = usePlaybackStore.getState;
 
   return (
-    <section
-      aria-label="Playback controls"
-      className="flex flex-wrap items-center gap-2 rounded-[4px] border border-[#232B3A] bg-[#121722] px-3 py-2"
-    >
+    <section aria-label="Playback controls" className="flex flex-wrap items-center gap-2">
       <button
         type="button"
-        className={btn}
+        className={`${btn} border-amber text-amber`}
         aria-pressed={playing}
         onClick={() => (playing ? pb().pause() : pb().play())}
       >
+        {playing ? <Pause aria-hidden size={18} /> : <Play aria-hidden size={18} />}
         {playing ? "Pause" : "Play"}
       </button>
 
-      <div role="group" aria-label="Playback speed" className="flex gap-1">
+      <div role="group" aria-label="Speed" className="flex gap-1">
         {SPEEDS.map((s) => (
           <button
-            key={s}
+            key={s.speed}
             type="button"
-            className={`${btn} ${speed === s ? "border-[#F2A93B] text-[#F2A93B]" : ""}`}
-            aria-pressed={speed === s}
-            onClick={() => pb().setSpeed(s)}
+            className={`${btn} ${speed === s.speed ? "border-amber text-amber" : ""}`}
+            aria-pressed={speed === s.speed}
+            title={s.hint}
+            onClick={() => pb().setSpeed(s.speed)}
           >
-            {s}x
+            {s.label}
           </button>
         ))}
       </div>
 
-      <div role="group" aria-label="Stepping" className="flex gap-1">
-        <button type="button" className={btn} onClick={() => void pb().stepBack()} aria-label="Step back one tick">
-          −1 tick
+      <div role="group" aria-label="Move through time" className="flex flex-wrap gap-1">
+        <button type="button" className={btn} onClick={() => void pb().stepBack()}>
+          <StepBack aria-hidden size={18} />
+          Previous moment
         </button>
-        <button type="button" className={btn} onClick={() => void pb().stepForward()} aria-label="Step forward one tick">
-          +1 tick
+        <button type="button" className={btn} onClick={() => void pb().stepForward()}>
+          <StepForward aria-hidden size={18} />
+          Next moment
         </button>
-        <button
-          type="button"
-          className={btn}
-          onClick={() => void pb().stepWindowBack()}
-          aria-label="Step back one decision window"
-        >
-          ◇ prev
+        <button type="button" className={btn} onClick={() => void pb().fastForwardToDecisionWindow()}>
+          <FastForward aria-hidden size={18} />
+          Skip to next move
         </button>
-        <button
-          type="button"
-          className={btn}
-          onClick={() => void pb().fastForwardToDecisionWindow()}
-          aria-label="Fast-forward to the next decision window"
-        >
-          ◇ next
-        </button>
-        <button
-          type="button"
-          className={btn}
-          onClick={() => void pb().fastForwardToDisruptionOnset()}
-          aria-label="Fast-forward to the next disruption"
-        >
-          ! next
+        <button type="button" className={btn} onClick={() => void pb().fastForwardToDisruptionOnset()}>
+          <TriangleAlert aria-hidden size={18} />
+          Skip to next surprise
         </button>
       </div>
 
-      <label className="flex items-center gap-1 text-xs text-[#8A93A6]">
-        Auto-pause
+      <label className="flex items-center gap-2 text-xs text-ivory-dim">
+        Pause automatically at
         <select
-          className="rounded-[4px] border border-[#232B3A] bg-[#0B0E14] px-1 py-1 font-mono text-xs text-[#E6E9EF] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E6E9EF]"
+          className="min-h-11 rounded-[4px] border border-hairline bg-ink px-2 text-sm text-ivory"
           value={mode}
           onChange={(e) => {
             const next: AutoPauseMode =
@@ -159,19 +152,26 @@ export function PlaybackControls() {
             pb().setAutoPauseMode(next);
           }}
         >
-          <option value="every_decision_window">every decision window</option>
-          <option value="disruption_onsets_only">disruption onsets only</option>
+          <option value="every_decision_window">every decision moment</option>
+          <option value="disruption_onsets_only">surprises only</option>
         </select>
       </label>
 
-      <span role="status" className="font-mono text-xs text-[#8A93A6]" data-testid="playback-status">
-        {playing ? `Playing ${speed}x` : reason !== null ? PAUSE_TEXT[reason] : "Paused"}
+      <span role="status" className="text-sm text-ivory-dim" data-testid="playback-status">
+        {playing ? `Playing (${SPEEDS.find((s) => s.speed === speed)?.label ?? ""})` : reason !== null ? PAUSE_TEXT[reason] : "Paused"}
         {busy ? " · working" : ""}
       </span>
 
-      <p className="w-full font-mono text-[10px] text-[#8A93A6]" data-testid="key-hints">
-        {KEY_HINTS.map((h) => `${h.keys}: ${h.action}`).join(" · ")}
-      </p>
+      <InfoPopover label="keyboard shortcuts" align="end" trigger={<span aria-hidden>?</span>}>
+        <span className="block font-medium">Keyboard shortcuts</span>
+        <ul className="mt-1 space-y-1" data-testid="key-hints">
+          {KEY_HINTS.map((h) => (
+            <li key={h.keys}>
+              <kbd className="rounded-[4px] border border-hairline px-1 text-xs">{h.keys}</kbd> {h.action}
+            </li>
+          ))}
+        </ul>
+      </InfoPopover>
     </section>
   );
 }

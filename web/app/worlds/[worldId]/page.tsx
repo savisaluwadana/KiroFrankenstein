@@ -16,9 +16,9 @@ export default function WorldPage() {
   return (
     <Suspense
       fallback={
-        <main className="flex min-h-screen items-center justify-center bg-[#0B0E14] text-[#8A93A6]">
-          <p role="status" className="font-mono text-sm">
-            Loading world…
+        <main className="flex min-h-screen items-center justify-center bg-ink text-ivory-dim">
+          <p role="status" className="text-sm">
+            Opening your business…
           </p>
         </main>
       }

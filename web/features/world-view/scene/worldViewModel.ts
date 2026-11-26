@@ -195,33 +195,3 @@ export function buildWorldViewModel(frame: TickFrame, opts: BuildOptions = {}): 
     highlightedZones: [...zones].sort(),
   };
 }
-
-/** Plain-text summary lines of the model, used by the accessible summary. */
-export function summarize(model: WorldViewModel): {
-  headline: string;
-  bottlenecks: string[];
-  disruptions: string[];
-  interventions: string[];
-} {
-  const b = model.bottlenecks;
-  const bottlenecks: string[] = [];
-  for (const s of b.stockBound) {
-    bottlenecks.push(`Stock-bound: SKU ${s.sku}, ${s.orders} open orders short of stock`);
-  }
-  if (b.capacityBoundOrders > 0) {
-    bottlenecks.push(
-      `Capacity-bound: pick line, ${b.capacityBoundOrders} open orders waiting on capacity (${b.capacityUsed} of ${b.capacity} units used)`,
-    );
-  }
-  return {
-    headline:
-      `Tick ${model.tick}: ${model.workers.onShift} workers on shift, ` +
-      `${model.orderQueueLen} open orders, ${model.inbound.reduce((n, g) => n + g.pos, 0)} inbound purchase orders.`,
-    bottlenecks,
-    disruptions: model.disruptions.map(
-      (d) =>
-        `${d.label}${d.targetSku !== null ? ` on SKU ${d.targetSku}` : ""}, ${d.ticksSinceOnset} ticks since onset (ticks ${d.onsetTick} to ${d.endTick})`,
-    ),
-    interventions: model.interventions.map((i) => `${i.provenance}: ${i.text}`),
-  };
-}
