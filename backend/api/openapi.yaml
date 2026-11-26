@@ -1,0 +1,1759 @@
+openapi: 3.1.0
+info:
+  title: Parallel API
+  version: 0.1.0
+  summary: Slice endpoints of the Parallel simulation API.
+  description: |
+    Parallel is a deterministic, forkable simulation of one e-commerce
+    warehouse business. This document is the source of truth for the HTTP
+    contract of the vertical slice. Go handlers and the TypeScript client are
+    written against it.
+
+    **Conventions**
+
+    - Every path is served below the server base `/api/v1`.
+    - Money is an integer count of minor units (cents). Every response that
+      carries money also carries `currency`, an ISO 4217 code (`USD` for the
+      flagship scenario). Money fields are named `...Cents`.
+    - Rates and percentages are integer basis points (1 % = 100 bps), named
+      `...Bps`.
+    - Ticks are integer simulated hours. Tick 0 is the initial state.
+    - State hashes are lowercase hex SHA-256 strings (64 characters).
+    - Request bodies are decoded strictly: unknown fields give 400. Bodies
+      over 256 KiB give 413.
+    - Errors are `application/problem+json` (RFC 9457) without stack traces.
+    - Every response that carries metrics also carries the `disclaimer`
+      field. Results are synthetic and are never a forecast.
+    - Possession of a World or Branch identifier grants access to it. There
+      is no authentication in the MVP (documented limitation).
+  license:
+    name: MIT
+    identifier: MIT
+servers:
+  - url: /api/v1
+    description: Same-origin API base.
+security: []
+tags:
+  - name: Meta
+    description: Server health.
+  - name: Worlds
+    description: Create and read Worlds.
+  - name: Branches
+    description: Branch list, fork and advance.
+  - name: Decisions
+    description: Commands and Decision_Windows.
+  - name: Reads
+    description: Rewind reads at any computed Tick. Reads never change a Head_Tick or the Input_Log.
+  - name: Demo
+    description: The flagship demo path.
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      tags: [Meta]
+      summary: Server health.
+      description: Returns 200 while the server can serve requests. Needs no database round trip beyond a store ping.
+      responses:
+        '200':
+          description: The server is healthy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /worlds:
+    post:
+      operationId: createWorld
+      tags: [Worlds]
+      summary: Create a World and its root Branch.
+      description: |
+        Validates the scenario with the overrides applied, canonicalizes it
+        and stores the World. The root Branch is at Head_Tick 0 with its
+        Decision_Window open. When `scenario` is omitted the flagship
+        scenario "Black Friday Meltdown" is used.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorldRequest'
+      responses:
+        '201':
+          description: The World and its root Branch.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateWorldResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /worlds/{worldId}:
+    get:
+      operationId: getWorld
+      tags: [Worlds]
+      summary: Read a World.
+      description: |
+        Returns the World with its effective Assumptions (value, unit,
+        default, bounds, rationale, overridden flag) and a scenario summary.
+        The Disruption_Script is never returned.
+      parameters:
+        - $ref: '#/components/parameters/WorldId'
+      responses:
+        '200':
+          description: The World.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/World'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /worlds/{worldId}/branches:
+    get:
+      operationId: listBranches
+      tags: [Branches]
+      summary: List the Branches of a World.
+      description: Branches are returned in creation order. The root Branch is first.
+      parameters:
+        - $ref: '#/components/parameters/WorldId'
+      responses:
+        '200':
+          description: The Branches.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BranchList'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /demo:
+    post:
+      operationId: createDemo
+      tags: [Demo]
+      summary: Create the flagship demo World.
+      description: |
+        Creates a World from the flagship scenario with the demo seed and
+        returns it with its root Branch (at Head_Tick 0, not advanced) and
+        the derived demo plan. The plan comes from a no-command run of the
+        scenario. It names where to fork and which backup purchase order to
+        place. It asserts no financial outcome and never lists Disruption_Script
+        entries.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDemoRequest'
+      responses:
+        '201':
+          description: The demo World, its root Branch and the plan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DemoResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /branches/{branchId}:
+    get:
+      operationId: getBranch
+      tags: [Branches]
+      summary: Read a Branch.
+      parameters:
+        - $ref: '#/components/parameters/BranchId'
+      responses:
+        '200':
+          description: The Branch.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Branch'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /branches/{branchId}/fork:
+    post:
+      operationId: forkBranch
+      tags: [Branches]
+      summary: Fork a Branch at a computed Tick.
+      description: |
+        Creates a child Branch whose history is the parent's Input_Log up to
+        and including `atTick`. The child's Head_Tick is `atTick` and a fork
+        Decision_Window is open there. Commands the parent submitted in its
+        own window at `atTick` are not visible to the child. The parent is
+        never modified. A World holds at most 32 Branches.
+      parameters:
+        - $ref: '#/components/parameters/BranchId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForkRequest'
+      responses:
+        '201':
+          description: The child Branch.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Branch'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /branches/{branchId}/advance:
+    post:
+      operationId: advanceBranch
+      tags: [Branches]
+      summary: Advance a Branch.
+      description: |
+        Without `runToTick` the Branch advances to the next Decision_Window or
+        the horizon. With `runToTick` it ends intervening windows without
+        Commands and stops at `runToTick`, the horizon, or the next
+        Disruption-onset window, whichever comes first. Advancing from an
+        open window ends that window. The number of Ticks per request never
+        changes any state hash.
+      parameters:
+        - $ref: '#/components/parameters/BranchId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdvanceRequest'
+      responses:
+        '200':
+          description: Where the advance stopped and the newly computed Tick_Frames.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdvanceResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /branches/{branchId}/commands:
+    post:
+      operationId: submitCommands
+      tags: [Decisions]
+      summary: Submit Commands in the open Decision_Window.
+      description: |
+        `windowTick` must equal the Head_Tick and a Decision_Window must be
+        open there. Each Command passes the deterministic validator in order.
+        Accepted Commands become Inputs that take effect at `windowTick + 1`.
+        Rejected Commands are returned with a reason code and are stored
+        nowhere. A repeated `Idempotency-Key` on the same Branch returns the
+        original accepted Inputs with `duplicate: true` and appends nothing.
+      parameters:
+        - $ref: '#/components/parameters/BranchId'
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: Client-chosen key, 1 to 128 printable ASCII characters.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+            pattern: '^[\x21-\x7E]+$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitCommandsRequest'
+      responses:
+        '200':
+          description: Accepted Inputs and rejected Commands.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmitCommandsResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /branches/{branchId}/decision-window/end:
+    post:
+      operationId: endDecisionWindow
+      tags: [Decisions]
+      summary: End the open Decision_Window.
+      description: |
+        Closes the window at the Head_Tick without further Commands. Commands
+        already submitted stay recorded. Ending the window does not advance
+        the Branch; call `advanceBranch` for that.
+      parameters:
+        - $ref: '#/components/parameters/BranchId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EndWindowRequest'
+      responses:
+        '204':
+          description: The window is closed.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+  /branches/{branchId}/tick-frames:
+    get:
+      operationId: listTickFrames
+      tags: [Reads]
+      summary: Read Tick_Frames for a range of Ticks.
+      description: |
+        Returns the frames for Ticks `from` through `to` inclusive, ascending.
+        A range spans at most 240 Ticks. `to` must not exceed the Head_Tick.
+      parameters:
+        - $ref: '#/components/parameters/BranchId'
+        - name: from
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/Tick'
+        - name: to
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/Tick'
+      responses:
+        '200':
+          description: The frames.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TickFramesResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /branches/{branchId}/state:
+    get:
+      operationId: getBranchState
+      tags: [Reads]
+      summary: Read the Observation and State_Hash at a Tick.
+      description: |
+        A rewind read: it never changes the Head_Tick. The Observation holds
+        only what a Manager may know at that Tick. It never contains the seed,
+        random stream state or future Disruptions.
+      parameters:
+        - $ref: '#/components/parameters/BranchId'
+        - $ref: '#/components/parameters/TickQuery'
+      responses:
+        '200':
+          description: The state view at the Tick.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BranchState'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /branches/{branchId}/metrics:
+    get:
+      operationId: getBranchMetrics
+      tags: [Reads]
+      summary: Read the Metrics at a Tick.
+      description: A rewind read of the Metrics_Calculator output at the Tick.
+      parameters:
+        - $ref: '#/components/parameters/BranchId'
+        - $ref: '#/components/parameters/TickQuery'
+      responses:
+        '200':
+          description: The metrics at the Tick.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /branches/{branchId}/ledger:
+    get:
+      operationId: listLedgerEntries
+      tags: [Reads]
+      summary: Drill down into Ledger entries.
+      description: |
+        Returns the double-entry Ledger entries posted in Ticks `from` through
+        `to` inclusive, in posting order. Every money figure in the metrics is a
+        sum of these entries or a documented formula over them. Entries have
+        a description derived from their cause and a reference to the cause.
+        Results are paged with `limit` and `offset`.
+      parameters:
+        - $ref: '#/components/parameters/BranchId'
+        - name: from
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/Tick'
+        - name: to
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/Tick'
+        - name: account
+          in: query
+          required: false
+          description: Keep only entries with a line on this account.
+          schema:
+            $ref: '#/components/schemas/Account'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 200
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: The entries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LedgerResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+components:
+  parameters:
+    WorldId:
+      name: worldId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Uuid'
+    BranchId:
+      name: branchId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Uuid'
+    TickQuery:
+      name: tick
+      in: query
+      required: true
+      description: A Tick from 0 through the Head_Tick.
+      schema:
+        $ref: '#/components/schemas/Tick'
+  responses:
+    BadRequest:
+      description: Malformed JSON, unknown field, missing or malformed parameter, invalid name or invalid scenario (types `bad-request`, `invalid-name`, `invalid-scenario`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: The World or Branch does not exist (type `not-found`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Conflict:
+      description: |
+        The request conflicts with the Branch state. Types: `history-immutable`,
+        `not-yet-simulated`, `stale-head`, `window-not-open`, `branch-limit`,
+        `horizon-reached`.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    PayloadTooLarge:
+      description: The request body exceeds 256 KiB (type `payload-too-large`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unprocessable:
+      description: The request is well-formed but invalid. Types `validation`, `invalid-tick`, `budget-exceeded`.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    RateLimited:
+      description: The per-IP rate limit was exceeded (type `rate-limited`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ServiceUnavailable:
+      description: The store is unreachable (type `unavailable`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    Uuid:
+      type: string
+      format: uuid
+      description: Random UUIDv4 identifier.
+    Tick:
+      type: integer
+      format: int32
+      minimum: 0
+      description: Simulated hour. Tick 0 is the initial state.
+    SimMinute:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Minutes since scenario start. Tick N has minute 60 * N.
+    Cents:
+      type: integer
+      format: int64
+      description: Signed money in minor units (cents) of the response `currency`.
+    Bps:
+      type: integer
+      format: int64
+      description: Basis points. 10000 is 100 %.
+    Currency:
+      type: string
+      pattern: '^[A-Z]{3}$'
+      description: ISO 4217 currency code of every `...Cents` field in the same response.
+      examples: [USD]
+    StateHash:
+      type: string
+      pattern: '^[0-9a-f]{64}$'
+      description: Lowercase hex SHA-256 of the canonical simulation state at a Tick. Excludes identifiers, labels, manager kind, timestamps and rationale.
+    Disclaimer:
+      type: string
+      description: Fixed text. Results are synthetic.
+      const: Synthetic simulation output under the stated assumptions. Not a forecast or guarantee of real-world results.
+    ManagerKind:
+      type: string
+      enum: [human, ai_rule_based, ai_llm]
+      description: Who manages the Branch. Recorded metadata. The engine never reads it.
+    Provenance:
+      type: string
+      enum: [human, ai_rule_based, ai_llm, ai_rule_based_fallback, scenario, injected]
+      description: Where an Input came from. Recorded metadata excluded from every state hash.
+    SupplierRole:
+      type: string
+      enum: [primary, backup]
+    Account:
+      type: string
+      description: The fixed chart of accounts of the business.
+      enum:
+        - Cash
+        - Inventory
+        - Opening_Equity
+        - Revenue
+        - Cost_Of_Goods_Sold
+        - Labor_Expense
+        - Freight_Expense
+        - Marketing_Expense
+        - Overhead_Expense
+        - Service_Credit_Expense
+    DisruptionKind:
+      type: string
+      enum: [demand_surge, supplier_outage, workforce_absence]
+    WindowReason:
+      type: string
+      enum: [cadence, disruption_onset, fork]
+      description: Why a Decision_Window is open at a Tick.
+    PauseReason:
+      type: string
+      enum: [decision_window, horizon, run_to_tick]
+    Health:
+      type: object
+      additionalProperties: false
+      required: [status, engineVersion]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+        engineVersion:
+          type: string
+          description: Simulation engine version, for example `1`.
+    ProblemType:
+      type: string
+      description: |
+        URI that identifies the problem type. Status codes: history-immutable 409,
+        not-yet-simulated 409, stale-head 409, window-not-open 409, branch-limit 409,
+        horizon-reached 409, budget-exceeded 422, validation 422, invalid-tick 422,
+        invalid-scenario 400, invalid-name 400, bad-request 400, not-found 404,
+        payload-too-large 413, rate-limited 429, unavailable 503, internal 500.
+        An unknown route gives not-found 404. A wrong method gives bad-request with status 405.
+      enum:
+        - urn:parallel:problem:history-immutable
+        - urn:parallel:problem:not-yet-simulated
+        - urn:parallel:problem:stale-head
+        - urn:parallel:problem:window-not-open
+        - urn:parallel:problem:budget-exceeded
+        - urn:parallel:problem:validation
+        - urn:parallel:problem:branch-limit
+        - urn:parallel:problem:horizon-reached
+        - urn:parallel:problem:invalid-tick
+        - urn:parallel:problem:invalid-scenario
+        - urn:parallel:problem:invalid-name
+        - urn:parallel:problem:bad-request
+        - urn:parallel:problem:not-found
+        - urn:parallel:problem:payload-too-large
+        - urn:parallel:problem:rate-limited
+        - urn:parallel:problem:unavailable
+        - urn:parallel:problem:internal
+    Problem:
+      type: object
+      description: RFC 9457 problem details. Never contains a stack trace.
+      required: [type, title, status]
+      properties:
+        type:
+          $ref: '#/components/schemas/ProblemType'
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        detail:
+          type: string
+        instance:
+          type: string
+        issues:
+          type: array
+          description: Field-level issues for `invalid-scenario`, `invalid-name` and `validation`.
+          items:
+            $ref: '#/components/schemas/ProblemIssue'
+        expectedHeadTick:
+          $ref: '#/components/schemas/Tick'
+        actualHeadTick:
+          $ref: '#/components/schemas/Tick'
+    ProblemIssue:
+      type: object
+      additionalProperties: false
+      required: [field, message]
+      properties:
+        field:
+          type: string
+          description: Assumption path such as `workforce.tempOnboardingTicks`, or a request field name.
+        message:
+          type: string
+    CreateWorldRequest:
+      type: object
+      additionalProperties: false
+      required: [name, seed]
+      properties:
+        name:
+          $ref: '#/components/schemas/Name'
+        seed:
+          $ref: '#/components/schemas/Seed'
+        scenario:
+          type: object
+          description: A scenario document (schemaVersion 1). Omit it to use the flagship scenario. Validated against the documented Assumption bounds.
+          additionalProperties: true
+        overrides:
+          type: object
+          description: Assumption dotted path to new integer value, for example `workforce.regularWorkers`. Each value must lie within the Assumption's bounds.
+          additionalProperties:
+            type: integer
+            format: int64
+        managerKind:
+          $ref: '#/components/schemas/ManagerKind'
+    Name:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 1 to 64 printable characters.
+    Seed:
+      type: integer
+      format: int64
+      minimum: 0
+      maximum: 9007199254740991
+      description: World seed. The API limits it to 2^53 - 1 so JavaScript clients keep it exact.
+    CreateWorldResponse:
+      type: object
+      additionalProperties: false
+      required: [world, rootBranch]
+      properties:
+        world:
+          $ref: '#/components/schemas/World'
+        rootBranch:
+          $ref: '#/components/schemas/Branch'
+    World:
+      type: object
+      additionalProperties: false
+      required: [id, name, seed, engineVersion, scenarioHash, createdAt, currency, scenario, assumptions]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          $ref: '#/components/schemas/Name'
+        seed:
+          $ref: '#/components/schemas/Seed'
+        engineVersion:
+          type: string
+        scenarioHash:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+          description: SHA-256 of the canonical scenario bytes.
+        createdAt:
+          type: string
+          format: date-time
+        currency:
+          $ref: '#/components/schemas/Currency'
+        scenario:
+          $ref: '#/components/schemas/ScenarioSummary'
+        assumptions:
+          type: array
+          description: Effective Assumptions in ascending path order.
+          items:
+            $ref: '#/components/schemas/Assumption'
+    ScenarioSummary:
+      type: object
+      description: Public facts of the scenario. It never includes the Disruption_Script.
+      additionalProperties: false
+      required: [name, horizonTicks, startClock, decisionCadenceTicks, commandBudget, skus, scoreWeights]
+      properties:
+        name:
+          type: string
+        horizonTicks:
+          type: integer
+          minimum: 1
+        startClock:
+          type: string
+          description: Wall-clock label of Tick 0, for example `Thu 00:00`.
+        decisionCadenceTicks:
+          type: integer
+          minimum: 1
+        commandBudget:
+          type: integer
+          minimum: 1
+          description: Commands allowed per Decision_Window.
+        skus:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkuSummary'
+        scoreWeights:
+          $ref: '#/components/schemas/ScoreWeights'
+    SkuSummary:
+      type: object
+      additionalProperties: false
+      required: [index, id, referencePriceCents, openingUnits, promiseTicks]
+      properties:
+        index:
+          type: integer
+          minimum: 0
+          description: Index used by Commands.
+        id:
+          type: string
+        referencePriceCents:
+          $ref: '#/components/schemas/Cents'
+        openingUnits:
+          type: integer
+          format: int64
+        promiseTicks:
+          type: integer
+          description: Ticks from order creation to the ship-by promise.
+    ScoreWeights:
+      type: object
+      additionalProperties: false
+      required: [financialWeightBps, fulfilmentWeightBps, onTimeWeightBps]
+      properties:
+        financialWeightBps:
+          $ref: '#/components/schemas/Bps'
+        fulfilmentWeightBps:
+          $ref: '#/components/schemas/Bps'
+        onTimeWeightBps:
+          $ref: '#/components/schemas/Bps'
+    Assumption:
+      type: object
+      additionalProperties: false
+      required: [path, value, unit, default, min, max, rationale, overridden]
+      properties:
+        path:
+          type: string
+          description: Dotted path of the Assumption in the scenario document.
+        value:
+          type: integer
+          format: int64
+          description: Effective value. Money in cents, rates in bps, durations in the stated unit.
+        unit:
+          type: string
+        default:
+          type: integer
+          format: int64
+        min:
+          type: integer
+          format: int64
+        max:
+          type: integer
+          format: int64
+        rationale:
+          type: string
+        overridden:
+          type: boolean
+          description: True when `value` differs from `default`.
+    Branch:
+      type: object
+      additionalProperties: false
+      required: [id, worldId, parentBranchId, forkTick, headTick, label, managerKind, createdAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        worldId:
+          $ref: '#/components/schemas/Uuid'
+        parentBranchId:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+          description: Null for the root Branch.
+        forkTick:
+          $ref: '#/components/schemas/Tick'
+        headTick:
+          $ref: '#/components/schemas/Tick'
+        label:
+          $ref: '#/components/schemas/Name'
+        managerKind:
+          $ref: '#/components/schemas/ManagerKind'
+        createdAt:
+          type: string
+          format: date-time
+    BranchList:
+      type: object
+      additionalProperties: false
+      required: [branches]
+      properties:
+        branches:
+          type: array
+          items:
+            $ref: '#/components/schemas/Branch'
+    ForkRequest:
+      type: object
+      additionalProperties: false
+      required: [atTick, label]
+      properties:
+        atTick:
+          $ref: '#/components/schemas/Tick'
+        label:
+          $ref: '#/components/schemas/Name'
+        managerKind:
+          $ref: '#/components/schemas/ManagerKind'
+    AdvanceRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        runToTick:
+          $ref: '#/components/schemas/Tick'
+        expectedHeadTick:
+          $ref: '#/components/schemas/Tick'
+    AdvanceResult:
+      type: object
+      additionalProperties: false
+      required: [headTick, stateHash, paused, windowReasons, frames, currency, disclaimer]
+      properties:
+        headTick:
+          $ref: '#/components/schemas/Tick'
+        stateHash:
+          $ref: '#/components/schemas/StateHash'
+        paused:
+          $ref: '#/components/schemas/PauseReason'
+        windowReasons:
+          type: array
+          description: Why a Decision_Window is open at `headTick`. Empty when none is.
+          items:
+            $ref: '#/components/schemas/WindowReason'
+        frames:
+          type: array
+          description: Tick_Frames of the Ticks computed by this request, ascending.
+          items:
+            $ref: '#/components/schemas/TickFrame'
+        currency:
+          $ref: '#/components/schemas/Currency'
+        disclaimer:
+          $ref: '#/components/schemas/Disclaimer'
+    SubmitCommandsRequest:
+      type: object
+      additionalProperties: false
+      required: [windowTick, commands]
+      properties:
+        windowTick:
+          $ref: '#/components/schemas/Tick'
+        commands:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/Command'
+        expectedHeadTick:
+          $ref: '#/components/schemas/Tick'
+    EndWindowRequest:
+      type: object
+      additionalProperties: false
+      required: [windowTick]
+      properties:
+        windowTick:
+          $ref: '#/components/schemas/Tick'
+        expectedHeadTick:
+          $ref: '#/components/schemas/Tick'
+    CommandKind:
+      type: string
+      description: |
+        The closed Command_Set. In the slice only `set_price` and
+        `place_purchase_order` are implemented. The others are valid kinds
+        that the validator rejects with code `not_implemented`.
+      enum:
+        - set_price
+        - place_purchase_order
+        - expedite_purchase_order
+        - schedule_overtime
+        - hire_temp_workers
+        - set_marketing_spend
+    Command:
+      type: object
+      additionalProperties: false
+      required: [kind]
+      description: |
+        A manager decision. Only the fields named for the kind are read.
+        `set_price`: sku, amountCents (new unit price within 50 % to 200 % of the
+        reference price). `place_purchase_order`: sku, role, qty (1 to 1000000).
+        `expedite_purchase_order`: poRef. `schedule_overtime`: qty (hours per worker).
+        `hire_temp_workers`: qty (workers). `set_marketing_spend`: sku, amountCents per hour.
+      properties:
+        kind:
+          $ref: '#/components/schemas/CommandKind'
+        sku:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Index into the scenario SKU list.
+        role:
+          $ref: '#/components/schemas/SupplierRole'
+        qty:
+          type: integer
+          format: int64
+        amountCents:
+          $ref: '#/components/schemas/Cents'
+        poRef:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Purchase order identifier.
+    RejectCode:
+      type: string
+      description: Machine-readable reason a Command was rejected.
+      enum:
+        - unknown_command
+        - not_implemented
+        - budget_exhausted
+        - unknown_sku
+        - price_out_of_bounds
+        - invalid_quantity
+        - unknown_supplier
+        - supplier_unavailable
+        - insufficient_cash
+    ValidationResult:
+      type: object
+      additionalProperties: false
+      required: [index, command, ok]
+      properties:
+        index:
+          type: integer
+          minimum: 0
+          description: Position of the Command in the request.
+        command:
+          $ref: '#/components/schemas/Command'
+        ok:
+          type: boolean
+        code:
+          $ref: '#/components/schemas/RejectCode'
+        message:
+          type: string
+          description: Present when `ok` is false.
+    AcceptedCommand:
+      type: object
+      additionalProperties: false
+      required: [seq, effectiveTick, command, provenance]
+      properties:
+        seq:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Per-Branch input sequence number.
+        effectiveTick:
+          $ref: '#/components/schemas/Tick'
+        command:
+          $ref: '#/components/schemas/Command'
+        provenance:
+          $ref: '#/components/schemas/Provenance'
+    SubmitCommandsResult:
+      type: object
+      additionalProperties: false
+      required: [accepted, rejected, budgetRemaining, duplicate]
+      properties:
+        accepted:
+          type: array
+          items:
+            $ref: '#/components/schemas/AcceptedCommand'
+        rejected:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationResult'
+        budgetRemaining:
+          type: integer
+          minimum: 0
+          description: Commands still allowed in this window.
+        duplicate:
+          type: boolean
+          description: True when the Idempotency-Key repeated an earlier submission. Nothing was appended.
+    TickFramesResponse:
+      type: object
+      additionalProperties: false
+      required: [branchId, frames, currency, disclaimer]
+      properties:
+        branchId:
+          $ref: '#/components/schemas/Uuid'
+        frames:
+          type: array
+          items:
+            $ref: '#/components/schemas/TickFrame'
+        currency:
+          $ref: '#/components/schemas/Currency'
+        disclaimer:
+          $ref: '#/components/schemas/Disclaimer'
+    TickFrame:
+      type: object
+      description: |
+        Read model of one Tick_Boundary, derived only from the state, the scenario
+        and the tick's Fulfilment_Constraint_Report.
+      additionalProperties: false
+      required: [tick, stateHash, skus, workersOnShift, tempsOnShift, tempsOnboarding, orderQueueLen, disruptions, report, markers, metrics]
+      properties:
+        tick:
+          $ref: '#/components/schemas/Tick'
+        stateHash:
+          $ref: '#/components/schemas/StateHash'
+        skus:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkuFrame'
+        workersOnShift:
+          type: integer
+          format: int64
+          description: Regular workers on shift after absences.
+        tempsOnShift:
+          type: integer
+          format: int64
+          description: Temporary workers past onboarding.
+        tempsOnboarding:
+          type: integer
+          format: int64
+          description: Temporary workers hired but not yet ready.
+        orderQueueLen:
+          type: integer
+          format: int64
+          description: Open customer orders.
+        disruptions:
+          type: array
+          description: Disruptions in effect at this Tick.
+          items:
+            $ref: '#/components/schemas/DisruptionFrame'
+        report:
+          $ref: '#/components/schemas/FulfilmentConstraintReport'
+        markers:
+          type: array
+          items:
+            $ref: '#/components/schemas/FrameMarker'
+        metrics:
+          $ref: '#/components/schemas/Metrics'
+    SkuFrame:
+      type: object
+      additionalProperties: false
+      required: [sku, onHand, inboundPOs, inboundUnits]
+      properties:
+        sku:
+          type: integer
+          format: int64
+        onHand:
+          type: integer
+          format: int64
+        inboundPOs:
+          type: integer
+          format: int64
+          description: Open purchase orders for the SKU.
+        inboundUnits:
+          type: integer
+          format: int64
+          description: Units on those purchase orders.
+    DisruptionFrame:
+      type: object
+      additionalProperties: false
+      required: [kind, origin, inputSeq, target, magnitudeBps, onsetTick, endTick, ticksSinceOnset]
+      properties:
+        kind:
+          $ref: '#/components/schemas/DisruptionKind'
+        origin:
+          $ref: '#/components/schemas/DisruptionOrigin'
+        inputSeq:
+          type: integer
+          format: int64
+          minimum: 0
+        target:
+          type: integer
+          format: int64
+          description: SKU index, or -1 when the Disruption has no SKU target.
+        magnitudeBps:
+          $ref: '#/components/schemas/Bps'
+        onsetTick:
+          $ref: '#/components/schemas/Tick'
+        endTick:
+          $ref: '#/components/schemas/Tick'
+        ticksSinceOnset:
+          type: integer
+          minimum: 0
+          description: 0 in the onset Tick.
+    DisruptionOrigin:
+      type: string
+      enum: [script, injected]
+    FulfilmentConstraintReport:
+      type: object
+      description: Per-Tick record of open orders that did not ship, split into stock-bound and capacity-bound.
+      additionalProperties: false
+      required: [tick, capacity, capacityUsed, shippedOrders, skus]
+      properties:
+        tick:
+          $ref: '#/components/schemas/Tick'
+        capacity:
+          type: integer
+          format: int64
+          description: Units of fulfilment capacity available this Tick.
+        capacityUsed:
+          type: integer
+          format: int64
+          description: Units shipped this Tick.
+        shippedOrders:
+          type: integer
+          format: int64
+        skus:
+          type: array
+          description: Only SKUs with at least one unshipped order, ascending by SKU index.
+          items:
+            $ref: '#/components/schemas/SkuConstraint'
+    SkuConstraint:
+      type: object
+      additionalProperties: false
+      required: [sku, stockBoundOrders, stockBoundUnits, capacityBoundOrders, capacityBoundUnits]
+      properties:
+        sku:
+          type: integer
+          format: int64
+        stockBoundOrders:
+          type: integer
+          format: int64
+          description: Orders left open because on-hand stock was short.
+        stockBoundUnits:
+          type: integer
+          format: int64
+        capacityBoundOrders:
+          type: integer
+          format: int64
+          description: Orders left open because capacity ran out.
+        capacityBoundUnits:
+          type: integer
+          format: int64
+    FrameMarker:
+      type: object
+      additionalProperties: false
+      required: [kind]
+      properties:
+        kind:
+          type: string
+          enum: [decision_window, disruption_onset]
+        windowReason:
+          $ref: '#/components/schemas/WindowReason'
+        disruptionKind:
+          $ref: '#/components/schemas/DisruptionKind'
+    Metrics:
+      type: object
+      description: |
+        Output of the one Metrics_Calculator at a Tick. Every figure is an
+        integer. Sums run over Ledger entries from Tick 0 through `tick` unless
+        a field says otherwise. Money is in cents of the response `currency`.
+      additionalProperties: false
+      required:
+        - tick
+        - netRevenueCents
+        - costOfGoodsSoldCents
+        - freightExpenseCents
+        - variableCostCents
+        - contributionCents
+        - laborExpenseCents
+        - marketingExpenseCents
+        - overheadExpenseCents
+        - serviceCreditExpenseCents
+        - netProfitCents
+        - netCashFlowCents
+        - cashCents
+        - inventoryValueCents
+        - ordersDue
+        - ordersDueOnTime
+        - unitsDue
+        - unitsDueShipped
+        - serviceLevelBps
+        - fillRateBps
+        - backlogOrders
+        - backlogUnits
+        - lateBacklogOrders
+        - lateBacklogUnits
+        - reconciliation
+      properties:
+        tick:
+          $ref: '#/components/schemas/Tick'
+        netRevenueCents:
+          type: integer
+          format: int64
+          description: |
+            Formula: Revenue account balance. Account: Revenue. The sum of Revenue
+            credits, recognised at shipment and never reduced.
+        costOfGoodsSoldCents:
+          type: integer
+          format: int64
+          description: 'Formula: Cost_Of_Goods_Sold account balance. Account: Cost_Of_Goods_Sold. Moving weighted average cost of shipped units.'
+        freightExpenseCents:
+          type: integer
+          format: int64
+          description: 'Formula: Freight_Expense account balance. Account: Freight_Expense (outbound shipping and expedite fees).'
+        variableCostCents:
+          type: integer
+          format: int64
+          description: 'Formula: costOfGoodsSoldCents + freightExpenseCents. Accounts: Cost_Of_Goods_Sold, Freight_Expense.'
+        contributionCents:
+          type: integer
+          format: int64
+          description: 'Formula: netRevenueCents - variableCostCents. Accounts: Revenue, Cost_Of_Goods_Sold, Freight_Expense.'
+        laborExpenseCents:
+          type: integer
+          format: int64
+          description: 'Formula: Labor_Expense account balance. Account: Labor_Expense (regular, overtime and temporary wages, paid in the tick earned).'
+        marketingExpenseCents:
+          type: integer
+          format: int64
+          description: 'Formula: Marketing_Expense account balance. Account: Marketing_Expense.'
+        overheadExpenseCents:
+          type: integer
+          format: int64
+          description: 'Formula: Overhead_Expense account balance. Account: Overhead_Expense.'
+        serviceCreditExpenseCents:
+          type: integer
+          format: int64
+          description: 'Formula: Service_Credit_Expense account balance. Account: Service_Credit_Expense (credit for each order shipped late).'
+        netProfitCents:
+          type: integer
+          format: int64
+          description: |
+            Formula: contributionCents - (laborExpenseCents + marketingExpenseCents +
+            overheadExpenseCents + serviceCreditExpenseCents). Accounts: Revenue minus
+            all expense accounts.
+        netCashFlowCents:
+          type: integer
+          format: int64
+          description: 'Formula: sum of Cash debits minus Cash credits over every entry from Tick 0 through `tick`, excluding the opening entry. Account: Cash.'
+        cashCents:
+          type: integer
+          format: int64
+          description: 'Formula: Cash account balance, which is opening cash plus every Cash line. Account: Cash.'
+        inventoryValueCents:
+          type: integer
+          format: int64
+          description: 'Formula: Inventory account balance, which equals the sum of per-SKU moving-average inventory values. Account: Inventory.'
+        ordersDue:
+          type: integer
+          format: int64
+          description: Orders (open, shipped or cancelled) whose ship-by minute is at most 60 * tick.
+        ordersDueOnTime:
+          type: integer
+          format: int64
+          description: Orders due that shipped at or before their ship-by minute.
+        unitsDue:
+          type: integer
+          format: int64
+          description: Units in orders due.
+        unitsDueShipped:
+          type: integer
+          format: int64
+          description: Units in orders due that have shipped.
+        serviceLevelBps:
+          $ref: '#/components/schemas/Bps'
+          description: 'Formula: round half to even of ordersDueOnTime * 10000 / ordersDue. 10000 when ordersDue is 0. Derived from the order book, no Ledger account.'
+        fillRateBps:
+          $ref: '#/components/schemas/Bps'
+          description: 'Formula: round half to even of unitsDueShipped * 10000 / unitsDue. 10000 when unitsDue is 0. Derived from the order book, no Ledger account.'
+        backlogOrders:
+          type: integer
+          format: int64
+          description: Orders that are neither shipped nor cancelled.
+        backlogUnits:
+          type: integer
+          format: int64
+          description: Units in the backlog orders.
+        lateBacklogOrders:
+          type: integer
+          format: int64
+          description: Backlog orders whose ship-by minute is before 60 * tick.
+        lateBacklogUnits:
+          type: integer
+          format: int64
+          description: Units in the late backlog orders.
+        reconciliation:
+          $ref: '#/components/schemas/Reconciliation'
+    Reconciliation:
+      type: object
+      description: Identities that tie profit, cash and inventory together.
+      additionalProperties: false
+      required:
+        - openingInventoryCents
+        - inventoryChangeCents
+        - profitLessCashFlowCents
+        - accrualToCashHolds
+        - openingEquityCents
+        - balanceIdentityHolds
+      properties:
+        openingInventoryCents:
+          type: integer
+          format: int64
+          description: 'Inventory debit of the opening entry. Account: Inventory.'
+        inventoryChangeCents:
+          type: integer
+          format: int64
+          description: 'Formula: inventoryValueCents - openingInventoryCents. Account: Inventory.'
+        profitLessCashFlowCents:
+          type: integer
+          format: int64
+          description: 'Formula: netProfitCents - netCashFlowCents. Equals inventoryChangeCents.'
+        accrualToCashHolds:
+          type: boolean
+          description: True when profitLessCashFlowCents equals inventoryChangeCents.
+        openingEquityCents:
+          type: integer
+          format: int64
+          description: 'Opening_Equity account balance. Account: Opening_Equity.'
+        balanceIdentityHolds:
+          type: boolean
+          description: True when cashCents + inventoryValueCents equals openingEquityCents + netProfitCents.
+    MetricsResponse:
+      type: object
+      additionalProperties: false
+      required: [branchId, tick, stateHash, metrics, currency, disclaimer]
+      properties:
+        branchId:
+          $ref: '#/components/schemas/Uuid'
+        tick:
+          $ref: '#/components/schemas/Tick'
+        stateHash:
+          $ref: '#/components/schemas/StateHash'
+        metrics:
+          $ref: '#/components/schemas/Metrics'
+        currency:
+          $ref: '#/components/schemas/Currency'
+        disclaimer:
+          $ref: '#/components/schemas/Disclaimer'
+    BranchState:
+      type: object
+      additionalProperties: false
+      required: [branchId, tick, stateHash, observation, currency, disclaimer]
+      properties:
+        branchId:
+          $ref: '#/components/schemas/Uuid'
+        tick:
+          $ref: '#/components/schemas/Tick'
+        stateHash:
+          $ref: '#/components/schemas/StateHash'
+        observation:
+          $ref: '#/components/schemas/Observation'
+        currency:
+          $ref: '#/components/schemas/Currency'
+        disclaimer:
+          $ref: '#/components/schemas/Disclaimer'
+    Observation:
+      type: object
+      description: |
+        Everything a Manager may know at a Tick_Boundary. It never contains the
+        seed, random stream state, future draws, or Disruptions whose onset Tick
+        is after `tick`.
+      additionalProperties: false
+      required: [tick, cashCents, skus, openOrders, purchaseOrders, workforce, disruptions, metrics, window]
+      properties:
+        tick:
+          $ref: '#/components/schemas/Tick'
+        cashCents:
+          $ref: '#/components/schemas/Cents'
+        skus:
+          type: array
+          description: Ordered by SKU identifier string.
+          items:
+            $ref: '#/components/schemas/ObsSku'
+        openOrders:
+          type: array
+          description: Ordered by ship-by minute, then order sequence.
+          items:
+            $ref: '#/components/schemas/ObsOrder'
+        purchaseOrders:
+          type: array
+          description: Open purchase orders ordered by identifier.
+          items:
+            $ref: '#/components/schemas/ObsPurchaseOrder'
+        workforce:
+          $ref: '#/components/schemas/ObsWorkforce'
+        disruptions:
+          type: array
+          description: Disruptions in effect, ordered by onset Tick, then origin, then input sequence.
+          items:
+            $ref: '#/components/schemas/ObsDisruption'
+        metrics:
+          $ref: '#/components/schemas/Metrics'
+        window:
+          $ref: '#/components/schemas/ObsWindow'
+    ObsSku:
+      type: object
+      additionalProperties: false
+      required: [sku, id, onHand, inventoryValueCents, referencePriceCents, priceCents, marketingCents, inboundPOs, inboundUnits, suppliers]
+      properties:
+        sku:
+          type: integer
+          format: int64
+          description: Index used by Commands.
+        id:
+          type: string
+        onHand:
+          type: integer
+          format: int64
+        inventoryValueCents:
+          $ref: '#/components/schemas/Cents'
+        referencePriceCents:
+          $ref: '#/components/schemas/Cents'
+        priceCents:
+          $ref: '#/components/schemas/Cents'
+          description: Current selling price.
+        marketingCents:
+          $ref: '#/components/schemas/Cents'
+          description: Current hourly marketing spend.
+        inboundPOs:
+          type: integer
+          format: int64
+        inboundUnits:
+          type: integer
+          format: int64
+        suppliers:
+          type: array
+          items:
+            $ref: '#/components/schemas/ObsSupplier'
+    ObsSupplier:
+      type: object
+      additionalProperties: false
+      required: [role, unitCostCents, leadTimeTicks, available, availableFromTick]
+      properties:
+        role:
+          $ref: '#/components/schemas/SupplierRole'
+        unitCostCents:
+          $ref: '#/components/schemas/Cents'
+        leadTimeTicks:
+          type: integer
+          format: int64
+        available:
+          type: boolean
+          description: False while a supplier_outage covers this supplier.
+        availableFromTick:
+          $ref: '#/components/schemas/Tick'
+          description: Tick at whose boundary the outage has ended. 0 when `available`.
+    ObsOrder:
+      type: object
+      additionalProperties: false
+      required: [id, sku, qty, promisedBy]
+      properties:
+        id:
+          type: integer
+          format: int64
+          minimum: 0
+        sku:
+          type: integer
+          format: int64
+        qty:
+          type: integer
+          format: int64
+        promisedBy:
+          $ref: '#/components/schemas/SimMinute'
+    ObsPurchaseOrder:
+      type: object
+      additionalProperties: false
+      required: [id, sku, supplier, qty, unitCostCents, dueAt, expedited]
+      properties:
+        id:
+          type: integer
+          format: int64
+          minimum: 0
+        sku:
+          type: integer
+          format: int64
+        supplier:
+          $ref: '#/components/schemas/SupplierRole'
+        qty:
+          type: integer
+          format: int64
+        unitCostCents:
+          $ref: '#/components/schemas/Cents'
+        dueAt:
+          $ref: '#/components/schemas/SimMinute'
+        expedited:
+          type: boolean
+    ObsWorkforce:
+      type: object
+      additionalProperties: false
+      required: [regular, overtimeHours, workersOnShift, tempsOnShift, tempsOnboarding]
+      properties:
+        regular:
+          type: integer
+          format: int64
+        overtimeHours:
+          type: integer
+          format: int64
+        workersOnShift:
+          type: integer
+          format: int64
+        tempsOnShift:
+          type: integer
+          format: int64
+        tempsOnboarding:
+          type: integer
+          format: int64
+    ObsDisruption:
+      type: object
+      additionalProperties: false
+      required: [kind, origin, inputSeq, target, magnitudeBps, onsetTick, endTick]
+      properties:
+        kind:
+          $ref: '#/components/schemas/DisruptionKind'
+        origin:
+          $ref: '#/components/schemas/DisruptionOrigin'
+        inputSeq:
+          type: integer
+          format: int64
+          minimum: 0
+        target:
+          type: integer
+          format: int64
+          description: SKU index, or -1 when there is no SKU target.
+        supplierRole:
+          $ref: '#/components/schemas/SupplierRole'
+          description: Present for `supplier_outage`.
+        magnitudeBps:
+          $ref: '#/components/schemas/Bps'
+          description: Not meaningful for `supplier_outage`, which reports `supplierRole` instead.
+        onsetTick:
+          $ref: '#/components/schemas/Tick'
+        endTick:
+          $ref: '#/components/schemas/Tick'
+    ObsWindow:
+      type: object
+      additionalProperties: false
+      required: [open, reasons, cadenceTicks, commandBudget, horizonTicks, ticksRemaining]
+      properties:
+        open:
+          type: boolean
+        reasons:
+          type: array
+          items:
+            $ref: '#/components/schemas/WindowReason'
+        cadenceTicks:
+          type: integer
+        commandBudget:
+          type: integer
+        horizonTicks:
+          type: integer
+        ticksRemaining:
+          type: integer
+    LedgerResponse:
+      type: object
+      additionalProperties: false
+      required: [branchId, from, to, total, offset, entries, currency, disclaimer]
+      properties:
+        branchId:
+          $ref: '#/components/schemas/Uuid'
+        from:
+          $ref: '#/components/schemas/Tick'
+        to:
+          $ref: '#/components/schemas/Tick'
+        total:
+          type: integer
+          minimum: 0
+          description: Number of entries matching the range and filter.
+        offset:
+          type: integer
+          minimum: 0
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/LedgerEntry'
+        currency:
+          $ref: '#/components/schemas/Currency'
+        disclaimer:
+          $ref: '#/components/schemas/Disclaimer'
+    LedgerEntry:
+      type: object
+      description: One balanced posting. Total debits equal total credits.
+      additionalProperties: false
+      required: [index, tick, simMinute, description, cause, lines]
+      properties:
+        index:
+          type: integer
+          minimum: 0
+          description: Position of the entry in the Branch's full Ledger.
+        tick:
+          $ref: '#/components/schemas/Tick'
+        simMinute:
+          $ref: '#/components/schemas/SimMinute'
+        description:
+          type: string
+          description: Human-readable text derived from the cause. Not state.
+        cause:
+          $ref: '#/components/schemas/CauseRef'
+        lines:
+          type: array
+          minItems: 2
+          items:
+            $ref: '#/components/schemas/LedgerLine'
+    CauseRef:
+      type: object
+      additionalProperties: false
+      required: [kind, ref]
+      properties:
+        kind:
+          type: string
+          enum: [opening, shipment, receipt, freight, labor, marketing, overhead, service_credit]
+          description: |
+            opening: ref 0. shipment: ref is the order ID. receipt: ref is the
+            purchase-order ID. freight: ref is the purchase-order ID. labor,
+            marketing, overhead: ref is the Tick. service_credit: ref is the order ID.
+        ref:
+          type: integer
+          format: int64
+    LedgerLine:
+      type: object
+      description: One of `debitCents` and `creditCents` is non-zero.
+      additionalProperties: false
+      required: [account, debitCents, creditCents]
+      properties:
+        account:
+          $ref: '#/components/schemas/Account'
+        debitCents:
+          type: integer
+          format: int64
+          minimum: 0
+        creditCents:
+          type: integer
+          format: int64
+          minimum: 0
+    CreateDemoRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          $ref: '#/components/schemas/Name'
+    DemoResponse:
+      type: object
+      additionalProperties: false
+      required: [world, rootBranch, plan]
+      properties:
+        world:
+          $ref: '#/components/schemas/World'
+        rootBranch:
+          $ref: '#/components/schemas/Branch'
+        plan:
+          $ref: '#/components/schemas/DemoPlan'
+    DemoPlan:
+      type: object
+      description: |
+        Derived from a no-command run of the flagship scenario. It states where to
+        fork and what to order. It asserts no financial outcome.
+      additionalProperties: false
+      required: [scenario, seed, crisisTick, forkTick, commands, reasons]
+      properties:
+        scenario:
+          type: string
+        seed:
+          $ref: '#/components/schemas/Seed'
+        crisisTick:
+          $ref: '#/components/schemas/Tick'
+          description: Lowest Tick with an active Disruption or a stock-bound order in the no-command run.
+        forkTick:
+          $ref: '#/components/schemas/Tick'
+          description: First scheduled Decision_Window at or after the crisis Tick that can still receive a backup order before the horizon.
+        commands:
+          type: array
+          items:
+            $ref: '#/components/schemas/DemoCommand'
+        reasons:
+          type: array
+          description: Plain-language derivation steps.
+          items:
+            type: string
+    DemoCommand:
+      type: object
+      additionalProperties: false
+      required: [kind, skuIndex, skuId, role, qty]
+      properties:
+        kind:
+          $ref: '#/components/schemas/CommandKind'
+        skuIndex:
+          type: integer
+          format: int64
+          minimum: 0
+        skuId:
+          type: string
+        role:
+          $ref: '#/components/schemas/SupplierRole'
+        qty:
+          type: integer
+          format: int64
+          minimum: 1

@@ -51,44 +51,44 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
   - [x] 1.6 Checkpoint — M0 complete
     - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 2. M1 — Working end-to-end vertical slice (~900 credits)
-  - [ ] 2.1 Implement integer money and the shared rounding helpers
+- [x] 2. M1 — Working end-to-end vertical slice (~900 credits)
+  - [x] 2.1 Implement integer money and the shared rounding helpers
     - _Requirements: 6.1, 10.1, 10.16, 37.9_
     - Dependencies: 1.6
     - Deliverables: `backend/internal/sim/money.go` (`Cents`, `Bps`, `RoundHalfEven`, `MulDiv` with 128-bit intermediates via `math/bits`), table-driven `money_test.go`
     - Verify: `cd backend && go test ./internal/sim -run 'TestRoundHalfEven|TestMulDiv'`
     - Acceptance: ties round to even for positive and negative values; `MulDiv` is exact at the maximum Assumption bounds without overflow; no `float32`/`float64` appears in `internal/sim`.
-  - [ ] 2.2 Implement the SplitMix64 random streams
+  - [x] 2.2 Implement the SplitMix64 random streams
     - _Requirements: 6.2, 14.6 (full stream state)_
     - Dependencies: 1.6
     - Deliverables: `backend/internal/sim/rng.go` (`Seed`, `StreamName`, `Stream`, `NewStream(seed, name)` seeded with `seed XOR fnv64a(name)`, `Next`, unbiased `IntN`, `StreamState`), `rng_test.go` with fixed reference vectors
     - Verify: `cd backend && go test ./internal/sim -run TestStream`
     - Acceptance: reference vectors match; streams with different names diverge; restoring a `StreamState` reproduces the following draws exactly.
-  - [ ] 2.3 Implement the sim clock and the Event_Queue
+  - [x] 2.3 Implement the sim clock and the Event_Queue
     - _Requirements: 5.1, 5.2, 5.3_
     - Dependencies: 2.1
     - Deliverables: `backend/internal/sim/clock.go` (`SimMinute`, `Tick`, `Boundary`), `eventqueue.go` (binary heap ordered by `(At, Priority, Seq)`, insertion sequence counter), `eventqueue_test.go`
     - Verify: `cd backend && go test ./internal/sim -run 'TestClock|TestEventQueue'`
     - Acceptance: pops follow `(At, Priority, Seq)` for shuffled pushes; equal `At` and `Priority` pop in insertion order.
-  - [ ] 2.4 Implement the Scenario model and strict parser
+  - [x] 2.4 Implement the Scenario model and strict parser
     - _Requirements: 1.1, 1.2, 1.5_
     - Dependencies: 2.1
     - Deliverables: `backend/internal/sim/scenario.go` (Scenario, Assumption metadata, Disruption_Script types per the design JSON), `scenario_parse.go` using `json.Decoder.DisallowUnknownFields`, JSON-path error reporting, schema version check; `scenario_parse_test.go`
     - Verify: `cd backend && go test ./internal/sim -run TestScenarioParse`
     - Acceptance: unknown, missing and wrong-type fields each produce an error naming the JSON path of the first offending field; an unsupported `schemaVersion` returns the unsupported-version error.
-  - [ ] 2.5 Implement the Scenario_Validator
+  - [x] 2.5 Implement the Scenario_Validator
     - _Requirements: 1.3, 1.4, 1.6, 1.7, 1.8, 1.9, 4.4, 4.5_
     - Dependencies: 2.4
     - Deliverables: `backend/internal/sim/scenario_validate.go` (bounds, units, cents and bps integer rules, metadata completeness, Score_Weights sum, Profit_Target > Profit_Floor, Tie_Tolerance 0..10000, Assumption overrides applied then validated), `scenario_validate_test.go`
     - Verify: `cd backend && go test ./internal/sim -run TestScenarioValidate`
     - Acceptance: each rule has a failing table case whose error names the Assumption, value and allowed range (or the Score_Weights and their sum).
-  - [ ] 2.6 Implement the canonical Scenario_Printer
+  - [x] 2.6 Implement the canonical Scenario_Printer
     - _Requirements: 2.1_
     - Dependencies: 2.5
     - Deliverables: `backend/internal/sim/scenario_print.go` (fixed field order, no whitespace variation), `scenario_print_test.go`
     - Verify: `cd backend && go test ./internal/sim -run TestScenarioPrint`
     - Acceptance: printing the same value twice is byte-identical; output parses with the strict parser.
-  - [ ] 2.7 Property test: Scenario round trip
+  - [x] 2.7 Property test: Scenario round trip
     - **Property 1: Scenario round trip**
     - **Validates: Requirements 2.2**
     - Dependencies: 2.6
@@ -100,115 +100,115 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
     - Dependencies: 2.6
     - Deliverables: `backend/internal/sim/scenario_idempotence_prop_test.go` (`TestPropScenarioPrintIdempotence`)
     - Verify: `cd backend && go test ./internal/sim -run TestPropScenarioPrintIdempotence`
-  - [ ] 2.9 Author the Flagship_Scenario with synthetic, uncalibrated Assumptions
+  - [x] 2.9 Author the Flagship_Scenario with synthetic, uncalibrated Assumptions
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.9, 9.9_
     - Dependencies: 2.6
     - Deliverables: `backend/scenarios/black-friday.json` (120 Ticks from Thursday 00:00, 4 SKUs, primary and backup supplier per SKU, cadence 4, budget 5, weights 5000/3000/2000, Tie_Tolerance 10, provisional Profit_Floor/Profit_Target marked "synthetic, illustrative; uncalibrated", temp onboarding delay and temp wage Assumptions, demand_surge, supplier_outage and workforce_absence after Tick 24); `backend/internal/sim/flagship_test.go`
     - Verify: `cd backend && go test ./internal/sim -run TestFlagshipScenario`
     - Acceptance: the file passes the Scenario_Validator; the test asserts the counts, cadence, budget, weights and onset Ticks above; every rationale note is labelled "synthetic, illustrative" or cites a source.
-  - [ ] 2.10 Implement the State model and canonical Encode, Decode and Hash
+  - [x] 2.10 Implement the State model and canonical Encode, Decode and Hash
     - _Requirements: 6.5, 12.1, 12.2, 12.3, 14.6, 28.6_
     - Dependencies: 2.2, 2.3, 2.5
     - Deliverables: `backend/internal/sim/state.go` (snapshot-complete `State` per the design: inventory with values, order book and `OrderSeq`, purchase orders and `POSeq`, workforce cohorts, active Disruptions, prices and marketing spend, pending events with `EventSeq`, Ledger, full stream states), `encode.go` (fixed field order, sorted collections, fixed-width big-endian integers), `hash.go` (SHA-256), `encode_test.go`
     - Verify: `cd backend && go test ./internal/sim -run 'TestEncode|TestHash'`
     - Acceptance: the encoding contains no identifier, label, provenance, timestamp, idempotency key, rationale, model name or engine version string; a golden encoding of a small fixed State is committed and matches.
-  - [ ] 2.11 Property test: State canonical encoding round trip
+  - [x] 2.11 Property test: State canonical encoding round trip
     - **Property 4: State canonical encoding round trip**
     - **Validates: Requirements 12.5**
     - Dependencies: 2.10
     - Deliverables: `backend/internal/sim/encode_prop_test.go` (`TestPropStateEncodingRoundTrip`) with a State generator
     - Verify: `cd backend && go test ./internal/sim -run TestPropStateEncodingRoundTrip`
-  - [ ] 2.12 Implement the Ledger with the fixed chart of accounts
+  - [x] 2.12 Implement the Ledger with the fixed chart of accounts
     - _Requirements: 10.1, 10.2, 10.12, 10.13, 37.1_
     - Dependencies: 2.10
     - Deliverables: `backend/internal/sim/ledger.go` (the 10 accounts only, `LedgerEntry` with Tick, Sim_Time, description, cause reference and ≥ 2 lines; a post helper that rejects unbalanced entries; running balances; opening entry builder), `ledger_test.go`
     - Verify: `cd backend && go test ./internal/sim -run TestLedger`
     - Acceptance: the opening entry debits Cash and Inventory (Σ opening units × Opening_Unit_Cost) and credits Opening_Equity by the total; posting an unbalanced entry is impossible through the API of the package.
-  - [ ] 2.13 Implement Init, StepTick, recurring events, demand arrivals, conversion and cancellation
+  - [x] 2.13 Implement Init, StepTick, recurring events, demand arrivals, conversion and cancellation
     - _Requirements: 5.2, 5.5, 7.1, 7.2, 7.3, 7.4, 7.5, 37.3_
     - Dependencies: 2.12
     - Deliverables: `backend/internal/sim/engine.go` (`Init`, `StepTick`, recurring events at the engine-version-1 offsets from the design table), `demand.go` (fixed draws per SKU per Tick from the demand stream, deterministic conversion via `MulDiv`), `orders.go` (order creation with promised ship-by, cancellation at the threshold with an outcome-journal entry and no Ledger_Entry), `engine_demand_test.go`
     - Verify: `cd backend && go test ./internal/sim -run 'TestInit|TestDemand|TestCancel'`
     - Acceptance: a fixed-seed example produces a committed arrival and order count; raising the price lowers converted orders without changing the demand stream state after the Tick.
-  - [ ] 2.14 Implement fulfilment capacity, shipping and shipment postings
+  - [x] 2.14 Implement fulfilment capacity, shipping and shipment postings
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.7, 10.3, 10.4, 10.5, 10.11, 37.2, 37.4, 37.5, 37.7, 37.8_
     - Dependencies: 2.13
     - Deliverables: `backend/internal/sim/fulfilment.go` (capacity, ship-in-full in `(promisedBy, creationSeq)` order, Fulfilment_Constraint_Report split stock-bound/capacity-bound), `valuation.go` (Moving_Average_Cost with last-unit remainder), shipment postings (Revenue/Cash, COGS/Inventory, Freight/Cash, Service_Credit/Cash for late orders), `fulfilment_test.go`, `valuation_test.go`
     - Verify: `cd backend && go test ./internal/sim -run 'TestFulfilment|TestValuation'`
     - Acceptance: worked examples cover q < u rounding half to even, q = u taking the full remaining value, a late shipment posting a service credit, and a report listing both stock-bound and capacity-bound orders.
-  - [ ] 2.15 Implement purchase orders, receipts and hourly accruals
+  - [x] 2.15 Implement purchase orders, receipts and hourly accruals
     - _Requirements: 8.1, 8.2, 8.5, 8.6, 8.7, 8.8, 10.6, 10.8, 10.9, 10.10, 37.6, 37.12_
     - Dependencies: 2.14
     - Deliverables: `backend/internal/sim/purchasing.go` (PO ids from `POSeq`, receipt events at effective Tick + lead time, Inventory_Value increase at Supplier_Unit_Cost), `accruals.go` (regular wage, marketing and overhead entries paid in the Tick; overtime and temp wage lines present with zero hours until M2 commands), `purchasing_test.go`
     - Verify: `cd backend && go test ./internal/sim -run 'TestPurchasing|TestAccruals'`
     - Acceptance: a receipt debits Inventory and credits Cash by unit cost × quantity; written-off units are always zero; wages appear as separate lines per Tick.
-  - [ ] 2.16 Implement the scripted supplier_outage and same-Sim_Time ordering
+  - [x] 2.16 Implement the scripted supplier_outage and same-Sim_Time ordering
     - _Requirements: 5.7, 5.8, 8.3, 16.1, 16.4_
     - Dependencies: 2.15
     - Deliverables: `backend/internal/sim/disruptions.go` (activation and expiry events, script order before injected order, receipt delay to outage end + lead time), priority assignments in `engine.go`, `disruptions_test.go`
     - Verify: `cd backend && go test ./internal/sim -run TestSupplierOutage`
     - Acceptance: a receipt scheduled inside the outage moves to outage end + lead time; at one Sim_Time the order is Commands, expiries, activations, then other events.
-  - [ ] 2.17 Implement the tick-boundary sequence, Decision_Windows and the horizon stop
+  - [x] 2.17 Implement the tick-boundary sequence, Decision_Windows and the horizon stop
     - _Requirements: 5.4, 5.6, 5.9, 6.5, 6.6, 18.1, 37.15_
     - Dependencies: 2.16
     - Deliverables: `backend/internal/sim/boundary.go` (fix State, hash, metrics hook, Fulfilment_Constraint_Report, Tick_Frame data, Decision_Window detection for cadence multiples and Disruption onsets, horizon-reached error), `boundary_test.go`
     - Verify: `cd backend && go test ./internal/sim -run 'TestBoundary|TestHorizon'`
     - Acceptance: the flagship opens windows at every multiple of 4 and at each onset; no event at or after N × 60 runs while a window is open; stepping past Tick 120 returns the horizon-reached error.
-  - [ ] 2.18 Implement the Metrics_Calculator and the End_Of_Horizon_Statement
+  - [x] 2.18 Implement the Metrics_Calculator and the End_Of_Horizon_Statement
     - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 11.8, 37.16, 37.17, 37.18, 37.19, 37.20_
     - Dependencies: 2.17
     - Deliverables: `backend/internal/sim/metrics.go` (`ComputeMetrics`, `EndOfHorizonStatement`), `metrics_test.go`
     - Verify: `cd backend && go test ./internal/sim -run 'TestMetrics|TestEndOfHorizon'`
     - Acceptance: zero Orders_Due yields 10000 bps for Service_Level and Fill_Rate; an end-of-horizon example reports open POs as commitments, backlog without revenue and zero accrued wages.
-  - [ ] 2.19 Implement Observation, the slice Commands and the Command_Validator
+  - [x] 2.19 Implement Observation, the slice Commands and the Command_Validator
     - _Requirements: 13.3, 17.1, 17.2, 17.3, 17.5, 17.6, 17.7, 18.6, 18.7, 5.7_
     - Dependencies: 2.18
     - Deliverables: `backend/internal/sim/observation.go` (`Observe` with documented sort orders, no future script, draws or seed), `commands.go` (closed Command_Set types; `set_price` and `place_purchase_order` applied at N × 60 with priority 0 in input sequence order; other kinds return `not_implemented` until M2), `validate.go` (sequential validation with committed Cash and consumed budget, reason codes), `validate_test.go`
     - Verify: `cd backend && go test ./internal/sim -run 'TestObserve|TestValidate|TestCommandApply'`
     - Acceptance: a rejected Command returns a reason code and message and is unchanged; the Observation at Tick N omits Disruption_Script entries with onset after N.
-  - [ ] 2.20 Create the shared rapid generators package
+  - [x] 2.20 Create the shared rapid generators package
     - _Requirements: supports 6.3, 7.2, 8.6, 10.14 and the other slice properties_
     - Dependencies: 2.19
     - Deliverables: `backend/internal/simtest/gen.go` (Scenario overrides within bounds starting from the flagship, Seeds, validator-accepted Input logs at Decision_Window Ticks, a `RunToHorizon` helper returning per-Tick hashes and States)
     - Verify: `cd backend && go vet ./internal/simtest/... && go test ./internal/simtest/...`
     - Acceptance: generated Input logs pass the Command_Validator; the architecture test still passes because `simtest` lives outside `internal/sim`.
-  - [ ] 2.21 Property test: determinism at every Tick (required)
+  - [x] 2.21 Property test: determinism at every Tick (required)
     - **Property 5: Determinism at every tick** (INV-1)
     - **Validates: Requirements 6.3**
     - Dependencies: 2.20
     - Deliverables: `backend/internal/sim/determinism_prop_test.go` (`TestPropDeterminism`)
     - Verify: `cd backend && go test ./internal/sim -run TestPropDeterminism`
-  - [ ] 2.22 Property test: same-Sim_Time event ordering (required)
+  - [x] 2.22 Property test: same-Sim_Time event ordering (required)
     - **Property 39: Same-Sim_Time event ordering** (INV-1)
     - **Validates: Requirements 5.7, 5.8**
     - Dependencies: 2.20
     - Deliverables: `backend/internal/sim/ordering_prop_test.go` (`TestPropSameMinuteOrdering`)
     - Verify: `cd backend && go test ./internal/sim -run TestPropSameMinuteOrdering`
-  - [ ] 2.23 Property test: demand draw count independent of Commands (required)
+  - [x] 2.23 Property test: demand draw count independent of Commands (required)
     - **Property 12: Demand draw count independent of commands** (INV-12)
     - **Validates: Requirements 7.2**
     - Dependencies: 2.20
     - Deliverables: `backend/internal/sim/drawcount_prop_test.go` (`TestPropDemandDrawCount`)
     - Verify: `cd backend && go test ./internal/sim -run TestPropDemandDrawCount`
-  - [ ] 2.24 Property test: order conservation (required)
+  - [x] 2.24 Property test: order conservation (required)
     - **Property 13: Order conservation** (INV-9)
     - **Validates: Requirements 7.6**
     - Dependencies: 2.20
     - Deliverables: `backend/internal/sim/orders_prop_test.go` (`TestPropOrderConservation`)
     - Verify: `cd backend && go test ./internal/sim -run TestPropOrderConservation`
-  - [ ] 2.25 Property test: inventory conservation and non-negative stock (required)
+  - [x] 2.25 Property test: inventory conservation and non-negative stock (required)
     - **Property 14: Inventory conservation and non-negative stock** (INV-8)
     - **Validates: Requirements 8.6, 8.7**
     - Dependencies: 2.20
     - Deliverables: `backend/internal/sim/inventory_prop_test.go` (`TestPropInventoryConservation`)
     - Verify: `cd backend && go test ./internal/sim -run TestPropInventoryConservation`
-  - [ ] 2.26 Property test: ledger balance (required)
+  - [x] 2.26 Property test: ledger balance (required)
     - **Property 15: Ledger balance** (INV-6)
     - **Validates: Requirements 10.14**
     - Dependencies: 2.20
     - Deliverables: `backend/internal/sim/ledger_balance_prop_test.go` (`TestPropLedgerBalance`)
     - Verify: `cd backend && go test ./internal/sim -run TestPropLedgerBalance`
-  - [ ] 2.27 Property test: cash reconciliation (required)
+  - [x] 2.27 Property test: cash reconciliation (required)
     - **Property 16: Cash reconciliation** (INV-7)
     - **Validates: Requirements 10.15**
     - Dependencies: 2.20
@@ -226,157 +226,157 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
     - Dependencies: 2.20
     - Deliverables: `backend/internal/sim/accrual_prop_test.go` (`TestPropAccrualToCash`)
     - Verify: `cd backend && go test ./internal/sim -run TestPropAccrualToCash`
-  - [ ] 2.30 Property test: valuation consistency and no residual value (required)
+  - [x] 2.30 Property test: valuation consistency and no residual value (required)
     - **Property 19: Valuation consistency and no residual value** (INV-19)
     - **Validates: Requirements 37.10, 37.11**
     - Dependencies: 2.20
     - Deliverables: `backend/internal/sim/valuation_prop_test.go` (`TestPropValuation`)
     - Verify: `cd backend && go test ./internal/sim -run TestPropValuation`
-  - [ ] 2.31 Property test: balance identity (required)
+  - [x] 2.31 Property test: balance identity (required)
     - **Property 20: Balance identity** (INV-19)
     - **Validates: Requirements 37.21**
     - Dependencies: 2.20
     - Deliverables: `backend/internal/sim/identity_prop_test.go` (`TestPropBalanceIdentity`)
     - Verify: `cd backend && go test ./internal/sim -run TestPropBalanceIdentity`
-  - [ ] 2.32 Implement `parallel-sim run` for a Scenario and Seed
+  - [x] 2.32 Implement `parallel-sim run` for a Scenario and Seed
     - _Requirements: 30.1 (without an Inputs_File), 30.4, 31.6_
     - Dependencies: 2.19
     - Deliverables: `backend/cmd/parallel-sim/main.go` and `run.go` (flags `--scenario`, `--seed`; prints final State_Hash hex, Net_Profit in cents, Service_Level in bps and the Disclaimer), `run_test.go`
     - Verify: `cd backend && go test ./cmd/parallel-sim/... && go run ./cmd/parallel-sim run --scenario scenarios/black-friday.json --seed 2026`
     - Acceptance: two runs print the same hash; output contains the Disclaimer text verbatim; the binary opens no network connection and reads no database variable.
-  - [ ] 2.33 Run the early benchmark and create `docs/benchmarks.md`
+  - [x] 2.33 Run the early benchmark and create `docs/benchmarks.md`
     - _Requirements: 29.1, 29.2 (early proxy), 29.8, 29.9, 29.10, 29.11_
     - Dependencies: 2.21, 2.24, 2.25, 2.26, 2.27, 2.32
     - Deliverables: `backend/internal/sim/bench_test.go` (`BenchmarkFlagshipReplay`, `BenchmarkHundredReplays` = 2 runs × Seeds 1..50, sequential, all invariant checks enabled); `docs/benchmarks.md` recording hardware model, CPU, memory, OS, Go version, engine version, scenario name, SKU count, horizon, events per run, Seeds, warm-up and measured iterations, median and p95, commit id, and raw output
     - Verify: `cd backend && go test ./internal/sim -run '^$' -bench 'BenchmarkFlagshipReplay|BenchmarkHundredReplays' -benchtime 10x -count 10`
     - Acceptance: every number in `docs/benchmarks.md` is copied from the actual command output; a missed budget is recorded with the shortfall; budgets 29.3 to 29.7 and criterion 29.2 itself are labelled "target, not yet measured".
-  - [ ] 2.34 Define the app ports and the in-memory store with a shared contract suite
+  - [x] 2.34 Define the app ports and the in-memory store with a shared contract suite
     - _Requirements: 13.1, 13.2, 28.1 (ports only)_
     - Dependencies: 2.19
     - Deliverables: `backend/internal/app/ports.go` (`WorldRepo`, `BranchRepo`, `InputRepo`, `SnapshotRepo`), `backend/internal/store/memory/store.go` (append-only Inputs, no update or delete method), `backend/internal/store/storetest/contract.go` (reusable contract suite), `backend/internal/store/memory/store_test.go`
     - Verify: `cd backend && go test ./internal/store/...`
     - Acceptance: the contract suite passes against the memory store and covers append order, per-Branch sequence numbers, idempotency-key lookup and the absence of mutation operations.
-  - [ ] 2.35 Implement the Branch_Service for worlds, advance, commands and rewind reads
+  - [x] 2.35 Implement the Branch_Service for worlds, advance, commands and rewind reads
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 13.1, 13.3, 13.4, 13.5, 14.1, 14.2, 14.5, 17.4, 18.2, 18.3, 33.7_
     - Dependencies: 2.34
     - Deliverables: `backend/internal/app/branch_service.go` (create World with canonical Scenario, Seed and engine version; advance with pause at Decision_Windows and optional Run_To_Tick that ends intervening Human windows with no Commands and stops at the next Disruption-onset window; submit Commands through `sim.Validate` only; end Decision_Window; rewind read of State, Observation, metrics, hash and Tick_Frame), `branch_service_test.go`
     - Verify: `cd backend && go test ./internal/app -run TestBranchService`
     - Acceptance: an Input with effective Tick ≤ Head_Tick returns the history-is-immutable error; a rewind read leaves Head_Tick and the Input_Log unchanged; a request for a Tick above Head_Tick returns not-yet-simulated.
-  - [ ] 2.36 Property test: validation gate and validator determinism (required)
+  - [x] 2.36 Property test: validation gate and validator determinism (required)
     - **Property 22: Validation gate and validator determinism** (INV-14)
     - **Validates: Requirements 17.4, 17.5, 17.6**
     - Dependencies: 2.35
     - Deliverables: `backend/internal/app/validation_gate_prop_test.go` (`TestPropValidationGate`)
     - Verify: `cd backend && go test ./internal/app -run TestPropValidationGate`
-  - [ ] 2.37 Property test: Input idempotency key (required)
+  - [x] 2.37 Property test: Input idempotency key (required)
     - **Property 11: Input idempotency key** (INV-3)
     - **Validates: Requirements 13.4**
     - Dependencies: 2.35
     - Deliverables: `backend/internal/app/idempotency_prop_test.go` (`TestPropIdempotencyKey`)
     - Verify: `cd backend && go test ./internal/app -run TestPropIdempotencyKey`
-  - [ ] 2.38 Property test: hash metadata independence (required)
+  - [x] 2.38 Property test: hash metadata independence (required)
     - **Property 6: Hash metadata independence** (INV-15; also verifies the manager-blind engine of 36.8)
     - **Validates: Requirements 12.4**
     - Dependencies: 2.35
     - Deliverables: `backend/internal/app/metadata_prop_test.go` (`TestPropHashMetadataIndependence`)
     - Verify: `cd backend && go test ./internal/app -run TestPropHashMetadataIndependence`
-  - [ ] 2.39 Property test: presentation independence (required)
+  - [x] 2.39 Property test: presentation independence (required)
     - **Property 7: Presentation independence** (INV-18)
     - **Validates: Requirements 33.10**
     - Dependencies: 2.35
     - Deliverables: `backend/internal/app/presentation_prop_test.go` (`TestPropPresentationIndependence`: random advance granularity, Run_To_Tick use and pause points yield identical hashes)
     - Verify: `cd backend && go test ./internal/app -run TestPropPresentationIndependence`
-  - [ ] 2.40 Implement forking with the ancestor input-prefix walk
+  - [x] 2.40 Implement forking with the ancestor input-prefix walk
     - _Requirements: 15.1, 15.2, 15.5, 15.6, 15.7, 15.8_
     - Dependencies: 2.35
     - Deliverables: fork operation in `backend/internal/app/branch_service.go` and `inputs_resolve.go` (child rows plus each ancestor's rows with `effective_tick ≤ min(upTo, forkTick)`; no copying), Decision_Window opened on the child at the fork Tick, `fork_test.go`
     - Verify: `cd backend && go test ./internal/app -run TestFork`
     - Acceptance: the 33rd Branch is rejected with branch-limit; a fork Tick above Head_Tick is rejected with not-yet-simulated; parent Inputs are never copied.
-  - [ ] 2.41 Property test: fork fidelity (required)
+  - [x] 2.41 Property test: fork fidelity (required)
     - **Property 9: Fork fidelity** (INV-5)
     - **Validates: Requirements 15.3**
     - Dependencies: 2.40
     - Deliverables: `backend/internal/app/fork_fidelity_prop_test.go` (`TestPropForkFidelity`)
     - Verify: `cd backend && go test ./internal/app -run TestPropForkFidelity`
-  - [ ] 2.42 Property test: fork independence (required)
+  - [x] 2.42 Property test: fork independence (required)
     - **Property 10: Fork independence** (INV-4)
     - **Validates: Requirements 15.4**
     - Dependencies: 2.40
     - Deliverables: `backend/internal/app/fork_independence_prop_test.go` (`TestPropForkIndependence`, parent, child and sibling directions)
     - Verify: `cd backend && go test ./internal/app -run TestPropForkIndependence`
-  - [ ] 2.43 Property test: fork prefix immutability after parent advances (required)
+  - [x] 2.43 Property test: fork prefix immutability after parent advances (required)
     - **Property 37: Fork prefix immutability after parent advances** (INV-3, INV-4)
     - **Validates: Requirements 15.8**
     - Dependencies: 2.40
     - Deliverables: `backend/internal/app/fork_prefix_prop_test.go` (`TestPropForkPrefixImmutability`)
     - Verify: `cd backend && go test ./internal/app -run TestPropForkPrefixImmutability`
-  - [ ] 2.44 Implement the Demo_Path plan derivation
+  - [x] 2.44 Implement the Demo_Path plan derivation
     - _Requirements: 34.6, 34.7_
     - Dependencies: 2.40
     - Deliverables: `backend/internal/app/demoplan/demoplan.go` (pure: Crisis_Tick, Demo_Fork_Tick and, for the slice, the single backup-supplier `place_purchase_order` for the SKU with the earliest stock-bound report after the fork Tick, with quantity rule and reason strings), `demoplan_test.go` that regenerates and compares the committed fixture `web/e2e/fixtures/demo-plan.json`
     - Verify: `cd backend && go test ./internal/app/demoplan/...`
     - Acceptance: the Demo_Command passes `sim.Validate` at the Demo_Fork_Tick; the fixture matches the computation; no financial outcome is asserted.
-  - [ ] 2.45 Property test: demo reproducibility (required)
+  - [x] 2.45 Property test: demo reproducibility (required)
     - **Property 41: Demo reproducibility** (INV-1)
     - **Validates: Requirements 34.3**
     - Dependencies: 2.44
     - Deliverables: `backend/internal/app/demoplan/repro_prop_test.go` (`TestPropDemoReproducibility`)
     - Verify: `cd backend && go test ./internal/app/demoplan -run TestPropDemoReproducibility`
-  - [ ] 2.46 Write the OpenAPI 3.1 document for the slice endpoints
+  - [x] 2.46 Write the OpenAPI 3.1 document for the slice endpoints
     - _Requirements: 11.9, 26.1, 26.2 (create World, read World, fork, advance, submit Commands, end Decision_Window, read Tick_Frames, read State), 26.3, 26.7, 26.8_
     - Dependencies: 2.40
     - Deliverables: `backend/api/openapi.yaml` (schemas for World, Branch, Tick_Frame, Metrics with formula and Ledger accounts in each description, money as cents with ISO 4217 code, Disclaimer field, problem+json errors with the design's error types)
     - Verify: `npx --yes @redocly/cli@latest lint backend/api/openapi.yaml`
     - Acceptance: lint passes with no errors; every metric field documents its formula and accounts.
-  - [ ] 2.47 Implement the HTTP API for the slice and wire `parallel-api`
+  - [x] 2.47 Implement the HTTP API for the slice and wire `parallel-api`
     - _Requirements: 26.2 (slice operations), 26.3, 26.4, 26.5, 26.6, 26.7, 26.8_
     - Dependencies: 2.46
     - Deliverables: `backend/internal/httpapi/router.go` (Chi, `/api/v1`, CORS from `WEB_ORIGIN`), `decode.go` (strict JSON, 256 KiB cap), `problem.go` (typed error → problem+json, no stack traces), `worlds.go`, `branches.go`; `backend/cmd/parallel-api/main.go` wiring the memory store; `httpapi_test.go` using `httptest`
     - Verify: `cd backend && go test ./internal/httpapi/... && go build ./cmd/parallel-api`
     - Acceptance: unknown field → 400, 257 KiB body → 413, stale `expectedHeadTick` → 409, history-immutable → 409 problem+json; metric responses carry the Disclaimer. The user starts the server manually with `cd backend && go run ./cmd/parallel-api`.
-  - [ ] 2.48 Generate the TypeScript API client
+  - [x] 2.48 Generate the TypeScript API client
     - _Requirements: 26.1, 32.12_
     - Dependencies: 2.47
     - Deliverables: `web/lib/api/schema.d.ts` generated with a pinned `openapi-typescript`, `web/lib/api/client.ts` (typed fetch wrapper, problem+json parsing), `npm run gen:api` script, `client.test.ts`
     - Verify: `cd web && npm run gen:api && npx tsc --noEmit && npx vitest --run lib/api`
     - Acceptance: regenerating produces no diff; the client exposes only server values and never computes metrics.
-  - [ ] 2.49 Implement the playback controller and view-state stores
+  - [x] 2.49 Implement the playback controller and view-state stores
     - _Requirements: 33.1, 33.2, 33.3, 33.4, 33.5, 33.6, 33.11, 33.12, 33.15, 33.16, 33.17, 32.2_
     - Dependencies: 2.48
     - Deliverables: `web/stores/playback.ts` (Zustand: speeds 1x/4x/16x = 2/8/32 Ticks per second, display only received Tick_Frames, syncing state, Auto_Pause_Mode default "every decision window", step ±1 Tick, fast-forward to next Decision_Window or Disruption onset with the advance fallbacks, request advance at Head_Tick), `web/stores/playback.test.ts` with fake timers
     - Verify: `cd web && npx vitest --run stores && npx tsc --noEmit`
     - Acceptance: tests show playback never displays a Tick without its frame, pauses at windows or onsets per mode, and stepping back never sends an advance request.
-  - [ ] 2.50 Build the basic PixiJS World_View
+  - [x] 2.50 Build the basic PixiJS World_View
     - _Requirements: 32.1, 32.2, 32.15, 35.1, 35.2, 35.3, 35.6, 35.8, 35.9_
     - Dependencies: 2.49
     - Deliverables: `web/features/world-view/WorldView.tsx` and `scene/*.ts` (per-SKU stock, on-shift workers, order queue, inbound POs, disruption highlight with Ticks since onset, stock-bound and capacity-bound markers with counts, intervention markers with provenance label, dimmed syncing state, reduced-motion instant updates), `WorldViewSummary.tsx` (accessible text summary), `worldViewModel.test.ts` for the frame-to-scene mapping
     - Verify: `cd web && npx vitest --run features/world-view && npx tsc --noEmit`
     - Acceptance: every rendered figure and marker comes from the Tick_Frame in the test fixtures; the text summary lists bottlenecks, Disruptions and interventions.
-  - [ ] 2.51 Build the HUD and the Timeline
+  - [x] 2.51 Build the HUD and the Timeline
     - _Requirements: 31.5, 32.3, 32.4, 35.4, 35.5_
     - Dependencies: 2.49
     - Deliverables: `web/features/timeline/Timeline.tsx` (horizon ticks, Disruption, Decision_Window, fork and Input markers by provenance; selecting a Tick reads State without advancing), `web/features/world-view/Hud.tsx` (sim clock, Cash, Net_Profit, Service_Level, Backlog, parent comparison with differences for forked Branches, Disclaimer), Vitest tests
     - Verify: `cd web && npx vitest --run features/timeline features/world-view/Hud && npx tsc --noEmit`
     - Acceptance: HUD differences are computed only as display subtraction of two API values for the same Tick and are labelled as such; selecting a Tick issues a read, never an advance.
-  - [ ] 2.52 Build the Branch_Tree and the fork control
+  - [x] 2.52 Build the Branch_Tree and the fork control
     - _Requirements: 32.5, 32.6_
     - Dependencies: 2.49
     - Deliverables: `web/features/branches/BranchTree.tsx` (React Flow; label, Manager kind, fork Tick, Head_Tick, distinct color and line pattern), `ForkButton.tsx`, Vitest tests
     - Verify: `cd web && npx vitest --run features/branches && npx tsc --noEmit`
     - Acceptance: pressing fork sends one fork request for the displayed Branch and Tick and the new Branch appears from the API response.
-  - [ ] 2.53 Build the slice Decision_Panel
+  - [x] 2.53 Build the slice Decision_Panel
     - _Requirements: 32.7, 32.8, 13.3_
     - Dependencies: 2.49
     - Deliverables: `web/features/decisions/DecisionPanel.tsx` (Observation summary, remaining budget, forms for `place_purchase_order` and `set_price`, rejection messages next to the Command, "End decision window" button), Vitest tests
     - Verify: `cd web && npx vitest --run features/decisions && npx tsc --noEmit`
     - Acceptance: submitted Commands show effective Tick N+1 from the response; a 422 rejection shows its message next to the form.
-  - [ ] 2.54 Assemble the world page and the "Start Black Friday demo" entry
+  - [x] 2.54 Assemble the world page and the "Start Black Friday demo" entry
     - _Requirements: 33.13, 34.2, 34.4, 32.4, 32.6_
     - Dependencies: 2.50, 2.51, 2.52, 2.53
     - Deliverables: `web/app/page.tsx` (one-action demo start with the default Seed), `web/app/worlds/[worldId]/page.tsx` (layout per `ui-design-system.md`: diorama centre, Timeline bottom, Branch_Tree left, context panel right, HUD top), `web/features/world-view/PlaybackControls.tsx` with Space, Left/Right, Shift+Left/Right and Shift+D bindings, integration test with a mocked API
     - Verify: `cd web && npx vitest --run && npx tsc --noEmit && npx eslint . && npm run build`
     - Acceptance: the mocked integration test runs create → play → pause at window → rewind → fork → submit the demo Command → end window → play to horizon. Manual check by the user: `cd backend && go run ./cmd/parallel-api` and `cd web && npm run dev` in separate terminals.
-  - [ ] 2.55 Checkpoint — vertical slice complete
+  - [x] 2.55 Checkpoint — vertical slice complete
     - Run `cd backend && go test ./... && go vet ./...` and `cd web && npx tsc --noEmit && npx eslint . && npx vitest --run`. Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 3. M2 — Complete simulation and financial engine (~600 credits)
@@ -872,6 +872,19 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
 - Requirements 37.13 and 37.14 are partly built in 2.15 (wage lines with zero overtime and temp hours) and completed in 3.2 when the staffing Commands exist. Requirement 6.4 is first covered in 3.16 with the demo-fork Inputs and extended in 6.10 with the demo duel Inputs.
 - Manual steps outside these tasks: starting long-running servers (`cd backend && go run ./cmd/parallel-api`, `cd web && npm run dev`), deploying to the demo host, recording the demo video and submitting to Devpost.
 - Results are synthetic. Every API response with metrics, every CLI report, `docs/calibration.md` and every results screen carry the Disclaimer.
+
+### M0/M1 implementation notes
+
+- Optional tests skipped (left unchecked): 2.8, 2.28, 2.29. Parent task 2 is auto-marked complete by tooling despite them.
+- The early benchmark took about 17 minutes wall clock.
+- Deviations from plan:
+  - `OrderBook.Settled` was added to `State`.
+  - Scenario fields `openingCashCents` and `demand.baseConversionBps` were added.
+  - The supplier role for an outage is stored in `ActiveDisruption.MagnitudeBps` (tech debt).
+  - SSE is not in the slice.
+  - Local ports: web 3100, API 8080 (3000 and 8000 are used by other local apps).
+  - The demo-reproducibility property test takes about 60 s.
+  - The numbers in `docs/benchmarks.md` are an in-process proxy.
 
 ## Task Dependency Graph
 

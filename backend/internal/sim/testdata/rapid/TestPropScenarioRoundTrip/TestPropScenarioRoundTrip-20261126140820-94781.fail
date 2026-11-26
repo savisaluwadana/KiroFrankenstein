@@ -1,0 +1,453 @@
+# 2026/11/26 14:08:20.888436 [TestPropScenarioRoundTrip] [rapid] draw extraSKU: false
+# 2026/11/26 14:08:20.888449 [TestPropScenarioRoundTrip] [rapid] draw emptySKUs: true
+# 2026/11/26 14:08:20.888451 [TestPropScenarioRoundTrip] [rapid] draw name: ""
+# 2026/11/26 14:08:20.888452 [TestPropScenarioRoundTrip] [rapid] draw floor: 0
+# 2026/11/26 14:08:20.888452 [TestPropScenarioRoundTrip] [rapid] draw targetGap: 1
+# 2026/11/26 14:08:20.888452 [TestPropScenarioRoundTrip] [rapid] draw tie: 0
+# 2026/11/26 14:08:20.888453 [TestPropScenarioRoundTrip] [rapid] draw wFin: 0
+# 2026/11/26 14:08:20.888453 [TestPropScenarioRoundTrip] [rapid] draw wFul: 0
+# 2026/11/26 14:08:20.888453 [TestPropScenarioRoundTrip] [rapid] draw hour: 0
+# 2026/11/26 14:08:20.888454 [TestPropScenarioRoundTrip] [rapid] draw hour: 0
+# 2026/11/26 14:08:20.888454 [TestPropScenarioRoundTrip] [rapid] draw hour: 0
+# 2026/11/26 14:08:20.888454 [TestPropScenarioRoundTrip] [rapid] draw hour: 0
+# 2026/11/26 14:08:20.888455 [TestPropScenarioRoundTrip] [rapid] draw hour: 0
+# 2026/11/26 14:08:20.888455 [TestPropScenarioRoundTrip] [rapid] draw hour: 0
+# 2026/11/26 14:08:20.888455 [TestPropScenarioRoundTrip] [rapid] draw hour: 0
+# 2026/11/26 14:08:20.888455 [TestPropScenarioRoundTrip] [rapid] draw hour: 0
+# 2026/11/26 14:08:20.888456 [TestPropScenarioRoundTrip] [rapid] draw hour: 0
+# 2026/11/26 14:08:20.888456 [TestPropScenarioRoundTrip] [rapid] draw hour: 0
+# 2026/11/26 14:08:20.888456 [TestPropScenarioRoundTrip] [rapid] draw hour: 0
+# 2026/11/26 14:08:20.888457 [TestPropScenarioRoundTrip] [rapid] draw hour: 0
+# 2026/11/26 14:08:20.888457 [TestPropScenarioRoundTrip] [rapid] draw hour: 0
+# 2026/11/26 14:08:20.888457 [TestPropScenarioRoundTrip] [rapid] draw hour: 0
+# 2026/11/26 14:08:20.888457 [TestPropScenarioRoundTrip] [rapid] draw hour: 0
+# 2026/11/26 14:08:20.888458 [TestPropScenarioRoundTrip] [rapid] draw hour: 0
+# 2026/11/26 14:08:20.888458 [TestPropScenarioRoundTrip] [rapid] draw hour: 0
+# 2026/11/26 14:08:20.888458 [TestPropScenarioRoundTrip] [rapid] draw hour: 0
+# 2026/11/26 14:08:20.888459 [TestPropScenarioRoundTrip] [rapid] draw hour: 0
+# 2026/11/26 14:08:20.888459 [TestPropScenarioRoundTrip] [rapid] draw hour: 0
+# 2026/11/26 14:08:20.888459 [TestPropScenarioRoundTrip] [rapid] draw hour: 0
+# 2026/11/26 14:08:20.888459 [TestPropScenarioRoundTrip] [rapid] draw hour: 0
+# 2026/11/26 14:08:20.888460 [TestPropScenarioRoundTrip] [rapid] draw hour: 0
+# 2026/11/26 14:08:20.888460 [TestPropScenarioRoundTrip] [rapid] draw hour: 0
+# 2026/11/26 14:08:20.888461 [TestPropScenarioRoundTrip] [rapid] draw horizonTicks: 0
+# 2026/11/26 14:08:20.888462 [TestPropScenarioRoundTrip] [rapid] draw horizonTicks.min: 0
+# 2026/11/26 14:08:20.888462 [TestPropScenarioRoundTrip] [rapid] draw horizonTicks.max: 0
+# 2026/11/26 14:08:20.888462 [TestPropScenarioRoundTrip] [rapid] draw decisionCadenceTicks: 0
+# 2026/11/26 14:08:20.888463 [TestPropScenarioRoundTrip] [rapid] draw decisionCadenceTicks.min: 0
+# 2026/11/26 14:08:20.888463 [TestPropScenarioRoundTrip] [rapid] draw decisionCadenceTicks.max: 0
+# 2026/11/26 14:08:20.888463 [TestPropScenarioRoundTrip] [rapid] draw commandBudget: 0
+# 2026/11/26 14:08:20.888464 [TestPropScenarioRoundTrip] [rapid] draw commandBudget.min: 0
+# 2026/11/26 14:08:20.888464 [TestPropScenarioRoundTrip] [rapid] draw commandBudget.max: 0
+# 2026/11/26 14:08:20.888465 [TestPropScenarioRoundTrip] [rapid] draw snapshotIntervalTicks: 0
+# 2026/11/26 14:08:20.888465 [TestPropScenarioRoundTrip] [rapid] draw snapshotIntervalTicks.min: 0
+# 2026/11/26 14:08:20.888465 [TestPropScenarioRoundTrip] [rapid] draw snapshotIntervalTicks.max: 0
+# 2026/11/26 14:08:20.888466 [TestPropScenarioRoundTrip] [rapid] draw tieToleranceHundredths: 0
+# 2026/11/26 14:08:20.888466 [TestPropScenarioRoundTrip] [rapid] draw tieToleranceHundredths.min: 0
+# 2026/11/26 14:08:20.888466 [TestPropScenarioRoundTrip] [rapid] draw tieToleranceHundredths.max: 0
+# 2026/11/26 14:08:20.888467 [TestPropScenarioRoundTrip] [rapid] draw scoreWeights.financialWeightBps: 0
+# 2026/11/26 14:08:20.888467 [TestPropScenarioRoundTrip] [rapid] draw scoreWeights.financialWeightBps.min: 0
+# 2026/11/26 14:08:20.888467 [TestPropScenarioRoundTrip] [rapid] draw scoreWeights.financialWeightBps.max: 0
+# 2026/11/26 14:08:20.888467 [TestPropScenarioRoundTrip] [rapid] draw scoreWeights.fulfilmentWeightBps: 0
+# 2026/11/26 14:08:20.888468 [TestPropScenarioRoundTrip] [rapid] draw scoreWeights.fulfilmentWeightBps.min: 0
+# 2026/11/26 14:08:20.888468 [TestPropScenarioRoundTrip] [rapid] draw scoreWeights.fulfilmentWeightBps.max: 0
+# 2026/11/26 14:08:20.888468 [TestPropScenarioRoundTrip] [rapid] draw scoreWeights.onTimeWeightBps: 0
+# 2026/11/26 14:08:20.888468 [TestPropScenarioRoundTrip] [rapid] draw scoreWeights.onTimeWeightBps.min: 0
+# 2026/11/26 14:08:20.888469 [TestPropScenarioRoundTrip] [rapid] draw scoreWeights.onTimeWeightBps.max: 0
+# 2026/11/26 14:08:20.888469 [TestPropScenarioRoundTrip] [rapid] draw profitFloorCents: 0
+# 2026/11/26 14:08:20.888469 [TestPropScenarioRoundTrip] [rapid] draw profitFloorCents.min: 0
+# 2026/11/26 14:08:20.888470 [TestPropScenarioRoundTrip] [rapid] draw profitFloorCents.max: 0
+# 2026/11/26 14:08:20.888470 [TestPropScenarioRoundTrip] [rapid] draw profitTargetCents: 0
+# 2026/11/26 14:08:20.888471 [TestPropScenarioRoundTrip] [rapid] draw profitTargetCents.min: 0
+# 2026/11/26 14:08:20.888471 [TestPropScenarioRoundTrip] [rapid] draw profitTargetCents.max: 0
+# 2026/11/26 14:08:20.888471 [TestPropScenarioRoundTrip] [rapid] draw workforce.regularWorkers: 0
+# 2026/11/26 14:08:20.888471 [TestPropScenarioRoundTrip] [rapid] draw workforce.regularWorkers.min: 0
+# 2026/11/26 14:08:20.888472 [TestPropScenarioRoundTrip] [rapid] draw workforce.regularWorkers.max: 0
+# 2026/11/26 14:08:20.888472 [TestPropScenarioRoundTrip] [rapid] draw workforce.unitsPerWorkerHour: 0
+# 2026/11/26 14:08:20.888472 [TestPropScenarioRoundTrip] [rapid] draw workforce.unitsPerWorkerHour.min: 0
+# 2026/11/26 14:08:20.888473 [TestPropScenarioRoundTrip] [rapid] draw workforce.unitsPerWorkerHour.max: 0
+# 2026/11/26 14:08:20.888473 [TestPropScenarioRoundTrip] [rapid] draw workforce.maxOvertimePerWorker: 0
+# 2026/11/26 14:08:20.888473 [TestPropScenarioRoundTrip] [rapid] draw workforce.maxOvertimePerWorker.min: 0
+# 2026/11/26 14:08:20.888473 [TestPropScenarioRoundTrip] [rapid] draw workforce.maxOvertimePerWorker.max: 0
+# 2026/11/26 14:08:20.888495 [TestPropScenarioRoundTrip] [rapid] draw workforce.maxTempWorkers: 0
+# 2026/11/26 14:08:20.888495 [TestPropScenarioRoundTrip] [rapid] draw workforce.maxTempWorkers.min: 0
+# 2026/11/26 14:08:20.888495 [TestPropScenarioRoundTrip] [rapid] draw workforce.maxTempWorkers.max: 0
+# 2026/11/26 14:08:20.888496 [TestPropScenarioRoundTrip] [rapid] draw workforce.tempOnboardingTicks: 0
+# 2026/11/26 14:08:20.888496 [TestPropScenarioRoundTrip] [rapid] draw workforce.tempOnboardingTicks.min: 0
+# 2026/11/26 14:08:20.888496 [TestPropScenarioRoundTrip] [rapid] draw workforce.tempOnboardingTicks.max: 0
+# 2026/11/26 14:08:20.888497 [TestPropScenarioRoundTrip] [rapid] draw wages.regularPerHourCents: 0
+# 2026/11/26 14:08:20.888497 [TestPropScenarioRoundTrip] [rapid] draw wages.regularPerHourCents.min: 0
+# 2026/11/26 14:08:20.888498 [TestPropScenarioRoundTrip] [rapid] draw wages.regularPerHourCents.max: 0
+# 2026/11/26 14:08:20.888498 [TestPropScenarioRoundTrip] [rapid] draw wages.overtimePerHourCents: 0
+# 2026/11/26 14:08:20.888498 [TestPropScenarioRoundTrip] [rapid] draw wages.overtimePerHourCents.min: 0
+# 2026/11/26 14:08:20.888499 [TestPropScenarioRoundTrip] [rapid] draw wages.overtimePerHourCents.max: 0
+# 2026/11/26 14:08:20.888499 [TestPropScenarioRoundTrip] [rapid] draw wages.tempPerHourCents: 0
+# 2026/11/26 14:08:20.888499 [TestPropScenarioRoundTrip] [rapid] draw wages.tempPerHourCents.min: 0
+# 2026/11/26 14:08:20.888499 [TestPropScenarioRoundTrip] [rapid] draw wages.tempPerHourCents.max: 0
+# 2026/11/26 14:08:20.888500 [TestPropScenarioRoundTrip] [rapid] draw costs.outboundShipCentsPerUnit: 0
+# 2026/11/26 14:08:20.888500 [TestPropScenarioRoundTrip] [rapid] draw costs.outboundShipCentsPerUnit.min: 0
+# 2026/11/26 14:08:20.888500 [TestPropScenarioRoundTrip] [rapid] draw costs.outboundShipCentsPerUnit.max: 0
+# 2026/11/26 14:08:20.888501 [TestPropScenarioRoundTrip] [rapid] draw costs.expediteFeeCents: 0
+# 2026/11/26 14:08:20.888501 [TestPropScenarioRoundTrip] [rapid] draw costs.expediteFeeCents.min: 0
+# 2026/11/26 14:08:20.888501 [TestPropScenarioRoundTrip] [rapid] draw costs.expediteFeeCents.max: 0
+# 2026/11/26 14:08:20.888501 [TestPropScenarioRoundTrip] [rapid] draw costs.expediteReductionTicks: 0
+# 2026/11/26 14:08:20.888502 [TestPropScenarioRoundTrip] [rapid] draw costs.expediteReductionTicks.min: 0
+# 2026/11/26 14:08:20.888502 [TestPropScenarioRoundTrip] [rapid] draw costs.expediteReductionTicks.max: 0
+# 2026/11/26 14:08:20.888502 [TestPropScenarioRoundTrip] [rapid] draw costs.hourlyOverheadCents: 0
+# 2026/11/26 14:08:20.888503 [TestPropScenarioRoundTrip] [rapid] draw costs.hourlyOverheadCents.min: 0
+# 2026/11/26 14:08:20.888503 [TestPropScenarioRoundTrip] [rapid] draw costs.hourlyOverheadCents.max: 0
+# 2026/11/26 14:08:20.888503 [TestPropScenarioRoundTrip] [rapid] draw costs.serviceCreditPerLateOrderCents: 0
+# 2026/11/26 14:08:20.888503 [TestPropScenarioRoundTrip] [rapid] draw costs.serviceCreditPerLateOrderCents.min: 0
+# 2026/11/26 14:08:20.888504 [TestPropScenarioRoundTrip] [rapid] draw costs.serviceCreditPerLateOrderCents.max: 0
+# 2026/11/26 14:08:20.888504 [TestPropScenarioRoundTrip] [rapid] draw demand.baseArrivalsPerTick: 0
+# 2026/11/26 14:08:20.888504 [TestPropScenarioRoundTrip] [rapid] draw demand.baseArrivalsPerTick.min: 0
+# 2026/11/26 14:08:20.888505 [TestPropScenarioRoundTrip] [rapid] draw demand.baseArrivalsPerTick.max: 0
+# 2026/11/26 14:08:20.888505 [TestPropScenarioRoundTrip] [rapid] draw demand.priceElasticityBps: 0
+# 2026/11/26 14:08:20.888505 [TestPropScenarioRoundTrip] [rapid] draw demand.priceElasticityBps.min: 0
+# 2026/11/26 14:08:20.888505 [TestPropScenarioRoundTrip] [rapid] draw demand.priceElasticityBps.max: 0
+# 2026/11/26 14:08:20.888506 [TestPropScenarioRoundTrip] [rapid] draw demand.marketingEffectBps: 0
+# 2026/11/26 14:08:20.888506 [TestPropScenarioRoundTrip] [rapid] draw demand.marketingEffectBps.min: 0
+# 2026/11/26 14:08:20.888506 [TestPropScenarioRoundTrip] [rapid] draw demand.marketingEffectBps.max: 0
+# 2026/11/26 14:08:20.888506 [TestPropScenarioRoundTrip] [rapid] draw demand.cancelThresholdTicks: 0
+# 2026/11/26 14:08:20.888507 [TestPropScenarioRoundTrip] [rapid] draw demand.cancelThresholdTicks.min: 0
+# 2026/11/26 14:08:20.888507 [TestPropScenarioRoundTrip] [rapid] draw demand.cancelThresholdTicks.max: 0
+# 2026/11/26 14:08:20.888507 [TestPropScenarioRoundTrip] [rapid] draw nDisruptions: 0
+# 2026/11/26 14:08:20.888512 [TestPropScenarioRoundTrip] generator produced invalid scenario: scenario validation failed: scoreWeights: financialWeightBps 0 + fulfilmentWeightBps 0 + onTimeWeightBps 0 = 0, must sum to exactly 10000; profitTargetCents: value 0 must be greater than profitFloorCents 0 (allowed range: > 0)
+# 
+v0.4.8#7485170567354102722
+0x0
+0x1
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0

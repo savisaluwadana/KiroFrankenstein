@@ -6,7 +6,40 @@ A new project repository for the **Kiroween 2026** hackathon, **Frankenstein** c
 
 **Concept approved: Parallel.** *Reality has no undo button. We built one.* A playable, forkable simulation of an e-commerce business in a Black Friday crisis, where a human and an AI manager compete under identical conditions.
 
-**Specification in progress.** Steering lives in `.kiro/steering/` and the MVP requirements in `.kiro/specs/parallel-simulation-mvp/requirements.md`. Design and tasks follow after review. No application code has been written yet.
+**M0 and M1 (the vertical slice) are implemented and tested.** M2 and later milestones are not started. Steering lives in `.kiro/steering/` and the spec (requirements, design, tasks) in `.kiro/specs/parallel-simulation-mvp/`.
+
+## Run locally
+
+Prerequisites: Go 1.23+ and Node 20+.
+
+1. API (port 8080, in-memory store, worlds are lost on restart):
+   `cd backend && WEB_ORIGIN=http://localhost:3100 go run ./cmd/parallel-api`
+2. Web app (port 3100; `NEXT_PUBLIC_API_BASE_URL` defaults to `http://localhost:8080/api/v1`):
+   `cd web && npm install && npm run dev`
+3. Open http://localhost:3100 and click "Start Black Friday demo".
+
+Headless run:
+
+```
+cd backend && go run ./cmd/parallel-sim run --scenario scenarios/black-friday.json --seed 2026
+```
+
+Output at the time of writing: engine version 1, tick 120, state hash `96e7d8d94bc1b3d0e81598272df984b0e0afe86c8e848bc34275781b513bce08`, net profit -4342800 cents, service level 2206 bps.
+
+Tests:
+
+- `cd backend && go test ./...`
+- `cd web && npx tsc --noEmit && npx eslint . && npx vitest --run`
+
+PostgreSQL via Docker Compose is optional and unused until M3.
+
+### Known limitations
+
+- No authentication; worlds are protected only by unguessable IDs.
+- Assumptions are synthetic and uncalibrated.
+- Results are not predictions or guarantees.
+- No LLM manager yet.
+- The PixiJS view has not been manually browser-tested by the agent.
 
 ## First steps
 

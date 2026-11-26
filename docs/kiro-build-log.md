@@ -100,6 +100,22 @@
 - **Commands and verification outcomes:** Spec format validation of `tasks.md` passed with no issues.
 - **Learning / next action:** Review `tasks.md`, then start task 1.1.
 
+#### 2026-11-26 — M0 + M1 implementation (vertical slice)
+
+- **Kiro surface/version:** Kiro IDE agent orchestrating spec-task-execution subagents
+- **Goal:** Implement milestones M0 (scaffolding) and M1 (vertical slice: engine, in-memory store, API, PixiJS studio with playback) from `tasks.md`.
+- **Inputs:** `.kiro/specs/parallel-simulation-mvp/tasks.md`, `design.md`, and the steering set.
+- **What Kiro actually did:**
+  - Executed tasks 1.1 to 1.6 and 2.1 to 2.55, except the optional tasks 2.8, 2.28 and 2.29, which were intentionally skipped.
+  - One subagent run was interrupted by a network failure during task 2.33 and was re-run.
+- **What I reviewed or corrected:** Verified the Docker image pull manually. Fixed a staticcheck unused-field finding.
+- **Code/tests produced:** Backend (`backend/`), web app (`web/`), docs. Committed as `feat: M1 vertical slice (engine, API, studio, tests)`.
+- **Commands and verification outcomes:**
+  - `go vet`, `go test ./...`, `tsc --noEmit`, `eslint`, `vitest` (54 tests) and `next build` passed.
+  - Live acceptance: demo plan crisisTick 19 and forkTick 20. Parent hashes for ticks 0..20 were unchanged after the fork and after both branches advanced. The child hash at tick 20 equals the parent's. A fresh-world replay gave identical hashes for 121 ticks. The `parallel-sim` final hash equals the API parent hash at tick 120.
+- **Known issues:** `OrderBook.Settled` and the scenario fields `openingCashCents` and `demand.baseConversionBps` deviate from the plan. The outage supplier role is stored in `ActiveDisruption.MagnitudeBps` (tech debt). SSE is not in the slice. The benchmark numbers in `docs/benchmarks.md` are an in-process proxy. The PixiJS view has not been manually browser-tested by the agent. The demo-reproducibility property test takes about 60 s.
+- **Learning / next action:** Start M2.
+
 Use this template after each real Kiro session:
 
 ### YYYY-MM-DD — session title
@@ -115,9 +131,9 @@ Use this template after each real Kiro session:
 
 ## Evidence checklist
 
-- [ ] First genuine Kiro spec review/revision
+- [x] First genuine Kiro spec review/revision
 - [ ] First actual Kiro implementation commit
-- [ ] Demonstrated tests and build
+- [x] Demonstrated tests and build
 - [ ] Hook / custom agent / MCP usage documented if actually used
 - [ ] Working public demo and test instructions
 - [ ] Submission write-up and public demo video

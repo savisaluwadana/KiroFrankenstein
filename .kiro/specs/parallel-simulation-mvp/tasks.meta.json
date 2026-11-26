@@ -1,5 +1,58 @@
 {
-  "pbtResults": {},
+  "pbtResults": {
+    "2.11 Property test: State canonical encoding round trip": {
+      "status": "passed",
+      "lastRunTimestamp": 1795682322643
+    },
+    "2.23 Property test: demand draw count independent of Commands (required)": {
+      "status": "passed",
+      "lastRunTimestamp": 1795684575191
+    },
+    "2.21 Property test: determinism at every Tick (required)": {
+      "status": "passed",
+      "lastRunTimestamp": 1795684576833
+    },
+    "2.24 Property test: order conservation (required)": {
+      "status": "passed",
+      "lastRunTimestamp": 1795684580447
+    },
+    "2.25 Property test: inventory conservation and non-negative stock (required)": {
+      "status": "passed",
+      "lastRunTimestamp": 1795684798270
+    },
+    "2.26 Property test: ledger balance (required)": {
+      "status": "passed",
+      "lastRunTimestamp": 1795684799315
+    },
+    "2.30 Property test: valuation consistency and no residual value (required)": {
+      "status": "passed",
+      "lastRunTimestamp": 1795684815639
+    },
+    "2.31 Property test: balance identity (required)": {
+      "status": "passed",
+      "lastRunTimestamp": 1795684912212
+    },
+    "2.37 Property test: Input idempotency key (required)": {
+      "status": "passed",
+      "lastRunTimestamp": 1795684936505
+    },
+    "2.36 Property test: validation gate and validator determinism (required)": {
+      "status": "passed",
+      "lastRunTimestamp": 1795685016656
+    },
+    "2.41 Property test: fork fidelity (required)": {
+      "status": "passed",
+      "lastRunTimestamp": 1795685103475
+    },
+    "2.43 Property test: fork prefix immutability after parent advances (required)": {
+      "status": "passed",
+      "lastRunTimestamp": 1795685115326
+    },
+    "2.45 Property test: demo reproducibility (required)": {
+      "status": "passed",
+      "lastRunTimestamp": 1795712555247
+    }
+  },
   "executionHistory": {
     "1.1 Create the Go module skeleton": [
       {
@@ -73,6 +126,642 @@
         "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
         "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
         "timestamp": 1795681539103
+      }
+    ],
+    "2.1 Implement integer money and the shared rounding helpers": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795681552944
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795681624071
+      }
+    ],
+    "2.2 Implement the SplitMix64 random streams": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795681552952
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795681624308
+      }
+    ],
+    "2.3 Implement the sim clock and the Event_Queue": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795681638761
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795681831305
+      }
+    ],
+    "2.4 Implement the Scenario model and strict parser": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795681639222
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795681831333
+      }
+    ],
+    "2.5 Implement the Scenario_Validator": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795681837684
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795681984747
+      }
+    ],
+    "2.6 Implement the canonical Scenario_Printer": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795681994006
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795682232730
+      }
+    ],
+    "2.10 Implement the State model and canonical Encode, Decode and Hash": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795681994013
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795682232919
+      }
+    ],
+    "2.7 Property test: Scenario round trip": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795682237885
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795682370337
+      }
+    ],
+    "2.9 Author the Flagship_Scenario with synthetic, uncalibrated Assumptions": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795682238680
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795682370355
+      }
+    ],
+    "2.11 Property test: State canonical encoding round trip": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795682240011
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795682370543
+      }
+    ],
+    "2.12 Implement the Ledger with the fixed chart of accounts": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795682240371
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795682370557
+      }
+    ],
+    "2.13 Implement Init, StepTick, recurring events, demand arrivals, conversion and cancellation": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795682386736
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795682898667
+      }
+    ],
+    "2.14 Implement fulfilment capacity, shipping and shipment postings": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795682898699
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795683192181
+      }
+    ],
+    "2.15 Implement purchase orders, receipts and hourly accruals": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795683193226
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795683374592
+      }
+    ],
+    "2.16 Implement the scripted supplier_outage and same-Sim_Time ordering": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795683375663
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795683594788
+      }
+    ],
+    "2.17 Implement the tick-boundary sequence, Decision_Windows and the horizon stop": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795683595492
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795683774699
+      }
+    ],
+    "2.18 Implement the Metrics_Calculator and the End_Of_Horizon_Statement": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795683775738
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684039833
+      }
+    ],
+    "2.19 Implement Observation, the slice Commands and the Command_Validator": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684040126
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684327493
+      }
+    ],
+    "2.20 Create the shared rapid generators package": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684332497
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684483145
+      }
+    ],
+    "2.32 Implement `parallel-sim run` for a Scenario and Seed": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684333550
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684482922
+      }
+    ],
+    "2.34 Define the app ports and the in-memory store with a shared contract suite": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684334429
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684483159
+      }
+    ],
+    "2.35 Implement the Branch_Service for worlds, advance, commands and rewind reads": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684492481
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684733903
+      }
+    ],
+    "2.21 Property test: determinism at every Tick (required)": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684492765
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684733274
+      }
+    ],
+    "2.22 Property test: same-Sim_Time event ordering (required)": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684492772
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684733525
+      }
+    ],
+    "2.23 Property test: demand draw count independent of Commands (required)": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684493209
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684733536
+      }
+    ],
+    "2.24 Property test: order conservation (required)": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684494167
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684733547
+      }
+    ],
+    "2.40 Implement forking with the ancestor input-prefix walk": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684739834
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684844740
+      }
+    ],
+    "2.25 Property test: inventory conservation and non-negative stock (required)": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684740064
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684842929
+      }
+    ],
+    "2.26 Property test: ledger balance (required)": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684740877
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684842945
+      }
+    ],
+    "2.27 Property test: cash reconciliation (required)": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684742236
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684842958
+      }
+    ],
+    "2.30 Property test: valuation consistency and no residual value (required)": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684743106
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684843806
+      }
+    ],
+    "2.31 Property test: balance identity (required)": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684853952
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795685033413
+      }
+    ],
+    "2.36 Property test: validation gate and validator determinism (required)": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684855074
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795685033423
+      }
+    ],
+    "2.37 Property test: Input idempotency key (required)": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684856106
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795685033871
+      }
+    ],
+    "2.38 Property test: hash metadata independence (required)": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684856969
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795685034676
+      }
+    ],
+    "2.39 Property test: presentation independence (required)": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795684857937
+      },
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795685036205
+      }
+    ],
+    "2.41 Property test: fork fidelity (required)": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795685040397
+      },
+      {
+        "executionId": "7e822f8e-d13a-48ee-84f6-4b7744df9e8b",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795710969594
+      }
+    ],
+    "2.42 Property test: fork independence (required)": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795685041185
+      },
+      {
+        "executionId": "7e822f8e-d13a-48ee-84f6-4b7744df9e8b",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795710969607
+      }
+    ],
+    "2.43 Property test: fork prefix immutability after parent advances (required)": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795685042227
+      },
+      {
+        "executionId": "7e822f8e-d13a-48ee-84f6-4b7744df9e8b",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795710969618
+      }
+    ],
+    "2.44 Implement the Demo_Path plan derivation": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795685043585
+      },
+      {
+        "executionId": "7e822f8e-d13a-48ee-84f6-4b7744df9e8b",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795710970033
+      }
+    ],
+    "2.33 Run the early benchmark and create `docs/benchmarks.md`": [
+      {
+        "executionId": "50be09b7-379c-4803-ae55-126ae650e342",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795685044069
+      },
+      {
+        "executionId": "7e822f8e-d13a-48ee-84f6-4b7744df9e8b",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795710970842
+      },
+      {
+        "executionId": "7e822f8e-d13a-48ee-84f6-4b7744df9e8b",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795712430789
+      }
+    ],
+    "2.45 Property test: demo reproducibility (required)": [
+      {
+        "executionId": "7e822f8e-d13a-48ee-84f6-4b7744df9e8b",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795712430803
+      },
+      {
+        "executionId": "7e822f8e-d13a-48ee-84f6-4b7744df9e8b",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795713024953
+      }
+    ],
+    "2.46 Write the OpenAPI 3.1 document for the slice endpoints": [
+      {
+        "executionId": "7e822f8e-d13a-48ee-84f6-4b7744df9e8b",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795712431356
+      },
+      {
+        "executionId": "7e822f8e-d13a-48ee-84f6-4b7744df9e8b",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795713024967
+      }
+    ],
+    "2.47 Implement the HTTP API for the slice and wire `parallel-api`": [
+      {
+        "executionId": "7e822f8e-d13a-48ee-84f6-4b7744df9e8b",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795713030147
+      },
+      {
+        "executionId": "7e822f8e-d13a-48ee-84f6-4b7744df9e8b",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795713633448
+      }
+    ],
+    "2.48 Generate the TypeScript API client": [
+      {
+        "executionId": "7e822f8e-d13a-48ee-84f6-4b7744df9e8b",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795713633473
+      },
+      {
+        "executionId": "7e822f8e-d13a-48ee-84f6-4b7744df9e8b",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795713756319
+      }
+    ],
+    "2.49 Implement the playback controller and view-state stores": [
+      {
+        "executionId": "7e822f8e-d13a-48ee-84f6-4b7744df9e8b",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795713756900
+      },
+      {
+        "executionId": "7e822f8e-d13a-48ee-84f6-4b7744df9e8b",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795713985288
+      }
+    ],
+    "2.50 Build the basic PixiJS World_View": [
+      {
+        "executionId": "7e822f8e-d13a-48ee-84f6-4b7744df9e8b",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795713985301
+      },
+      {
+        "executionId": "7e822f8e-d13a-48ee-84f6-4b7744df9e8b",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795714170019
+      }
+    ],
+    "2.51 Build the HUD and the Timeline": [
+      {
+        "executionId": "7e822f8e-d13a-48ee-84f6-4b7744df9e8b",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795713985890
+      },
+      {
+        "executionId": "7e822f8e-d13a-48ee-84f6-4b7744df9e8b",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795714170031
+      }
+    ],
+    "2.52 Build the Branch_Tree and the fork control": [
+      {
+        "executionId": "7e822f8e-d13a-48ee-84f6-4b7744df9e8b",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795713986692
+      },
+      {
+        "executionId": "7e822f8e-d13a-48ee-84f6-4b7744df9e8b",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795714170567
+      }
+    ],
+    "2.53 Build the slice Decision_Panel": [
+      {
+        "executionId": "7e822f8e-d13a-48ee-84f6-4b7744df9e8b",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795713987463
+      },
+      {
+        "executionId": "7e822f8e-d13a-48ee-84f6-4b7744df9e8b",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795714171368
+      }
+    ],
+    "2.54 Assemble the world page and the \"Start Black Friday demo\" entry": [
+      {
+        "executionId": "7e822f8e-d13a-48ee-84f6-4b7744df9e8b",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795716473928
+      },
+      {
+        "executionId": "7e822f8e-d13a-48ee-84f6-4b7744df9e8b",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795716889848
+      }
+    ],
+    "2.55 Checkpoint — vertical slice complete": [
+      {
+        "executionId": "7e822f8e-d13a-48ee-84f6-4b7744df9e8b",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795716889861
+      },
+      {
+        "executionId": "7e822f8e-d13a-48ee-84f6-4b7744df9e8b",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795717152854
+      }
+    ],
+    "2. M1 — Working end-to-end vertical slice (~900 credits)": [
+      {
+        "executionId": "7e822f8e-d13a-48ee-84f6-4b7744df9e8b",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795717152866
       }
     ]
   }

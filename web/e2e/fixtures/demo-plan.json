@@ -1,0 +1,21 @@
+{
+  "scenario": "Black Friday Meltdown",
+  "seed": 2026,
+  "crisisTick": 19,
+  "forkTick": 20,
+  "commands": [
+    {
+      "kind": "place_purchase_order",
+      "skuIndex": 2,
+      "skuId": "speaker",
+      "role": "backup",
+      "qty": 315
+    }
+  ],
+  "reasons": [
+    "crisis tick 19: first tick with an active disruption or a stock-bound order in the no-command run",
+    "fork tick 20: first scheduled decision window at or after the crisis tick whose backup order (lead time up to 8 ticks) is received before the horizon at tick 120",
+    "sku speaker (index 2): earliest stock-bound report after the fork tick is at tick 21 covering 123 units",
+    "quantity 315 = 123 stock-bound units + 192 expected units (478 units demanded in 20 ticks, over the 8-tick backup lead time, rounded up)"
+  ]
+}

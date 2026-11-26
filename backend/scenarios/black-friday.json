@@ -1,0 +1,606 @@
+{
+  "schemaVersion": 1,
+  "name": "Black Friday Meltdown",
+  "horizonTicks": 120,
+  "startClock": "Thu 00:00",
+  "decisionCadenceTicks": 4,
+  "commandBudget": 5,
+  "snapshotIntervalTicks": 24,
+  "tieToleranceHundredths": 10,
+  "scoreWeights": {
+    "financialWeightBps": 5000,
+    "fulfilmentWeightBps": 3000,
+    "onTimeWeightBps": 2000
+  },
+  "profitFloorCents": -2000000,
+  "profitTargetCents": 6000000,
+  "openingCashCents": 10000000,
+  "skus": [
+    {
+      "id": "headphones",
+      "referencePriceCents": 5999,
+      "openingUnits": 700,
+      "openingUnitCostCents": 3000,
+      "promiseTicks": 24
+    },
+    {
+      "id": "charger",
+      "referencePriceCents": 1999,
+      "openingUnits": 900,
+      "openingUnitCostCents": 800,
+      "promiseTicks": 24
+    },
+    {
+      "id": "speaker",
+      "referencePriceCents": 8999,
+      "openingUnits": 400,
+      "openingUnitCostCents": 4800,
+      "promiseTicks": 48
+    },
+    {
+      "id": "watchband",
+      "referencePriceCents": 1499,
+      "openingUnits": 800,
+      "openingUnitCostCents": 500,
+      "promiseTicks": 24
+    }
+  ],
+  "suppliers": [
+    {
+      "skuId": "headphones",
+      "role": "primary",
+      "unitCostCents": 3000,
+      "leadTimeTicks": 24
+    },
+    {
+      "skuId": "headphones",
+      "role": "backup",
+      "unitCostCents": 3600,
+      "leadTimeTicks": 8
+    },
+    {
+      "skuId": "charger",
+      "role": "primary",
+      "unitCostCents": 800,
+      "leadTimeTicks": 24
+    },
+    {
+      "skuId": "charger",
+      "role": "backup",
+      "unitCostCents": 1050,
+      "leadTimeTicks": 8
+    },
+    {
+      "skuId": "speaker",
+      "role": "primary",
+      "unitCostCents": 4800,
+      "leadTimeTicks": 24
+    },
+    {
+      "skuId": "speaker",
+      "role": "backup",
+      "unitCostCents": 5700,
+      "leadTimeTicks": 8
+    },
+    {
+      "skuId": "watchband",
+      "role": "primary",
+      "unitCostCents": 500,
+      "leadTimeTicks": 24
+    },
+    {
+      "skuId": "watchband",
+      "role": "backup",
+      "unitCostCents": 700,
+      "leadTimeTicks": 8
+    }
+  ],
+  "workforce": {
+    "regularWorkers": 20,
+    "unitsPerWorkerHour": 8,
+    "maxOvertimePerWorker": 4,
+    "maxTempWorkers": 30,
+    "tempOnboardingTicks": 6
+  },
+  "wages": {
+    "regularPerHourCents": 2200,
+    "overtimePerHourCents": 3300,
+    "tempPerHourCents": 2500
+  },
+  "costs": {
+    "outboundShipCentsPerUnit": 400,
+    "expediteFeeCents": 5000,
+    "expediteReductionTicks": 4,
+    "hourlyOverheadCents": 30000,
+    "serviceCreditPerLateOrderCents": 500
+  },
+  "demand": {
+    "hourlyProfile": [
+      3000,
+      2000,
+      1500,
+      1500,
+      2000,
+      6000,
+      7000,
+      9000,
+      11000,
+      12000,
+      13000,
+      13000,
+      12000,
+      11000,
+      11000,
+      12000,
+      13000,
+      14000,
+      16000,
+      17000,
+      18000,
+      16000,
+      11000,
+      8000
+    ],
+    "baseArrivalsPerTick": 100,
+    "baseConversionBps": 2500,
+    "priceElasticityBps": 1500,
+    "marketingEffectBps": 300,
+    "cancelThresholdTicks": 48
+  },
+  "assumptionMeta": {
+    "horizonTicks": {
+      "unit": "ticks",
+      "default": 120,
+      "min": 24,
+      "max": 336,
+      "rationale": "synthetic, illustrative: five-day peak, Thursday 00:00 to Monday 23:59"
+    },
+    "decisionCadenceTicks": {
+      "unit": "ticks",
+      "default": 4,
+      "min": 1,
+      "max": 24,
+      "rationale": "synthetic, illustrative: a decision window every four hours"
+    },
+    "commandBudget": {
+      "unit": "commands",
+      "default": 5,
+      "min": 1,
+      "max": 50,
+      "rationale": "synthetic, illustrative: small per-window command budget"
+    },
+    "snapshotIntervalTicks": {
+      "unit": "ticks",
+      "default": 24,
+      "min": 1,
+      "max": 120,
+      "rationale": "synthetic, illustrative: one snapshot per simulated day"
+    },
+    "tieToleranceHundredths": {
+      "unit": "hundredths",
+      "default": 10,
+      "min": 0,
+      "max": 10000,
+      "rationale": "synthetic, illustrative: a duel within 0.1 points is a tie"
+    },
+    "scoreWeights.financialWeightBps": {
+      "unit": "bps",
+      "default": 5000,
+      "min": 0,
+      "max": 10000,
+      "rationale": "synthetic, illustrative: financial result is half the composite score"
+    },
+    "scoreWeights.fulfilmentWeightBps": {
+      "unit": "bps",
+      "default": 3000,
+      "min": 0,
+      "max": 10000,
+      "rationale": "synthetic, illustrative: fill rate is 30% of the composite score"
+    },
+    "scoreWeights.onTimeWeightBps": {
+      "unit": "bps",
+      "default": 2000,
+      "min": 0,
+      "max": 10000,
+      "rationale": "synthetic, illustrative: on-time service level is 20% of the composite score"
+    },
+    "openingCashCents": {
+      "unit": "cents",
+      "default": 10000000,
+      "min": 0,
+      "max": 1000000000,
+      "rationale": "synthetic, illustrative; uncalibrated: $100,000 of opening cash"
+    },
+    "profitFloorCents": {
+      "unit": "cents",
+      "default": -2000000,
+      "min": -100000000,
+      "max": 100000000,
+      "rationale": "synthetic, illustrative; uncalibrated: provisional profit floor of -$20,000 pending calibration"
+    },
+    "profitTargetCents": {
+      "unit": "cents",
+      "default": 6000000,
+      "min": -100000000,
+      "max": 100000000,
+      "rationale": "synthetic, illustrative; uncalibrated: provisional profit target of $60,000 pending calibration"
+    },
+    "workforce.regularWorkers": {
+      "unit": "workers",
+      "default": 20,
+      "min": 1,
+      "max": 200,
+      "rationale": "synthetic, illustrative: 20 regular pickers give 160 units per hour, above a normal-hour load of about 100"
+    },
+    "workforce.unitsPerWorkerHour": {
+      "unit": "units/hour",
+      "default": 8,
+      "min": 1,
+      "max": 60,
+      "rationale": "synthetic, illustrative: eight picked-and-packed units per worker-hour"
+    },
+    "workforce.maxOvertimePerWorker": {
+      "unit": "hours",
+      "default": 4,
+      "min": 0,
+      "max": 8,
+      "rationale": "synthetic, illustrative: up to four overtime hours per worker per day"
+    },
+    "workforce.maxTempWorkers": {
+      "unit": "workers",
+      "default": 30,
+      "min": 0,
+      "max": 200,
+      "rationale": "synthetic, illustrative: temporary headcount cap"
+    },
+    "workforce.tempOnboardingTicks": {
+      "unit": "ticks",
+      "default": 6,
+      "min": 0,
+      "max": 48,
+      "rationale": "synthetic, illustrative: temps add no capacity for six hours but are paid"
+    },
+    "wages.regularPerHourCents": {
+      "unit": "cents",
+      "default": 2200,
+      "min": 500,
+      "max": 10000,
+      "rationale": "synthetic, illustrative: $22.00 per hour regular wage"
+    },
+    "wages.overtimePerHourCents": {
+      "unit": "cents",
+      "default": 3300,
+      "min": 500,
+      "max": 15000,
+      "rationale": "synthetic, illustrative: 1.5 times the regular wage"
+    },
+    "wages.tempPerHourCents": {
+      "unit": "cents",
+      "default": 2500,
+      "min": 500,
+      "max": 10000,
+      "rationale": "synthetic, illustrative: temp wage slightly above regular to attract short-notice labour"
+    },
+    "costs.outboundShipCentsPerUnit": {
+      "unit": "cents",
+      "default": 400,
+      "min": 0,
+      "max": 5000,
+      "rationale": "synthetic, illustrative: $4.00 outbound freight per unit"
+    },
+    "costs.expediteFeeCents": {
+      "unit": "cents",
+      "default": 5000,
+      "min": 0,
+      "max": 100000,
+      "rationale": "synthetic, illustrative: $50.00 flat fee to expedite a purchase order"
+    },
+    "costs.expediteReductionTicks": {
+      "unit": "ticks",
+      "default": 4,
+      "min": 0,
+      "max": 24,
+      "rationale": "synthetic, illustrative: expediting shortens lead time by four hours"
+    },
+    "costs.hourlyOverheadCents": {
+      "unit": "cents",
+      "default": 30000,
+      "min": 0,
+      "max": 500000,
+      "rationale": "synthetic, illustrative: $300.00 per hour rent, utilities and marketing"
+    },
+    "costs.serviceCreditPerLateOrderCents": {
+      "unit": "cents",
+      "default": 500,
+      "min": 0,
+      "max": 10000,
+      "rationale": "synthetic, illustrative: $5.00 credit for each late order"
+    },
+    "demand.baseArrivalsPerTick": {
+      "unit": "arrivals/tick",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "rationale": "synthetic, illustrative: about 100 potential customers per hour at profile 100%"
+    },
+    "demand.baseConversionBps": {
+      "unit": "bps",
+      "default": 2500,
+      "min": 0,
+      "max": 10000,
+      "rationale": "synthetic, illustrative; uncalibrated: 25% of potential customers buy at the reference price with no marketing"
+    },
+    "demand.priceElasticityBps": {
+      "unit": "bps",
+      "default": 1500,
+      "min": 0,
+      "max": 20000,
+      "rationale": "synthetic, illustrative: 15% conversion change per 100% price change"
+    },
+    "demand.marketingEffectBps": {
+      "unit": "bps",
+      "default": 300,
+      "min": 0,
+      "max": 10000,
+      "rationale": "synthetic, illustrative: 3% conversion uplift per $100 of hourly marketing spend on a SKU"
+    },
+    "demand.cancelThresholdTicks": {
+      "unit": "ticks",
+      "default": 48,
+      "min": 1,
+      "max": 240,
+      "rationale": "synthetic, illustrative: open orders older than 48 hours are cancelled"
+    },
+    "demand.hourlyProfile": {
+      "unit": "bps",
+      "default": 10000,
+      "min": 0,
+      "max": 50000,
+      "rationale": "synthetic, illustrative: basis points of base per hour of day, averaging 10000, evening peak"
+    },
+    "skus.headphones.referencePriceCents": {
+      "unit": "cents",
+      "default": 5999,
+      "min": 100,
+      "max": 100000,
+      "rationale": "synthetic, illustrative: list price in a plausible consumer-electronics accessory range"
+    },
+    "skus.headphones.openingUnits": {
+      "unit": "units",
+      "default": 700,
+      "min": 0,
+      "max": 100000,
+      "rationale": "synthetic, illustrative: covers roughly a normal day, not the Black Friday surge"
+    },
+    "skus.headphones.openingUnitCostCents": {
+      "unit": "cents",
+      "default": 3000,
+      "min": 1,
+      "max": 100000,
+      "rationale": "synthetic, illustrative: equals the primary supplier unit cost"
+    },
+    "skus.headphones.promiseTicks": {
+      "unit": "ticks",
+      "default": 24,
+      "min": 1,
+      "max": 240,
+      "rationale": "synthetic, illustrative: delivery promise window"
+    },
+    "suppliers.headphones.primary.unitCostCents": {
+      "unit": "cents",
+      "default": 3000,
+      "min": 1,
+      "max": 100000,
+      "rationale": "synthetic, illustrative: cheaper supplier with a long lead time"
+    },
+    "suppliers.headphones.primary.leadTimeTicks": {
+      "unit": "ticks",
+      "default": 24,
+      "min": 1,
+      "max": 240,
+      "rationale": "synthetic, illustrative: cheaper supplier with a long lead time"
+    },
+    "suppliers.headphones.backup.unitCostCents": {
+      "unit": "cents",
+      "default": 3600,
+      "min": 1,
+      "max": 100000,
+      "rationale": "synthetic, illustrative: pricier supplier with a short lead time"
+    },
+    "suppliers.headphones.backup.leadTimeTicks": {
+      "unit": "ticks",
+      "default": 8,
+      "min": 1,
+      "max": 240,
+      "rationale": "synthetic, illustrative: pricier supplier with a short lead time"
+    },
+    "skus.charger.referencePriceCents": {
+      "unit": "cents",
+      "default": 1999,
+      "min": 100,
+      "max": 100000,
+      "rationale": "synthetic, illustrative: list price in a plausible consumer-electronics accessory range"
+    },
+    "skus.charger.openingUnits": {
+      "unit": "units",
+      "default": 900,
+      "min": 0,
+      "max": 100000,
+      "rationale": "synthetic, illustrative: covers roughly a normal day, not the Black Friday surge"
+    },
+    "skus.charger.openingUnitCostCents": {
+      "unit": "cents",
+      "default": 800,
+      "min": 1,
+      "max": 100000,
+      "rationale": "synthetic, illustrative: equals the primary supplier unit cost"
+    },
+    "skus.charger.promiseTicks": {
+      "unit": "ticks",
+      "default": 24,
+      "min": 1,
+      "max": 240,
+      "rationale": "synthetic, illustrative: delivery promise window"
+    },
+    "suppliers.charger.primary.unitCostCents": {
+      "unit": "cents",
+      "default": 800,
+      "min": 1,
+      "max": 100000,
+      "rationale": "synthetic, illustrative: cheaper supplier with a long lead time"
+    },
+    "suppliers.charger.primary.leadTimeTicks": {
+      "unit": "ticks",
+      "default": 24,
+      "min": 1,
+      "max": 240,
+      "rationale": "synthetic, illustrative: cheaper supplier with a long lead time"
+    },
+    "suppliers.charger.backup.unitCostCents": {
+      "unit": "cents",
+      "default": 1050,
+      "min": 1,
+      "max": 100000,
+      "rationale": "synthetic, illustrative: pricier supplier with a short lead time"
+    },
+    "suppliers.charger.backup.leadTimeTicks": {
+      "unit": "ticks",
+      "default": 8,
+      "min": 1,
+      "max": 240,
+      "rationale": "synthetic, illustrative: pricier supplier with a short lead time"
+    },
+    "skus.speaker.referencePriceCents": {
+      "unit": "cents",
+      "default": 8999,
+      "min": 100,
+      "max": 100000,
+      "rationale": "synthetic, illustrative: list price in a plausible consumer-electronics accessory range"
+    },
+    "skus.speaker.openingUnits": {
+      "unit": "units",
+      "default": 400,
+      "min": 0,
+      "max": 100000,
+      "rationale": "synthetic, illustrative: covers roughly a normal day, not the Black Friday surge"
+    },
+    "skus.speaker.openingUnitCostCents": {
+      "unit": "cents",
+      "default": 4800,
+      "min": 1,
+      "max": 100000,
+      "rationale": "synthetic, illustrative: equals the primary supplier unit cost"
+    },
+    "skus.speaker.promiseTicks": {
+      "unit": "ticks",
+      "default": 48,
+      "min": 1,
+      "max": 240,
+      "rationale": "synthetic, illustrative: delivery promise window"
+    },
+    "suppliers.speaker.primary.unitCostCents": {
+      "unit": "cents",
+      "default": 4800,
+      "min": 1,
+      "max": 100000,
+      "rationale": "synthetic, illustrative: cheaper supplier with a long lead time"
+    },
+    "suppliers.speaker.primary.leadTimeTicks": {
+      "unit": "ticks",
+      "default": 24,
+      "min": 1,
+      "max": 240,
+      "rationale": "synthetic, illustrative: cheaper supplier with a long lead time"
+    },
+    "suppliers.speaker.backup.unitCostCents": {
+      "unit": "cents",
+      "default": 5700,
+      "min": 1,
+      "max": 100000,
+      "rationale": "synthetic, illustrative: pricier supplier with a short lead time"
+    },
+    "suppliers.speaker.backup.leadTimeTicks": {
+      "unit": "ticks",
+      "default": 8,
+      "min": 1,
+      "max": 240,
+      "rationale": "synthetic, illustrative: pricier supplier with a short lead time"
+    },
+    "skus.watchband.referencePriceCents": {
+      "unit": "cents",
+      "default": 1499,
+      "min": 100,
+      "max": 100000,
+      "rationale": "synthetic, illustrative: list price in a plausible consumer-electronics accessory range"
+    },
+    "skus.watchband.openingUnits": {
+      "unit": "units",
+      "default": 800,
+      "min": 0,
+      "max": 100000,
+      "rationale": "synthetic, illustrative: covers roughly a normal day, not the Black Friday surge"
+    },
+    "skus.watchband.openingUnitCostCents": {
+      "unit": "cents",
+      "default": 500,
+      "min": 1,
+      "max": 100000,
+      "rationale": "synthetic, illustrative: equals the primary supplier unit cost"
+    },
+    "skus.watchband.promiseTicks": {
+      "unit": "ticks",
+      "default": 24,
+      "min": 1,
+      "max": 240,
+      "rationale": "synthetic, illustrative: delivery promise window"
+    },
+    "suppliers.watchband.primary.unitCostCents": {
+      "unit": "cents",
+      "default": 500,
+      "min": 1,
+      "max": 100000,
+      "rationale": "synthetic, illustrative: cheaper supplier with a long lead time"
+    },
+    "suppliers.watchband.primary.leadTimeTicks": {
+      "unit": "ticks",
+      "default": 24,
+      "min": 1,
+      "max": 240,
+      "rationale": "synthetic, illustrative: cheaper supplier with a long lead time"
+    },
+    "suppliers.watchband.backup.unitCostCents": {
+      "unit": "cents",
+      "default": 700,
+      "min": 1,
+      "max": 100000,
+      "rationale": "synthetic, illustrative: pricier supplier with a short lead time"
+    },
+    "suppliers.watchband.backup.leadTimeTicks": {
+      "unit": "ticks",
+      "default": 8,
+      "min": 1,
+      "max": 240,
+      "rationale": "synthetic, illustrative: pricier supplier with a short lead time"
+    }
+  },
+  "disruptionScript": [
+    {
+      "kind": "demand_surge",
+      "onsetTick": 48,
+      "durationTicks": 24,
+      "magnitudeBps": 25000
+    },
+    {
+      "kind": "workforce_absence",
+      "onsetTick": 54,
+      "durationTicks": 12,
+      "magnitudeBps": 3000
+    },
+    {
+      "kind": "supplier_outage",
+      "onsetTick": 60,
+      "durationTicks": 18,
+      "target": "primary"
+    }
+  ]
+}
