@@ -117,6 +117,16 @@ func (s *BranchService) rebuild(ctx context.Context, b Branch, w World, sc sim.S
 	if needFrame {
 		limit = to - 1
 	}
+	return s.replayTo(ctx, b, w, sc, limit, to)
+}
+
+// rebuildFrom is rebuild for a frame range: one replay whose computed frames
+// include every tick from..to (the snapshot used is at or before from-1).
+func (s *BranchService) rebuildFrom(ctx context.Context, b Branch, w World, sc sim.Scenario, from, to sim.Tick) (replayed, error) {
+	return s.replayTo(ctx, b, w, sc, from-1, to)
+}
+
+func (s *BranchService) replayTo(ctx context.Context, b Branch, w World, sc sim.Scenario, limit, to sim.Tick) (replayed, error) {
 	inputs, err := s.engineInputs(ctx, b.ID, to)
 	if err != nil {
 		return replayed{}, err

@@ -725,6 +725,52 @@ func (s *BranchService) FrameAt(ctx context.Context, id BranchID, t sim.Tick) (s
 	return f, nil
 }
 
+// FramesRange returns the Tick_Frames of ticks from..to inclusive in order.
+// Frames the head cache holds are served from it; otherwise the range is
+// recomputed with ONE replay from the best trusted snapshot at or before
+// from-1 (else from Init), instead of one replay per tick. Frames are the
+// engine's own output, so every frame equals the one FrameAt returns.
+func (s *BranchService) FramesRange(ctx context.Context, id BranchID, from, to sim.Tick) ([]sim.TickFrame, error) {
+	if from < 0 || to < from {
+		return nil, fmt.Errorf("range %d..%d: %w", from, to, ErrInvalidTick)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c, err := s.load(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := c.checkTick(to); err != nil {
+		return nil, err
+	}
+	out := make([]sim.TickFrame, 0, int64(to-from)+1)
+	cached := true
+	for t := from; t <= to; t++ {
+		f, ok := c.head.frame(t)
+		if !ok {
+			cached = false
+			break
+		}
+		out = append(out, f)
+	}
+	if cached {
+		return out, nil
+	}
+	out = out[:0]
+	r, err := s.rebuildFrom(ctx, c.b, c.w, c.sc, from, to)
+	if err != nil {
+		return nil, err
+	}
+	for t := from; t <= to; t++ {
+		f, ok := r.frame(t)
+		if !ok {
+			return nil, fmt.Errorf("frame %d not recomputed", t)
+		}
+		out = append(out, f)
+	}
+	return out, nil
+}
+
 // HashAt returns the State_Hash at tick.
 func (s *BranchService) HashAt(ctx context.Context, id BranchID, t sim.Tick) ([32]byte, error) {
 	f, err := s.FrameAt(ctx, id, t)

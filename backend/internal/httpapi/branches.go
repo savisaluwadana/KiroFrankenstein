@@ -445,12 +445,12 @@ func (s *Server) listTickFrames(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := tickFramesResponse{Warnings: warn, BranchID: id, Frames: make([]tickFrameDTO, 0, to-from+1), Currency: Currency, Disclaimer: sim.Disclaimer}
-	for t := from; t <= to; t++ {
-		f, err := s.svc.FrameAt(r.Context(), bid, sim.Tick(t))
-		if err != nil {
-			s.fail(w, r, err)
-			return
-		}
+	frames, err := s.svc.FramesRange(r.Context(), bid, sim.Tick(from), sim.Tick(to))
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	for _, f := range frames {
 		out.Frames = append(out.Frames, frameToDTO(f))
 	}
 	writeJSON(w, http.StatusOK, out)
