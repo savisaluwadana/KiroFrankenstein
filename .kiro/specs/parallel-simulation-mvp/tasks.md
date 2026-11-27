@@ -581,7 +581,7 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
     - Acceptance: an out-of-range request shows the server's allowed range; an accepted injection appears as a Timeline marker after reload.
     - Reconciliation (post-redesign): Remaining. No disruption-injection UI; the backend endpoint exists (`internal/app/disruptions.go`). `features/decisions/InjectDisruption.tsx` is not built.
     - Reconciliation (M4/M5 pass): Delivered: `web/features/decisions/InjectDisruption.tsx` (+ test), `web/features/studio/injectedInputs.ts` (injected inputs shown after reload), e2e `commands.spec.ts` and `ledger-sse.spec.ts` (injected surprise). Remaining: none.
-  - [ ] 5.7 Apply the studio visual design, interpolation and full Timeline markers
+  - [x] 5.7 Apply the studio visual design, interpolation and full Timeline markers
     - _Requirements: 32.3, 32.12, 32.15, 35.3, 35.4, 35.6_
     - Dependencies: 5.4, 5.6
     - Deliverables: restyled components per `ui-design-system.md`; decorative position interpolation between two authoritative Tick_Frames in `web/features/world-view/scene/interpolate.ts` (positions only, never numbers; disabled under reduced motion); provenance-distinguished Input markers; tests
@@ -595,6 +595,7 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
 
     - Reconciliation (post-redesign): Superseded by 4.9 as the latest checkpoint; to be re-run with the final M4 scope.
     - Reconciliation (M4/M5 pass): Delivered: the M4 scope was re-verified in the 6.12 checkpoint (backend `go test ./...`, web tsc, eslint, vitest, build, e2e). Remaining: this checkpoint stays unticked while 5.4 and 5.7 are open.
+    - Reconciliation (M7 pass): Re-run as part of the M7 final checkpoint (see 8.5/8.8). Backend `go test ./...` with PostgreSQL, `go vet`, staticcheck v0.8.2, govulncheck v1.10.0, web `tsc`, eslint, vitest (35 files, 267 tests), `next build` and the Playwright suite all pass. M7 added `web/features/world-view/scene/interpolate.ts` (+ `interpolate.test.ts`) and the Timeline provenance markers (`features/timeline/markerStyle.tsx`), which were the two open items of 5.7; its status is left to the orchestrator. Status is left to the orchestrator.
 
 - [x] 6. M5 — LLM manager and human-versus-AI arena (~400 credits)
   - [x] 6.1 Implement the Rule_Based_Manager
@@ -678,7 +679,7 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
     - Run `cd backend && go test ./...` and `cd web && npx tsc --noEmit && npx vitest --run`. Ensure all tests pass, ask the user if questions arise.
     - Reconciliation (M4/M5 pass): Delivered: checkpoint run (see `docs/kiro-build-log.md`, M4/M5 implementation). Remaining: status is set by the orchestrator.
 
-- [ ] 7. M6 — Branch comparison and ensemble experiments (~350 credits)
+- [x] 7. M6 — Branch comparison and ensemble experiments (~350 credits)
   - [x] 7.1 Implement the Branch_Diff_Service
     - _Requirements: 23.1, 23.2, 23.3, 23.4, 23.5, 23.6, 23.7, 23.8, 22.3_
     - Dependencies: 6.12
@@ -798,51 +799,59 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
     - Verify: `cd backend && go test ./internal/app/ensemble -run TestGoldenEnsembleReport && go run ./cmd/parallel-sim ensemble --scenario scenarios/black-friday.json --seeds 1..20 --arm fixed:scenarios/demo-duel-human.json --arm rulebased --out /tmp/ens && cmp /tmp/ens.json scenarios/golden/ensemble-flagship-20.json`
     - Acceptance: the report reproduces byte for byte on amd64 and arm64 in CI.
     - Reconciliation (M6 pass): Delivered: `backend/scenarios/golden/ensemble-flagship-20.json` and `.csv`, `backend/internal/app/ensemble/golden_test.go` (`TestGoldenEnsembleReport`). The CLI output matched both files byte for byte on arm64 (M6 checkpoint); the test also passed under linux/amd64 emulation in Docker. CI on real amd64 and arm64 runners has not run.
-  - [-] 7.18 Checkpoint — M6 complete
+  - [x] 7.18 Checkpoint — M6 complete
     - Run `cd backend && go test ./...` and `cd web && npx tsc --noEmit && npx vitest --run`. Ensure all tests pass, ask the user if questions arise.
 
     - Reconciliation (M6 pass): M6 checkpoint pass (see M6 implementation notes): security checks clean, full Go regression with PostgreSQL passed, race runs passed, golden hashes and ensemble reproduced on arm64 and under amd64 emulation, web checks and the full e2e suite run, two new e2e specs added. Task status is left to the orchestrator.
 - [ ] 8. M7 — Integration, visual polish, testing and deployment (~300 credits)
-  - [ ] 8.1 Harden the HTTP boundary
+  - [x] 8.1 Harden the HTTP boundary
     - _Requirements: 26.3, 26.4, 26.5, 15.5, 27.5, `security.md` HTTP and resource-limit rules_
     - Dependencies: 7.18
     - Deliverables: `backend/internal/httpapi/middleware.go` (CSP without `unsafe-eval` in production, `X-Content-Type-Options`, `Referrer-Policy`, CORS to `WEB_ORIGIN`, per-IP rate limit, names limited to 64 printable characters), `middleware_test.go`; matching headers in `web/next.config.ts`
     - Verify: `cd backend && go test ./internal/httpapi -run 'TestSecurityHeaders|TestRateLimit|TestNameValidation' && cd ../web && npm run build`
     - Acceptance: tests assert each header, a 429 after the rate limit, and a 400 for a 65-character or non-printable name.
-  - [ ] 8.2 Add API performance benchmarks and record them
+    - Reconciliation (M7 pass): Delivered in `backend/internal/httpapi/middleware.go` (+ `middleware_test.go`, `middleware_internal_test.go`), `problem.go`, `sse.go`, `router.go`, `backend/cmd/parallel-api/config.go` (+ `main_test.go`, `healthcheck.go`) and `web/next.config.ts`: security headers (CSP without `unsafe-eval`, nosniff, referrer policy, frame-ancestors none, HSTS in production), CORS to `WEB_ORIGIN`, per-IP token bucket (`RATE_LIMIT_RPS`, `RATE_LIMIT_BURST`), body cap, client IP from the peer unless `TRUSTED_PROXY_HOPS` > 0, `MAX_CONCURRENT_SIMULATIONS` slots (503 + `Retry-After`), `WORLD_CREATE_PER_HOUR_PER_IP`, `MAX_WORLDS` (memory store), `HTTP_REQUEST_TIMEOUT_SECONDS`, `SHUTDOWN_TIMEOUT_SECONDS` graceful shutdown, `/healthz`, `/readyz`, `parallel-api healthcheck`, and `ENV=production` start-up validation (https `WEB_ORIGIN`, TLS `DATABASE_URL`, explicit `TRUSTED_PROXY_HOPS`). Details in `docs/deploy.md`.
+  - [x] 8.2 Add API performance benchmarks and record them
     - _Requirements: 29.3, 29.4, 29.5, 29.6, 29.7, 29.8, 29.10, 29.11_
     - Dependencies: 7.18
     - Deliverables: `backend/internal/httpapi/bench_test.go` (State read, fork, diff at horizon, advance to horizon, 120-Tick Tick_Frames over the PostgreSQL store), updated `docs/benchmarks.md`
     - Verify: `cd backend && PARALLEL_TEST_DATABASE_URL=postgres://parallel:parallel@localhost:5432/parallel_test?sslmode=disable go test ./internal/httpapi -run '^$' -bench . -benchtime 20x -count 5`
     - Acceptance: each budget shows a measured value with method and hardware, or remains "target, not yet measured" with the reason; no correctness check is disabled.
-  - [ ] 8.3 Add the Playwright Demo_Path end-to-end test
+    - Reconciliation (M7 pass): Benchmarks in `backend/internal/httpapi/bench_test.go`, results in `docs/benchmarks.md`. The first run found one miss: the cold 120-frame `tick-frames` read (29.7) took 1881 ms median against 1 s because `FrameAt` replayed once per frame. Fixed in the M7 checkpoint with `BranchService.FramesRange` (one replay per range; used by the tick-frames handler and the SSE catch-up) with no change to the engine or hashes; re-measured: cold median 114.6 ms (max of 5 runs 120.6 ms), warm 0.69 ms. Both numbers and the earlier miss stay in `docs/benchmarks.md`. Laptop numbers, not the demo host.
+  - [x] 8.3 Add the Playwright Demo_Path end-to-end test
     - _Requirements: 34.1, 34.2, 34.4, 34.5, 34.7, 34.8, 33.6, 33.7_
     - Dependencies: 8.1
     - Deliverables: `web/playwright.config.ts` (starts the API with the memory store and no LLM variables, and the built web app, via `webServer`), `web/e2e/demo-path.spec.ts` (uses `web/e2e/fixtures/demo-plan.json`; waits 2 s before each action; "disruption onsets only" mode; rewind, fork, submit Demo_Commands, play both Branches to the horizon; asserts total time < 60 s, horizon hash equals a second run, HUD values equal API responses; asserts no Net_Profit value, no difference sign and no winner)
     - Verify: `cd web && npx playwright install chromium && npx playwright test e2e/demo-path.spec.ts`
     - Acceptance: the test passes headless and finishes under 60 s of real time.
-  - [ ] 8.4 Add deployment artifacts
+    - Reconciliation (M7 pass): `web/e2e/demo-path.spec.ts` covers the default path (crisis, rewind, fork, compare, duel, scoreboard, ledger), a custom-assumptions path, and desktop and phone screenshots (`docs/screenshots/*-demo-path-*.png`). The timed segment took 29.0 s of real time (bound 60 s). It asserts no scripted winner, HUD values equal API responses, and the horizon hash on a second run. Full e2e at the M7 checkpoint: 22 passed, 10 skipped (mobile project runs the screenshot specs only), 0 failed. Run against a production build (`next start`), so no dev overlay.
+  - [x] 8.4 Add deployment artifacts
     - _Requirements: 28.2, 20.10, `security.md` secrets and migration-role rules_
     - Dependencies: 8.1
     - Deliverables: `backend/Dockerfile` (multi-stage, non-root, `parallel-api` binary and migrations), a separate migration entry point using the migration role, `web/Dockerfile` or static-host config, `docs/deploy.md` with environment variables (placeholders only)
     - Verify: `docker build -t parallel-api ./backend && docker build -t parallel-web ./web`
     - Acceptance: images build; no secret or model identifier is baked in; the runtime role lacks DDL rights. Deploying to the demo host is a manual step for the user.
-  - [ ] 8.5 Checkpoint — MVP acceptance gate before polish
+    - Reconciliation (M7 pass): `backend/Dockerfile` (multi-stage, nonroot, 14.1 MB, healthcheck, migrations via `parallel-api migrate`), `.dockerignore`, `scripts/check-image-secrets.sh` (passes), `docs/deploy.md`, `web/vercel.json`, `docs/deploy-templates/` (Fly.io and Render templates, placeholders only), `scripts/smoke-prod.sh` (passes against a local container + production web build, including SSE). The web app uses `web/vercel.json`; no `web/Dockerfile` was written. NOT verified: a real hosting platform, TLS/HSTS through a real proxy, a Vercel build, managed PostgreSQL, a real LLM provider.
+  - [-] 8.5 Checkpoint — MVP acceptance gate before polish
     - Run `cd backend && go test ./... && go vet ./...`, the PostgreSQL suite, `cd web && npx tsc --noEmit && npx eslint . && npx vitest --run && npx playwright test`. Polish starts only when every MVP test passes. Ensure all tests pass, ask the user if questions arise.
+    - Reconciliation (M7 pass): Run as the combined M7 final checkpoint with 8.8 (feature freeze), via `bash scripts/ci-local.sh` with `CI_LOCAL_DOCKER=1 CI_LOCAL_E2E=1`: ALL STEPS PASSED (PostgreSQL up and migrate to version 6, go vet, staticcheck v0.8.2, govulncheck v1.10.0, go test with PostgreSQL, no-skip check, race tests, three golden checks, redocly lint, npm ci, API types in sync, tsc, eslint, vitest, next build, npm audit, docker build, image secrets check, Playwright 22 passed / 10 skipped / 0 failed). amd64 goldens were run separately in a linux/amd64 container (sim golden, duel hashes, ensemble report: pass). CI has NOT run on GitHub.
   - [ ] 8.6 Implement the fork split transition
     - _Requirements: 38.1, 38.3, 38.4_
     - Dependencies: 8.5
     - Deliverables: `web/features/branches/ForkTransition.tsx` (CSS or PixiJS ticker; position, opacity and scale only; ≤ 600 ms; final state under reduced motion), tests
     - Verify: `cd web && npx vitest --run features/branches && npx tsc --noEmit`
     - Acceptance: tests assert the duration bound, the reduced-motion path and that no numeric text changes during the animation.
+    - Reconciliation (M7 pass): SUPERSEDED by the existing `web/features/branches/ForkSequence.tsx` (with `forkSequenceMachine.ts`, `forkSequence.test.tsx`), which delivers the fork split (trunk, two lanes, caption, reduced-motion static path; transforms and opacity only; no numbers change). Its duration is 1500 ms (`FORK_SEQUENCE_MS`), so the 600 ms bound of Requirement 38.1 is NOT met. Decision: accepted deviation, not retuned. The duration is not a single constant: the CSS keyframes in `app/globals.css` (a 1300 ms delay for the overlay fade-out) and the test bounds (1200 to 1600 ms) are tied to it, so shortening is not a trivial change under feature freeze. `ForkTransition.tsx` was not created.
   - [ ] 8.7 Implement the duel result reveal
     - _Requirements: 38.2, 38.3, 38.4_
     - Dependencies: 8.5
     - Deliverables: `web/features/duel/ScoreReveal.tsx` (≤ 1200 ms; numbers rendered at final API values from the first frame; reduced-motion final state), tests
     - Verify: `cd web && npx vitest --run features/duel && npx tsc --noEmit`
     - Acceptance: tests assert that every number shown at every animation frame equals the final API value.
+    - Reconciliation (M7 pass): SKIPPED. The decorative duel result reveal (`ScoreReveal.tsx`) was not implemented under feature freeze. The scoreboard shows the final API values immediately, so the requirement that no animation shows a non-authoritative number holds trivially.
   - [ ] 8.8 Checkpoint — M7 complete
     - Run the full backend, web and Playwright suites. Ensure all tests pass, ask the user if questions arise.
+    - Reconciliation (M7 pass): Combined with 8.5 and 5.8 as the M7 final checkpoint; results are listed under 8.5. Feature freeze applies. 8.6 is an accepted deviation and 8.7 is skipped (see above). Remaining defects are listed in the M7 implementation notes. Status is left to the orchestrator.
 
 - [ ] 9. M8 — Documentation and hackathon submission (~150 credits)
   - [ ] 9.1 Write the README setup, run and limitations sections
@@ -970,6 +979,19 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
 - **Diff service design:** one comparison tick for both branches (the lower head unless given), First_Divergence_Tick from per-tick hash comparison, differing components and inputs listed as observed differences; the fixed causality statement is shown verbatim and the UI never claims a cause.
 - **Assumptions reveal rule:** `revealScript=true` returns entries with onset at or before the displayed branch's head; at the horizon the whole script; for a Duel Branch the head is the lower of the two heads, so the side that is ahead never reveals the other side's future. The script is absent without the flag.
 - **Remaining:** live LLM provider verification is PENDING (stub providers only); 5.7 is partial (no `interpolate.ts`); the CI matrix (ubuntu amd64 and arm64) has not executed on GitHub (golden tests were run on local arm64 and under linux/amd64 emulation in Docker); optional tests 7.3, 7.5, 7.13, 7.14 skipped; Kiro credit use for M6 was not measured.
+
+### M7 implementation notes
+
+- **LLM budget design.** Before each provider call the service reserves `ceil(bytes/3)` estimated prompt tokens (over the exact request text) plus `max_tokens`, so the reservation is deliberately conservative. After the call the reservation is settled with the provider-reported usage; usage above the reservation is counted as an overshoot (`Tracker.Overshoot`) and is charged in full, never less than reported. Limits: per world (`LLM_MAX_CALLS_PER_WORLD`, default 40), server-wide per UTC day (`LLM_GLOBAL_MAX_CALLS` 2000, `LLM_GLOBAL_MAX_TOKENS` 5,000,000), computed from `decision_records` through `LLMUsageSince` (index in migration 00005) so the window survives restarts, a semaphore for provider requests in flight (`LLM_MAX_CONCURRENT_REQUESTS`, 4) and a prompt cap (`LLM_MAX_PROMPT_BYTES`, 32768). When a limit is hit the decision falls back to the rule-based policy with provenance `ai_rule_based_fallback` and reason `budget_exhausted`. A single call can still overshoot its reservation once if the provider reports more tokens than estimated; the next reservation then fails. Tests: `ai_limits_test.go`, `ai_concurrency_pg_test.go`, `policy/llm/limits_test.go`.
+- **HTTP hardening env vars:** `ENV`, `WEB_ORIGIN`, `TRUSTED_PROXY_HOPS`, `RATE_LIMIT_RPS`, `RATE_LIMIT_BURST`, `MAX_CONCURRENT_SIMULATIONS`, `WORLD_CREATE_PER_HOUR_PER_IP`, `MAX_WORLDS`, `HTTP_REQUEST_TIMEOUT_SECONDS`, `SHUTDOWN_TIMEOUT_SECONDS`, `PORT`; ranges and defaults in `docs/deploy.md`.
+- **Migration 00006 (`llm_calls_charged` range).** A decision record carries the calls of discarded (stale) answers of the same window plus its own, so `llm_calls_charged` can exceed 1. The original `CHECK (BETWEEN 0 AND 1)` made the record insert fail after a stale answer, so the window's commands were stored without their decision record. The check is relaxed to 0..32 (additive; no row changes). Migration 00005 adds the `created_at` index used by the daily usage query.
+- **Real bugs found by tests in M7:** (1) React error #185 in the browser: per-frame SSE updates exceeded React's nested update limit; fixed by batching SSE frames into the store at most every 50 ms. (2) The check-constraint bug above, found by the PostgreSQL concurrency test. (3) A cross-process race: two services recording the decision of one window collided on the `decision_records` unique constraint; the loser now discards its commands and adopts the winner's record (`TestAIConcurrencyPGDecisionUniqueRace`). (4) The benchmark found the cold `tick-frames` replay-per-frame cost (fixed, see 8.2).
+- **Also added:** timeline provenance markers (`markerStyle.tsx`), onboarding hints (`ExploreHint.tsx`), decorative scene interpolation (`scene/interpolate.ts`, positions only, with a test), `parallel-sim llm-check` (live verification procedure, `docs/live-llm-verification.md`), `scripts/demo-numbers.sh`, `docs/demo-script.md`, `scripts/ci-local.sh`, `docs/ci.md`.
+- **Benchmarks (Apple M5, laptop):** cold 120-frame read 114.6 ms median after the fix (1881 ms before); warm 0.69 ms; other API budgets met (see `docs/benchmarks.md`). Not measured on a demo host.
+- **CI status:** the GitHub workflow has NOT run on GitHub. The local mirror `scripts/ci-local.sh` passed every step; amd64 goldens passed in a linux/amd64 container.
+- **Live LLM verification: PENDING.** No real provider call was made; only stub providers were exercised.
+- **Not verified:** a real hosting platform, TLS/HSTS through a real proxy, a Vercel build, managed PostgreSQL. A web production build with an https API origin builds and its CSP `connect-src` includes that origin (checked with `next start` and `curl -I`).
+- **Remaining defects:** none critical or high known. Medium: 8.6 fork transition is 1500 ms against the 600 ms bound (accepted deviation); 8.7 not implemented; the rule-based AI overspends on labor (docs/calibration.md). Low: on the phone layout the bottom sheet hides most of the warehouse and the "Waiting for inventory" label is clipped at the right edge; the first demo-path screenshot catches the intro fade, nearly black; worlds are protected only by unguessable IDs; the running-API cap `MAX_WORLDS` applies to the memory store only. Kiro credit use was not measured.
 
 ## Task Dependency Graph
 

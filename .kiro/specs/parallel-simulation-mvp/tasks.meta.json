@@ -1508,6 +1508,85 @@
         "executionId": "a2df0eaa-c076-43b1-a05b-5eb286d51c22",
         "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
         "timestamp": 1795786912482
+      },
+      {
+        "executionId": "a2df0eaa-c076-43b1-a05b-5eb286d51c22",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795788863250
+      }
+    ],
+    "7. M6 — Branch comparison and ensemble experiments (~350 credits)": [
+      {
+        "executionId": "a2df0eaa-c076-43b1-a05b-5eb286d51c22",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795788863254
+      }
+    ],
+    "8.1 Harden the HTTP boundary": [
+      {
+        "executionId": "da7a9f5d-8af5-413c-b774-6ff2e82a4fe8",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795797078197
+      },
+      {
+        "executionId": "da7a9f5d-8af5-413c-b774-6ff2e82a4fe8",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795801034586
+      }
+    ],
+    "5.7 Apply the studio visual design, interpolation and full Timeline markers": [
+      {
+        "executionId": "da7a9f5d-8af5-413c-b774-6ff2e82a4fe8",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795797078215
+      },
+      {
+        "executionId": "da7a9f5d-8af5-413c-b774-6ff2e82a4fe8",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795801036022
+      }
+    ],
+    "8.4 Add deployment artifacts": [
+      {
+        "executionId": "da7a9f5d-8af5-413c-b774-6ff2e82a4fe8",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795798595629
+      },
+      {
+        "executionId": "da7a9f5d-8af5-413c-b774-6ff2e82a4fe8",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795801034934
+      }
+    ],
+    "8.3 Add the Playwright Demo_Path end-to-end test": [
+      {
+        "executionId": "da7a9f5d-8af5-413c-b774-6ff2e82a4fe8",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795801036765
+      },
+      {
+        "executionId": "da7a9f5d-8af5-413c-b774-6ff2e82a4fe8",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795803658779
+      }
+    ],
+    "8.2 Add API performance benchmarks and record them": [
+      {
+        "executionId": "da7a9f5d-8af5-413c-b774-6ff2e82a4fe8",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795803658796
+      },
+      {
+        "executionId": "da7a9f5d-8af5-413c-b774-6ff2e82a4fe8",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795804477722
+      }
+    ],
+    "8.5 Checkpoint — MVP acceptance gate before polish": [
+      {
+        "executionId": "da7a9f5d-8af5-413c-b774-6ff2e82a4fe8",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795804477736
       }
     ]
   }

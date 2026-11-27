@@ -173,6 +173,15 @@
 - **Known issues:** live LLM provider verification is PENDING (stub providers only); task 5.7 is partial (no `scene/interpolate.ts`); the CI matrix has not run on GitHub; the rule-based AI overspends on labor and underperforms some human-style plans in the calibrated scenario (recorded in `docs/calibration.md`, not tuned); Kiro credit use for M6 was not measured.
 - **Learning / next action:** M7 (HTTP hardening, API benchmarks, the Playwright demo path, deployment).
 
+### 2026-11-28 — M7 production readiness (final checkpoint)
+
+- **Kiro surface/version:** Kiro agent (spec task execution subagent, IDE).
+- **Goal:** M7 final checkpoint (tasks 5.8, 8.5, 8.8): fix the one benchmark miss, run every gate, check deploy readiness, reconcile the spec, commit.
+- **What Kiro actually did:** added `BranchService.FramesRange` (one replay per range) and used it in the tick-frames handler and the SSE catch-up, with tests (`backend/internal/app/frames_range_test.go`); ran the security and build checks, `scripts/ci-local.sh` with Docker and e2e, amd64 goldens in a container, `scripts/demo-numbers.sh`, the container, smoke and https-origin build checks; updated docs and tasks.md.
+- **Real numbers:** cold 120-frame `tick-frames` read 1881 ms to 114.6 ms median (max 120.6 ms), warm 0.69 ms (Apple M5). `go vet`, gofmt, staticcheck v0.8.2, govulncheck v1.10.0 and `npm audit` clean. `scripts/ci-local.sh`: all steps pass; vitest 35 files / 267 tests; Playwright 22 passed, 10 skipped, 0 failed. Goldens match on arm64 and linux/amd64 emulation. Demo headline numbers in `docs/demo-script.md` match `scripts/demo-numbers.sh`. Smoke test (with SSE) passes against a container on PostgreSQL.
+- **Honest notes:** credit use was not measured. The GitHub CI has not run. No real LLM provider call was made (live verification PENDING). Nothing was deployed; real platform, TLS/HSTS path, Vercel build, managed PostgreSQL are unverified. The cause of the faster warm read was not isolated. The fork transition (1.5 s) misses the 600 ms bound and the duel reveal was skipped.
+- **Learning / next action:** M8 documentation and submission.
+
 Use this template after each real Kiro session:
 
 ### YYYY-MM-DD — session title
