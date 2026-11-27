@@ -151,7 +151,7 @@ func TestProgressStreamHeadersAndReconnect(t *testing.T) {
 	if ct := c.resp.Header.Get("Content-Type"); ct != "text/event-stream" {
 		t.Fatalf("content type %q", ct)
 	}
-	if c.resp.Header.Get("Cache-Control") != "no-cache" || c.resp.Header.Get("X-Accel-Buffering") != "no" {
+	if c.resp.Header.Get("Cache-Control") != "no-cache, no-transform" || c.resp.Header.Get("X-Accel-Buffering") != "no" {
 		t.Fatalf("headers %v", c.resp.Header)
 	}
 	ev := c.next(t)

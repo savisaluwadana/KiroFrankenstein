@@ -120,7 +120,7 @@ func (s *Server) progressStream(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, fmt.Errorf("response writer cannot flush"))
 		return
 	}
-	ip := clientIP(r)
+	ip := s.clientIP(r)
 	if !s.acquireSSE(ip) {
 		w.Header().Set("Retry-After", "1")
 		writeProblem(w, r, newProblem("rate-limited", fmt.Sprintf("at most %d progress streams are open per address", MaxSSEConnsPerIP)))
@@ -132,7 +132,7 @@ func (s *Server) progressStream(w http.ResponseWriter, r *http.Request) {
 	_ = rc.SetWriteDeadline(time.Time{}) // the server write timeout must not cut a long stream
 	h := w.Header()
 	h.Set("Content-Type", "text/event-stream")
-	h.Set("Cache-Control", "no-cache")
+	h.Set("Cache-Control", "no-cache, no-transform")
 	h.Set("X-Accel-Buffering", "no")
 	h.Set("Connection", "keep-alive")
 	w.WriteHeader(http.StatusOK)
@@ -176,6 +176,8 @@ func (s *Server) progressStream(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-ctx.Done():
 			return
+		case <-s.done:
+			return
 		case <-notify:
 		case <-poll.C:
 		case <-beat.C:
@@ -199,14 +201,22 @@ func (s *Server) drain(ctx context.Context, bid app.BranchID, next *sim.Tick, ho
 		}
 		return false
 	}
-	for *next <= head && *next <= horizon {
-		f, err := s.svc.FrameAt(ctx, bid, *next)
+	end := head
+	if horizon < end {
+		end = horizon
+	}
+	var frames []sim.TickFrame
+	if *next <= end {
+		// One range read (at most one replay) for the whole catch-up.
+		frames, err = s.svc.FramesRange(ctx, bid, *next, end)
 		if err != nil {
 			if ctx.Err() == nil {
 				s.log.Error("progress stream", "branch", string(bid), "err", err.Error())
 			}
 			return false
 		}
+	}
+	for _, f := range frames {
 		dto := frameToDTO(f)
 		if !send(*next, "tick", tickEventDTO{tickFrameDTO: dto, Warnings: warn}) {
 			return false

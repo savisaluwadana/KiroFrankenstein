@@ -47,6 +47,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/healthz": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Liveness probe.
+         * @description Returns 200 while the process is running (GET or HEAD). It checks no dependency and is not rate limited.
+         */
+        get: operations["getLiveness"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/readyz": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Readiness probe.
+         * @description Returns 200 when the server can take traffic: it is not shutting down,
+         *     and with PostgreSQL configured the database answers a ping within 2 s
+         *     and the schema is present (the schema check is cached for 30 s). It
+         *     returns a generic 503 `unavailable` problem otherwise and never says
+         *     why. It is not rate limited.
+         */
+        get: operations["getReadiness"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/worlds": {
         parameters: {
             query?: never;
@@ -850,6 +894,10 @@ export interface components {
             model?: string;
             /** @description Why the Manager kind is unavailable (for example not configured). Present only when unavailable. */
             unavailableReason?: string;
+            /** @description Provider calls left in today's (UTC) server-wide LLM limit (LLM_GLOBAL_MAX_CALLS). Present only on the available LLM AI. */
+            llmGlobalCallsRemaining?: number;
+            /** @description Tokens left in today's (UTC) server-wide LLM limit (LLM_GLOBAL_MAX_TOKENS), after in-flight reservations. Present only on the available LLM AI. */
+            llmGlobalTokensRemaining?: number;
         };
         ManagerList: {
             managers: components["schemas"]["ManagerInfo"][];
@@ -875,6 +923,10 @@ export interface components {
         WindowReason: "cadence" | "disruption_onset" | "fork";
         /** @enum {string} */
         PauseReason: "decision_window" | "horizon" | "run_to_tick";
+        ProbeStatus: {
+            /** @enum {string} */
+            status: "ok" | "ready";
+        };
         Health: {
             /** @enum {string} */
             status: "ok";
@@ -2227,7 +2279,11 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
-        /** @description The store is unreachable (type `unavailable`). */
+        /**
+         * @description The store is unreachable, the server is busy (all simulation slots taken
+         *     for the queue wait; `Retry-After` is set), the server holds its maximum
+         *     number of worlds, or a request exceeded its deadline (type `unavailable`).
+         */
         ServiceUnavailable: {
             headers: {
                 [name: string]: unknown;
@@ -2293,6 +2349,65 @@ export interface operations {
             503: components["responses"]["ServiceUnavailable"];
         };
     };
+    getLiveness: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The process is up. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProbeStatus"];
+                };
+            };
+            /** @description A method other than GET or HEAD (type `bad-request`). */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    getReadiness: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The server is ready. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProbeStatus"];
+                };
+            };
+            /** @description A method other than GET or HEAD (type `bad-request`). */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
     createWorld: {
         parameters: {
             query?: never;
@@ -2318,6 +2433,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             413: components["responses"]["PayloadTooLarge"];
             429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     getWorld: {
@@ -2427,6 +2543,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             413: components["responses"]["PayloadTooLarge"];
             429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     getBranch: {
@@ -2481,6 +2598,7 @@ export interface operations {
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
             422: components["responses"]["Unprocessable"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     advanceBranch: {
@@ -2512,6 +2630,7 @@ export interface operations {
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
             422: components["responses"]["Unprocessable"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     submitCommands: {
@@ -2764,6 +2883,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["Unprocessable"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     listJournal: {
@@ -2795,6 +2915,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["Unprocessable"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     getEndOfHorizon: {
@@ -2934,6 +3055,7 @@ export interface operations {
             413: components["responses"]["PayloadTooLarge"];
             422: components["responses"]["Unprocessable"];
             429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     getDuel: {
@@ -2988,6 +3110,7 @@ export interface operations {
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
             422: components["responses"]["Unprocessable"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     submitDuelCommands: {
@@ -3160,6 +3283,7 @@ export interface operations {
             413: components["responses"]["PayloadTooLarge"];
             422: components["responses"]["Unprocessable"];
             429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
 }

@@ -18,7 +18,7 @@ Threat model for the MVP: a public demo deployment with anonymous access, one Po
 - **LLM boundary:**
   - The LLM receives only the structured observation and the command schema. User-supplied strings in the prompt are length-limited and labelled as data.
   - LLM output is parsed as strict JSON into commands and passed through the same validator as human commands. Rationale text is displayed as untrusted text (escaped, never rendered as HTML or markdown links).
-  - Timeouts (20 s real time), at most one LLM call per decision window per branch, at most `LLM_MAX_CALLS_PER_WORLD` calls per world (default 40), strict proposal-schema validation, and a rule-based fallback that is recorded with provenance `ai_rule_based_fallback` and the fallback reason (`timeout`, `http_error`, `invalid_json`, `schema_violation`, `budget_exhausted`).
+  - Timeouts (20 s real time), at most one LLM call per decision window per branch, at most `LLM_MAX_CALLS_PER_WORLD` calls per world (default 40), server-wide per-UTC-day limits `LLM_GLOBAL_MAX_CALLS` (2000) and `LLM_GLOBAL_MAX_TOKENS` (5000000), at most `LLM_MAX_CONCURRENT_REQUESTS` (4) provider requests in flight, a prompt cap `LLM_MAX_PROMPT_BYTES` (32768), a conservative token reservation (estimated prompt tokens + `max_tokens`) before each call settled with provider-reported usage, strict proposal-schema validation, and a rule-based fallback that is recorded with provenance `ai_rule_based_fallback` and the fallback reason (`timeout`, `http_error`, `invalid_json`, `schema_violation`, `budget_exhausted`).
   - No built-in default model identifier. OpenRouter is the initial documented provider; `.env.example` sets only its base URL and leaves the key and model empty.
 - **Event log integrity:** a database trigger or constraint rejects UPDATE and DELETE on the input log table.
 - **HTTP:** CORS restricted to the configured web origin; security headers (CSP without `unsafe-eval` in production, `X-Content-Type-Options`, `Referrer-Policy`); problem+json errors without stack traces.
@@ -28,3 +28,10 @@ Threat model for the MVP: a public demo deployment with anonymous access, one Po
 
 - No authentication in the MVP; worlds are protected only by unguessable IDs.
 - The LLM provider sees the observation data sent to it.
+
+## Capability model and HTTP hardening (task 8.1)
+
+- A world, branch or duel ID is a random UUIDv4 and is the only credential. Holding it allows reads and mutations on that world and everything in it; there is no user identity. There is no list endpoint, so IDs cannot be enumerated, and unknown or malformed IDs both return the same 404 `not-found` problem. A branch of another world is refused (403 on the assumptions route, `incomparable-branches` on diffs, `duel-branch` on duel branches). `TestSessionIsolation` pins this, including the route table.
+- Client IP for per-IP limits is the peer address. `X-Forwarded-For` is trusted only when `TRUSTED_PROXY_HOPS` > 0, and then the Nth entry from the right is used.
+- Expensive simulation requests share `MAX_CONCURRENT_SIMULATIONS` slots (503 with `Retry-After` after 5 s). World creation is capped per IP per hour and, for the memory store, in total.
+- `ENV=production` refuses to start without an https `WEB_ORIGIN`, a `DATABASE_URL` with `sslmode=require`, `verify-ca` or `verify-full`, and an explicit `TRUSTED_PROXY_HOPS`. Details in `docs/deploy.md`.

@@ -1,14 +1,14 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
-	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -43,6 +43,29 @@ type Options struct {
 	// poll interval of the stream (default 250 ms).
 	SSEHeartbeat    time.Duration
 	SSEPollInterval time.Duration
+
+	// Production enables HSTS (behind an HTTPS terminator).
+	Production bool
+	// TrustedProxyHops is the number of trusted reverse proxies in front of
+	// the server, 0 to MaxTrustedProxyHops. 0 (default) uses the peer address
+	// and ignores X-Forwarded-For.
+	TrustedProxyHops int
+	// RequestTimeout bounds each non-stream request (default 30 s).
+	RequestTimeout time.Duration
+	// MaxConcurrentSimulations and SimQueueWait limit expensive simulation
+	// requests (defaults 8 and 5 s).
+	MaxConcurrentSimulations int
+	SimQueueWait             time.Duration
+	// WorldCreatePerHourPerIP caps world creations per client IP per hour
+	// (default 60).
+	WorldCreatePerHourPerIP int
+	// MaxWorlds caps the worlds created through this server; 0 is unlimited.
+	// Set it for the memory store only.
+	MaxWorlds int
+	// Ping and CheckSchema back /readyz. Both are optional; with neither the
+	// server is ready whenever it is not shutting down.
+	Ping        func(context.Context) error
+	CheckSchema func(context.Context) error
 }
 
 // Rate limit defaults: 50 requests per second per IP with a burst of 100.
@@ -67,6 +90,29 @@ type Server struct {
 	ssePoll      time.Duration
 	sseMu        sync.Mutex
 	sseConns     map[string]int // open progress streams per client IP
+
+	now           func() time.Time
+	production    bool
+	proxyHops     int
+	reqTimeout    time.Duration
+	sims          chan struct{}
+	simWait       time.Duration
+	createPerHour int
+	createMu      sync.Mutex
+	creates       map[string]*hourWindow
+	createSweep   time.Time
+	maxWorlds     int64
+	worlds        atomic.Int64
+
+	ping, schema func(context.Context) error
+	readyMu      sync.Mutex
+	readyAt      time.Time
+	readyErr     error
+	schemaOKAt   time.Time
+
+	shuttingDown atomic.Bool
+	shutdownOnce sync.Once
+	done         chan struct{}
 }
 
 // New builds a Server. It validates the flagship scenario so a bad document
@@ -103,18 +149,45 @@ func New(o Options) (*Server, error) {
 	if o.Duels == nil {
 		o.Duels = app.NewDuelService(o.Service, nil)
 	}
+	if o.WebOrigin != "" {
+		if err := ValidateWebOrigin(o.WebOrigin); err != nil {
+			return nil, fmt.Errorf("httpapi: WebOrigin: %w", err)
+		}
+	}
+	if o.TrustedProxyHops < 0 || o.TrustedProxyHops > MaxTrustedProxyHops {
+		return nil, fmt.Errorf("httpapi: TrustedProxyHops must be 0 to %d", MaxTrustedProxyHops)
+	}
+	if o.RequestTimeout <= 0 {
+		o.RequestTimeout = DefaultRequestTimeout
+	}
+	if o.MaxConcurrentSimulations <= 0 {
+		o.MaxConcurrentSimulations = DefaultMaxConcurrentSimulation
+	}
+	if o.SimQueueWait <= 0 {
+		o.SimQueueWait = DefaultSimQueueWait
+	}
+	if o.WorldCreatePerHourPerIP <= 0 {
+		o.WorldCreatePerHourPerIP = DefaultWorldCreatePerHourPerIP
+	}
 	return &Server{
+		now: o.Now, production: o.Production, proxyHops: o.TrustedProxyHops, reqTimeout: o.RequestTimeout,
+		sims: make(chan struct{}, o.MaxConcurrentSimulations), simWait: o.SimQueueWait,
+		createPerHour: o.WorldCreatePerHourPerIP, creates: map[string]*hourWindow{}, maxWorlds: int64(o.MaxWorlds),
+		ping: o.Ping, schema: o.CheckSchema, done: make(chan struct{}),
 		svc: o.Service, duels: o.Duels, flagship: o.FlagshipScenario, webOrigin: o.WebOrigin, log: o.Logger,
 		limiter:      newLimiter(o.RatePerSecond, o.RateBurst, o.Now),
 		sseHeartbeat: o.SSEHeartbeat, ssePoll: o.SSEPollInterval, sseConns: map[string]int{},
 	}, nil
 }
 
-// Handler returns the router: /api/v1 behind recovery, security headers, CORS
-// and the per-IP rate limit.
+// Handler returns the router. The infrastructure probes /healthz and /readyz
+// sit outside CORS and rate limiting; /api/v1 runs behind recovery, security
+// headers, CORS and the per-IP rate limit. Every route except the progress
+// stream has a request deadline, and the expensive ones take a simulation
+// slot.
 func (s *Server) Handler() http.Handler {
 	r := chi.NewRouter()
-	r.Use(s.recoverer, securityHeaders, s.cors, s.rateLimit)
+	r.Use(s.recoverer, s.securityHeaders, skipProbes(s.cors), skipProbes(s.rateLimit))
 	r.NotFound(func(w http.ResponseWriter, req *http.Request) {
 		writeProblem(w, req, newProblem("not-found", "no such endpoint"))
 	})
@@ -124,172 +197,52 @@ func (s *Server) Handler() http.Handler {
 		p.Title = "Method not allowed"
 		writeProblem(w, req, p)
 	})
+	r.Get("/healthz", s.healthz)
+	r.Head("/healthz", s.healthz)
+	r.Get("/readyz", s.readyz)
+	r.Head("/readyz", s.readyz)
 	r.Route("/api/v1", func(r chi.Router) {
-		r.Get("/health", s.getHealth)
-		r.Get("/managers", s.listManagers)
-		r.Post("/worlds", s.createWorld)
-		r.Get("/worlds/{worldId}", s.getWorld)
-		r.Get("/worlds/{worldId}/branches", s.listBranches)
-		r.Get("/worlds/{worldId}/assumptions", s.getAssumptions)
-		r.Post("/demo", s.createDemo)
-		r.Get("/branches/{branchId}", s.getBranch)
-		r.Post("/branches/{branchId}/fork", s.forkBranch)
-		r.Post("/branches/{branchId}/advance", s.advanceBranch)
-		r.Post("/branches/{branchId}/commands", s.submitCommands)
-		r.Post("/branches/{branchId}/decision-window/end", s.endDecisionWindow)
-		r.Post("/branches/{branchId}/disruptions", s.injectDisruption)
-		r.Get("/branches/{branchId}/tick-frames", s.listTickFrames)
-		r.Get("/branches/{branchId}/state", s.getBranchState)
-		r.Get("/branches/{branchId}/metrics", s.getBranchMetrics)
-		r.Get("/branches/{branchId}/ledger", s.listLedgerEntries)
-		r.Get("/branches/{branchId}/ledger/summary", s.getLedgerSummary)
-		r.Get("/branches/{branchId}/journal", s.listJournal)
-		r.Get("/branches/{branchId}/end-of-horizon", s.getEndOfHorizon)
-		r.Get("/branches/{branchId}/export", s.exportBranch)
-		r.Get("/branches/{branchId}/decisions", s.listDecisions)
+		// The stream has no deadline: it ends with the client, the horizon or
+		// BeginShutdown.
 		r.Get("/branches/{branchId}/progress", s.progressStream)
-		r.Post("/diffs", s.createDiff)
-		r.Post("/duels", s.createDuel)
-		r.Get("/duels/{duelId}", s.getDuel)
-		r.Post("/duels/{duelId}/advance", s.advanceDuel)
-		r.Post("/duels/{duelId}/commands", s.submitDuelCommands)
-		r.Post("/duels/{duelId}/decision-window/end", s.endDuelWindow)
-		r.Post("/duels/{duelId}/disruptions", s.injectDuelDisruption)
-		r.Get("/duels/{duelId}/score", s.getDuelScore)
-		r.Get("/duels/{duelId}/decisions", s.listDuelDecisions)
+		r.Group(func(r chi.Router) {
+			r.Use(s.withTimeout)
+			heavy := r.With(s.simSlot)
+			create := r.With(s.guardWorldCreate)
+			r.Get("/health", s.getHealth)
+			r.Get("/managers", s.listManagers)
+			create.Post("/worlds", s.createWorld)
+			r.Get("/worlds/{worldId}", s.getWorld)
+			r.Get("/worlds/{worldId}/branches", s.listBranches)
+			r.Get("/worlds/{worldId}/assumptions", s.getAssumptions)
+			create.Post("/demo", s.createDemo)
+			r.Get("/branches/{branchId}", s.getBranch)
+			heavy.Post("/branches/{branchId}/fork", s.forkBranch)
+			heavy.Post("/branches/{branchId}/advance", s.advanceBranch)
+			r.Post("/branches/{branchId}/commands", s.submitCommands)
+			r.Post("/branches/{branchId}/decision-window/end", s.endDecisionWindow)
+			r.Post("/branches/{branchId}/disruptions", s.injectDisruption)
+			r.Get("/branches/{branchId}/tick-frames", s.listTickFrames)
+			r.Get("/branches/{branchId}/state", s.getBranchState)
+			r.Get("/branches/{branchId}/metrics", s.getBranchMetrics)
+			r.Get("/branches/{branchId}/ledger", s.listLedgerEntries)
+			heavy.Get("/branches/{branchId}/ledger/summary", s.getLedgerSummary)
+			heavy.Get("/branches/{branchId}/journal", s.listJournal)
+			r.Get("/branches/{branchId}/end-of-horizon", s.getEndOfHorizon)
+			r.Get("/branches/{branchId}/export", s.exportBranch)
+			r.Get("/branches/{branchId}/decisions", s.listDecisions)
+			heavy.Post("/diffs", s.createDiff)
+			create.With(s.simSlot).Post("/duels", s.createDuel)
+			r.Get("/duels/{duelId}", s.getDuel)
+			heavy.Post("/duels/{duelId}/advance", s.advanceDuel)
+			r.Post("/duels/{duelId}/commands", s.submitDuelCommands)
+			r.Post("/duels/{duelId}/decision-window/end", s.endDuelWindow)
+			r.Post("/duels/{duelId}/disruptions", s.injectDuelDisruption)
+			r.Get("/duels/{duelId}/score", s.getDuelScore)
+			r.Get("/duels/{duelId}/decisions", s.listDuelDecisions)
+		})
 	})
 	return r
-}
-
-// ---- middleware ----
-
-func securityHeaders(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h := w.Header()
-		h.Set("X-Content-Type-Options", "nosniff")
-		h.Set("Referrer-Policy", "no-referrer")
-		h.Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
-		next.ServeHTTP(w, r)
-	})
-}
-
-func (s *Server) recoverer(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer func() {
-			if v := recover(); v != nil {
-				if v == http.ErrAbortHandler {
-					panic(v)
-				}
-				// The panic value is logged server-side only; the response
-				// carries no stack trace and no panic text.
-				s.log.Error("handler panic", "method", r.Method, "path", r.URL.Path, "panic", fmt.Sprint(v))
-				writeProblem(w, r, newProblem("internal", "the server could not complete the request"))
-			}
-		}()
-		next.ServeHTTP(w, r)
-	})
-}
-
-// cors allows exactly the configured web origin. Other origins get no CORS
-// headers, so browsers block them.
-func (s *Server) cors(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		origin := r.Header.Get("Origin")
-		allowed := origin != "" && s.webOrigin != "" && origin == s.webOrigin
-		if origin != "" {
-			w.Header().Add("Vary", "Origin")
-		}
-		if allowed {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-		}
-		if r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != "" {
-			if allowed {
-				h := w.Header()
-				h.Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-				h.Set("Access-Control-Allow-Headers", "Content-Type, Idempotency-Key, Last-Event-ID")
-				h.Set("Access-Control-Max-Age", "600")
-			}
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
-func (s *Server) rateLimit(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if ok, retry := s.limiter.allow(clientIP(r)); !ok {
-			w.Header().Set("Retry-After", strconv.Itoa(retry))
-			writeProblem(w, r, newProblem("rate-limited", "too many requests from this address"))
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
-// clientIP is the peer address. Forwarding headers are not trusted: behind a
-// reverse proxy every client then shares one bucket, which is the safe
-// failure.
-func clientIP(r *http.Request) string {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return host
-}
-
-// ---- rate limiter ----
-
-type bucket struct {
-	tokens float64
-	last   time.Time
-}
-
-// limiter is an in-memory per-key token bucket.
-type limiter struct {
-	rate  float64
-	burst float64
-	now   func() time.Time
-
-	mu      sync.Mutex
-	buckets map[string]*bucket
-	sweep   time.Time
-}
-
-func newLimiter(rate float64, burst int, now func() time.Time) *limiter {
-	return &limiter{rate: rate, burst: float64(burst), now: now, buckets: map[string]*bucket{}}
-}
-
-// allow takes one token for key. When none is left it returns the whole
-// seconds to wait.
-func (l *limiter) allow(key string) (bool, int) {
-	now := l.now()
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if now.Sub(l.sweep) > time.Minute {
-		full := time.Duration(l.burst / l.rate * float64(time.Second))
-		for k, b := range l.buckets {
-			if now.Sub(b.last) > full {
-				delete(l.buckets, k)
-			}
-		}
-		l.sweep = now
-	}
-	b := l.buckets[key]
-	if b == nil {
-		b = &bucket{tokens: l.burst, last: now}
-		l.buckets[key] = b
-	}
-	if el := now.Sub(b.last).Seconds(); el > 0 {
-		b.tokens = min(l.burst, b.tokens+el*l.rate)
-		b.last = now
-	}
-	if b.tokens < 1 {
-		wait := int((1-b.tokens)/l.rate) + 1
-		return false, wait
-	}
-	b.tokens--
-	return true, 0
 }
 
 // ---- response helpers ----

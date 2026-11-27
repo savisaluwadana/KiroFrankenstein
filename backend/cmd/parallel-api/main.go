@@ -1,13 +1,20 @@
 // Command parallel-api is the HTTP server entry point (wiring only).
 //
-// Configuration comes from the environment:
+// Configuration comes from the environment (docs/deploy.md has the full
+// table with bounds):
 //
-//	PORT              listen port (default 8080)
-//	DATABASE_URL      PostgreSQL runtime-role URL; memory store when unset
-//	MIGRATE_DATABASE_URL  owner-role URL used only by `migrate`
-//	WEB_ORIGIN        the one allowed CORS origin (default http://localhost:3100)
-//	RATE_LIMIT_RPS    per-IP requests per second (default 50)
-//	RATE_LIMIT_BURST  per-IP burst size (default 100)
+//	PORT                          listen port (default 8080)
+//	DATABASE_URL                  PostgreSQL runtime-role URL; memory store when unset
+//	MIGRATE_DATABASE_URL          owner-role URL used only by `migrate`
+//	WEB_ORIGIN                    the one allowed CORS origin (default http://localhost:3100)
+//	ENV / PARALLEL_ENV            "production" enables strict start-up validation and HSTS
+//	TRUSTED_PROXY_HOPS            trusted reverse proxies in front, 0..5 (default 0)
+//	RATE_LIMIT_RPS, RATE_LIMIT_BURST  per-IP request rate (default 50, 100)
+//	HTTP_REQUEST_TIMEOUT_SECONDS  per-request deadline, 1..120 (default 30)
+//	SHUTDOWN_TIMEOUT_SECONDS      graceful drain, 1..120 (default 25)
+//	MAX_CONCURRENT_SIMULATIONS    expensive requests at once, 1..64 (default 8)
+//	WORLD_CREATE_PER_HOUR_PER_IP  world creations per IP per hour, 1..10000 (default 60)
+//	MAX_WORLDS                    world cap of the memory store, 1..1000000 (default 5000)
 //
 // The API stores Worlds in PostgreSQL when DATABASE_URL (the runtime role) is
 // set, and in memory otherwise (state is lost when the process stops).
@@ -19,11 +26,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -33,57 +39,12 @@ import (
 	"github.com/savisaluwadana/KiroFrankenstein/backend/scenarios"
 )
 
-const (
-	defaultPort      = "8080"
-	defaultWebOrigin = "http://localhost:3100"
-)
-
-type config struct {
-	port      string
-	webOrigin string
-	rps       float64
-	burst     int
-}
-
-func envOr(key, def string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return def
-}
-
-func loadConfig() (config, error) {
-	c := config{port: envOr("PORT", defaultPort), webOrigin: envOr("WEB_ORIGIN", defaultWebOrigin)}
-	if n, err := strconv.Atoi(c.port); err != nil || n < 1 || n > 65535 {
-		return c, fmt.Errorf("PORT %q is not a port number", c.port)
-	}
-	u, err := url.Parse(c.webOrigin)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.Path != "" || u.RawQuery != "" || u.Fragment != "" || u.User != nil {
-		return c, fmt.Errorf("WEB_ORIGIN %q must be one origin such as http://localhost:3100 (scheme, host, optional port, no path)", c.webOrigin)
-	}
-	if v := os.Getenv("RATE_LIMIT_RPS"); v != "" {
-		f, err := strconv.ParseFloat(v, 64)
-		if err != nil || f <= 0 {
-			return c, fmt.Errorf("RATE_LIMIT_RPS %q must be a positive number", v)
-		}
-		c.rps = f
-	}
-	if v := os.Getenv("RATE_LIMIT_BURST"); v != "" {
-		n, err := strconv.Atoi(v)
-		if err != nil || n < 1 {
-			return c, fmt.Errorf("RATE_LIMIT_BURST %q must be a positive integer", v)
-		}
-		c.burst = n
-	}
-	return c, nil
-}
-
 // llmOptions reads the LLM_* variables. An invalid value aborts start-up with
 // an error that names the variable. When base URL, key and model are all set
 // the LLM opponent is enabled; only the model identifier is logged, never the
 // key or the URL.
-func llmOptions(log *slog.Logger) ([]app.Option, error) {
-	cfg, err := llm.LoadConfig(os.Getenv)
+func llmOptions(log *slog.Logger, getenv func(string) string) ([]app.Option, error) {
+	cfg, err := llm.LoadConfig(getenv)
 	if err != nil {
 		return nil, err
 	}
@@ -108,31 +69,53 @@ func main() {
 		}
 		return
 	}
-	if err := run(log); err != nil {
+	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
+		if err := runHealthcheck(context.Background()); err != nil {
+			fmt.Fprintln(os.Stderr, "unhealthy:", err)
+			os.Exit(1)
+		}
+		return
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := run(ctx, log, os.Getenv); err != nil {
 		log.Error("parallel-api stopped", "err", err)
+		stop()
 		os.Exit(1)
 	}
 }
 
-func run(log *slog.Logger) error {
-	cfg, err := loadConfig()
+// run serves until ctx is cancelled (SIGINT or SIGTERM), then shuts down:
+// readiness turns false at once, open progress streams end, in-flight
+// requests (including those waiting on an LLM call) drain for up to
+// SHUTDOWN_TIMEOUT_SECONDS, then the remaining connections are closed, which
+// cancels their contexts, and the database pool is closed.
+func run(ctx context.Context, log *slog.Logger, getenv func(string) string) error {
+	cfg, err := loadConfig(getenv)
 	if err != nil {
 		return err
 	}
-	store, closeStore, storeDesc, err := openStore(context.Background())
+	st, err := openStore(ctx, getenv("DATABASE_URL"))
 	if err != nil {
 		return err
 	}
-	defer closeStore()
-	opts, err := llmOptions(log)
+	defer st.close()
+	opts, err := llmOptions(log, getenv)
 	if err != nil {
 		return err
 	}
-	svc := app.NewBranchService(store, nil, nil, opts...)
-	api, err := httpapi.New(httpapi.Options{
+	svc := app.NewBranchService(st.store, nil, nil, opts...)
+	o := httpapi.Options{
 		Service: svc, Duels: app.NewDuelService(svc, nil), FlagshipScenario: scenarios.BlackFriday, WebOrigin: cfg.webOrigin,
-		RatePerSecond: cfg.rps, RateBurst: cfg.burst, Logger: log,
-	})
+		RatePerSecond: cfg.rps, RateBurst: cfg.burst, Logger: log, Production: cfg.production,
+		TrustedProxyHops: cfg.trustedProxyHops, RequestTimeout: cfg.requestTimeout,
+		MaxConcurrentSimulations: cfg.maxSimulations, WorldCreatePerHourPerIP: cfg.worldCreatePerHour,
+		Ping: st.ping, CheckSchema: st.checkSchema,
+	}
+	if st.memory {
+		o.MaxWorlds = cfg.maxWorlds
+	}
+	api, err := httpapi.New(o)
 	if err != nil {
 		return err
 	}
@@ -141,30 +124,36 @@ func run(log *slog.Logger) error {
 		Handler:           api.Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
-		WriteTimeout:      30 * time.Second,
-		IdleTimeout:       60 * time.Second,
-		MaxHeaderBytes:    16 << 10,
+		// Responses are written within the request deadline; the progress
+		// stream clears its own write deadline.
+		WriteTimeout:   cfg.requestTimeout + 10*time.Second,
+		IdleTimeout:    60 * time.Second,
+		MaxHeaderBytes: 16 << 10,
 	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	ln, err := net.Listen("tcp", srv.Addr)
+	if err != nil {
+		return fmt.Errorf("listen on port %s: %w", cfg.port, err)
+	}
 	errc := make(chan error, 1)
-	go func() { errc <- srv.ListenAndServe() }()
+	go func() { errc <- srv.Serve(ln) }()
 	log.Info("parallel-api listening", "addr", srv.Addr, "webOrigin", cfg.webOrigin, "base", "/api/v1",
-		"store", storeDesc)
+		"store", st.desc, "production", cfg.production, "trustedProxyHops", cfg.trustedProxyHops)
 
 	select {
 	case err := <-errc:
 		if !errors.Is(err, http.ErrServerClosed) {
 			return err
 		}
+		return nil
 	case <-ctx.Done():
-		log.Info("shutting down")
-		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err := srv.Shutdown(shutdown); err != nil {
-			return fmt.Errorf("graceful shutdown: %w", err)
-		}
+	}
+	log.Info("shutting down", "timeout", cfg.shutdownTimeout.String())
+	api.BeginShutdown()
+	sctx, cancel := context.WithTimeout(context.Background(), cfg.shutdownTimeout)
+	defer cancel()
+	if err := srv.Shutdown(sctx); err != nil {
+		log.Warn("graceful shutdown timed out; closing remaining connections")
+		_ = srv.Close()
 	}
 	return nil
 }

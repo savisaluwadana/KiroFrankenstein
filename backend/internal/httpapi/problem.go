@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -99,6 +100,8 @@ func problemFor(err error) *Problem {
 	switch {
 	case errors.As(err, &tooBig):
 		return newProblem("payload-too-large", fmt.Sprintf("request body exceeds %d bytes", MaxBodyBytes))
+	case errors.Is(err, context.DeadlineExceeded):
+		return newProblem("unavailable", "the request took longer than the server allows; retry shortly")
 	case errors.Is(err, app.ErrEngineVersionMismatch):
 		detail := "the world was recorded under another engine version; reads are flagged, but the history cannot be extended"
 		var em *app.EngineVersionMismatchError
