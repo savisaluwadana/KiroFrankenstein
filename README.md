@@ -10,7 +10,7 @@ A new project repository for the **Kiroween 2026** hackathon, **Frankenstein** c
 
 ## Run locally
 
-Prerequisites: Go 1.23+ and Node 20+.
+Prerequisites: Go 1.25+ (go.mod requires 1.25.0) and Node 20+.
 
 1. API (port 8080, in-memory store, worlds are lost on restart):
    `cd backend && WEB_ORIGIN=http://localhost:3100 go run ./cmd/parallel-api`

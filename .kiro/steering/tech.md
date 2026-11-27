@@ -8,7 +8,7 @@ inclusion: always
 
 | Layer | Choice | Notes |
 |---|---|---|
-| Simulation core | Go 1.23+, standard library only | Pure package. No I/O, no wall clock, no global RNG, no goroutines |
+| Simulation core | Go 1.25+, standard library only | Pure package. No I/O, no wall clock, no global RNG, no goroutines |
 | HTTP API | Go + Chi v5 | JSON REST under `/api/v1`, SSE for run progress |
 | Persistence | PostgreSQL 16, pgx v5, Goose migrations | Append-only input log, snapshots, derived projections |
 | Frontend | Next.js (App Router) + TypeScript (strict) | Client-rendered simulation views |
