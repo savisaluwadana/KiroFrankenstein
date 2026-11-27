@@ -14,6 +14,8 @@ Early benchmark report (Requirement 29.8 to 29.11). Every figure below comes fro
 | 29.6 Advance to horizon 1 s | | target, not yet measured |
 | 29.7 Tick_Frames range 1 s | | target, not yet measured |
 
+Note: the figures below were measured with engine version 1 (`sim.EngineVersion` = 1, hash `96e7d8d9...`). Engine version 2 (task 3.5) adds one disruption-stream draw per Tick and one encoded byte per active disruption; the numbers predate it and have not been re-measured.
+
 No budget was missed, so there is no shortfall to record. The 29.1 measurement is of the engine loop (`Init`, 120 `Advance` calls, one final `Hash`) inside a Go benchmark, not of the `parallel-sim` process, so process start-up and JSON output are not included.
 
 ## Environment

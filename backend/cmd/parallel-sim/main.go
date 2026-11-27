@@ -1,5 +1,8 @@
-// Command parallel-sim is the headless CLI (run, replay, verify-hash, ensemble).
-// It uses only the sim package: no network, no database.
+// Command parallel-sim is the headless CLI (run, verify). It uses only the sim
+// packages: no network, no database.
+//
+// Exit codes: 0 success or verify match, 1 verify mismatch, 2 engine-version
+// mismatch, 3 usage, I/O, invalid file, rejected input or scenario mismatch.
 package main
 
 import (
@@ -8,22 +11,31 @@ import (
 	"os"
 )
 
-func main() { os.Exit(realMain(os.Args[1:], os.Stdout, os.Stderr)) }
+func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr)) }
 
-func realMain(args []string, stdout, stderr io.Writer) int {
+const usage = "usage: parallel-sim run --scenario FILE --seed N [--inputs FILE]\n" +
+	"       parallel-sim verify --scenario FILE --seed N --inputs FILE --expect HEX [--tick T]"
+
+func run(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: parallel-sim run --scenario FILE --seed N")
-		return 2
+		fmt.Fprintln(stderr, usage)
+		return exitUsageOrFileError
 	}
 	switch args[0] {
 	case "run":
 		if err := runCmd(args[1:], stdout); err != nil {
 			fmt.Fprintln(stderr, "parallel-sim run:", err)
-			return 1
+			return codeOf(err)
 		}
-		return 0
+		return exitOK
+	case "verify":
+		code, err := verifyCmd(args[1:], stdout)
+		if err != nil {
+			fmt.Fprintln(stderr, "parallel-sim verify:", err)
+		}
+		return code
 	default:
-		fmt.Fprintf(stderr, "parallel-sim: unknown command %q\n", args[0])
-		return 2
+		fmt.Fprintf(stderr, "parallel-sim: unknown command %q\n%s\n", args[0], usage)
+		return exitUsageOrFileError
 	}
 }

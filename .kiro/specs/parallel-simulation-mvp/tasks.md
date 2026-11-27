@@ -379,56 +379,56 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
   - [x] 2.55 Checkpoint — vertical slice complete
     - Run `cd backend && go test ./... && go vet ./...` and `cd web && npx tsc --noEmit && npx eslint . && npx vitest --run`. Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 3. M2 — Complete simulation and financial engine (~600 credits)
-  - [ ] 3.1 Implement `expedite_purchase_order`
+- [x] 3. M2 — Complete simulation and financial engine (~600 credits)
+  - [x] 3.1 Implement `expedite_purchase_order`
     - _Requirements: 8.4, 10.7, 17.1, 17.2_
     - Dependencies: 2.55
     - Deliverables: expedite handling in `backend/internal/sim/commands.go` and `purchasing.go`, validator rule for an existing open PO, `expedite_test.go`
     - Verify: `cd backend && go test ./internal/sim -run TestExpedite`
     - Acceptance: remaining lead time drops by the expedite reduction; the fee posts Freight_Expense against Cash; an unknown PO id is rejected with a reason code.
-  - [ ] 3.2 Implement `schedule_overtime` and `hire_temp_workers`
+  - [x] 3.2 Implement `schedule_overtime` and `hire_temp_workers`
     - _Requirements: 9.5, 9.6, 9.8, 9.9, 37.13, 37.14, 17.2_
     - Dependencies: 3.1
     - Deliverables: workforce cohorts and overtime schedule in `backend/internal/sim/workforce.go`, Command handling and validator bounds (max overtime per worker, max temp workers, Cash), wage lines in `accruals.go`, `workforce_test.go`
     - Verify: `cd backend && go test ./internal/sim -run TestWorkforce`
     - Acceptance: overtime is capped per worker; temp workers are paid from the effective Tick, including onboarding, and add capacity only after onboarding.
-  - [ ] 3.3 Property test: temp worker onboarding wages and zero capacity
+  - [x] 3.3 Property test: temp worker onboarding wages and zero capacity
     - **Property 40: Temp worker onboarding wages and zero capacity**
     - **Validates: Requirements 9.8, 37.14**
     - Dependencies: 3.2
     - Deliverables: `backend/internal/sim/onboarding_prop_test.go` (`TestPropTempOnboarding`)
     - Verify: `cd backend && go test ./internal/sim -run TestPropTempOnboarding`
-  - [ ] 3.4 Implement `set_marketing_spend`
+  - [x] 3.4 Implement `set_marketing_spend`
     - _Requirements: 7.3, 10.9, 17.2_
     - Dependencies: 3.2
     - Deliverables: marketing spend in `backend/internal/sim/commands.go` and conversion effect in `demand.go`, `marketing_test.go`
     - Verify: `cd backend && go test ./internal/sim -run TestMarketing`
     - Acceptance: higher spend raises conversion of the same Potential_Arrivals; the demand stream state after the Tick is unchanged; spend posts Marketing_Expense per Tick.
-  - [ ] 3.5 Implement demand_surge, workforce_absence and injected Disruptions in the engine
+  - [x] 3.5 Implement demand_surge, workforce_absence and injected Disruptions in the engine
     - _Requirements: 5.8, 7.1, 9.4, 16.1, 16.4, 16.5_
     - Dependencies: 3.4
     - Deliverables: remaining kinds in `backend/internal/sim/disruptions.go` (surge multiplies arrivals; absence reduces regular workers with half-to-even; severity draws from the disruption stream at a fixed count), injected Disruption Inputs ordered after script entries, `disruption_kinds_test.go`
     - Verify: `cd backend && go test ./internal/sim -run 'TestDemandSurge|TestWorkforceAbsence|TestInjectedDisruption'`
     - Acceptance: the flagship runs all three scripted Disruptions; every onset opens a Decision_Window; the disruption stream draw count per Tick is fixed.
-  - [ ] 3.6 Implement the Disruption_Injector and its endpoint
+  - [x] 3.6 Implement the Disruption_Injector and its endpoint
     - _Requirements: 16.2, 16.3, 13.1, 26.2 (inject Disruption)_
     - Dependencies: 3.5
     - Deliverables: `backend/internal/app/disruptions.go`, `POST /branches/{id}/disruptions` in `backend/internal/httpapi/branches.go` and `backend/api/openapi.yaml`, tests
     - Verify: `cd backend && go test ./internal/app -run TestInjectDisruption && go test ./internal/httpapi/... && npx --yes @redocly/cli@latest lint backend/api/openapi.yaml`
     - Acceptance: an out-of-bounds magnitude or duration is rejected with the allowed range; a start Tick ≤ Head_Tick is rejected; accepted injections append one Input.
-  - [ ] 3.7 Implement the Composite_Score calculator
+  - [x] 3.7 Implement the Composite_Score calculator
     - _Requirements: 21.5, 21.7, 21.8, 21.10, 21.15_
     - Dependencies: 3.5
     - Deliverables: `backend/internal/sim/score.go` (`ComputeScore`: Financial clamp against Profit_Floor/Profit_Target via `MulDiv`, Fill_Rate and Service_Level components, weighted `RoundHalfEven(..., 10000)`, tie helper), `score_test.go` with worked examples at both clamp edges and a tie at exactly 10 hundredths
     - Verify: `cd backend && go test ./internal/sim -run TestScore`
     - Acceptance: worked examples match hand-computed hundredths; a difference of 10 is a tie and 11 is a win.
-  - [ ] 3.8 Property test: Composite_Score bounds (required)
+  - [x] 3.8 Property test: Composite_Score bounds (required)
     - **Property 34: Composite_Score bounds** (INV-17)
     - **Validates: Requirements 21.11**
     - Dependencies: 3.7
     - Deliverables: `backend/internal/sim/score_bounds_prop_test.go` (`TestPropScoreBounds`)
     - Verify: `cd backend && go test ./internal/sim -run TestPropScoreBounds`
-  - [ ] 3.9 Property test: Composite_Score competitor independence (required)
+  - [x] 3.9 Property test: Composite_Score competitor independence (required)
     - **Property 35: Composite_Score competitor independence** (INV-17)
     - **Validates: Requirements 21.12**
     - Dependencies: 3.7
@@ -440,47 +440,47 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
     - Dependencies: 3.7
     - Deliverables: `backend/internal/sim/score_monotonic_prop_test.go` (`TestPropScoreMonotonicity`)
     - Verify: `cd backend && go test ./internal/sim -run TestPropScoreMonotonicity`
-  - [ ] 3.11 Implement the Inputs_File parser and printer and the export endpoint
+  - [x] 3.11 Implement the Inputs_File parser and printer and the export endpoint
     - _Requirements: 30.6, 30.8, 26.2 (export Inputs)_
     - Dependencies: 3.6
     - Deliverables: `backend/internal/sim/inputsfile/inputsfile.go` (strict JSON with Scenario hash, Seed, engine version, Inputs with provenance and optional rationale; fixed field order), `GET /branches/{id}/export` in `backend/internal/httpapi/export.go` and `openapi.yaml`, tests
     - Verify: `cd backend && go test ./internal/sim/inputsfile/... ./internal/httpapi/...`
     - Acceptance: malformed files report the JSON path of the first offending field; export of a Branch includes inherited ancestor Inputs up to each fork Tick.
-  - [ ] 3.12 Property test: Inputs_File round trip (required)
+  - [x] 3.12 Property test: Inputs_File round trip (required)
     - **Property 3: Inputs file round trip**
     - **Validates: Requirements 30.7**
     - Dependencies: 3.11
     - Deliverables: `backend/internal/sim/inputsfile/roundtrip_prop_test.go` (`TestPropInputsFileRoundTrip`)
     - Verify: `cd backend && go test ./internal/sim/inputsfile -run TestPropInputsFileRoundTrip`
-  - [ ] 3.13 Extend `parallel-sim` with `--inputs` and `verify`
+  - [x] 3.13 Extend `parallel-sim` with `--inputs` and `verify`
     - _Requirements: 30.1, 30.2, 30.3, 30.4_
     - Dependencies: 3.11
     - Deliverables: `backend/cmd/parallel-sim/run.go` (`--inputs`), `verify.go` (exit 0 on match, 1 on mismatch, 2 on engine-version mismatch with message), `verify_test.go`
     - Verify: `cd backend && go test ./cmd/parallel-sim/...`
     - Acceptance: the three exit codes are asserted by tests that execute the command in-process.
-  - [ ] 3.14 Add the State, Ledger, journal and End_Of_Horizon_Statement read endpoints
+  - [x] 3.14 Add the State, Ledger, journal and End_Of_Horizon_Statement read endpoints
     - _Requirements: 26.2 (read Ledger_Entries, outcome journal, End_Of_Horizon_Statement), 10.13, 11.9, 26.8_
     - Dependencies: 3.11
     - Deliverables: `backend/internal/httpapi/reads.go`, schema additions in `openapi.yaml`, regenerated `web/lib/api/schema.d.ts`, tests
     - Verify: `cd backend && go test ./internal/httpapi/... && npx --yes @redocly/cli@latest lint backend/api/openapi.yaml && cd ../web && npm run gen:api && npx tsc --noEmit`
     - Acceptance: every Ledger_Entry returned carries its cause reference; responses with metrics carry the Disclaimer.
-  - [ ] 3.15 Extend the Demo_Path plan with the staffing Command
+  - [x] 3.15 Extend the Demo_Path plan with the staffing Command
     - _Requirements: 34.6, 34.7, 34.9_
     - Dependencies: 3.5
     - Deliverables: staffing rule in `backend/internal/app/demoplan/demoplan.go` (add `hire_temp_workers` or `schedule_overtime` only when the no-Command run reports capacity-bound orders after the Demo_Fork_Tick, with the reason), regenerated `web/e2e/fixtures/demo-plan.json`
     - Verify: `cd backend && go test ./internal/app/demoplan/...`
     - Acceptance: both Demo_Commands pass `sim.Validate` at the Demo_Fork_Tick in one window; the fixture change is visible in the diff.
-  - [ ] 3.16 Add the golden flagship hash test
+  - [x] 3.16 Add the golden flagship hash test
     - _Requirements: 6.4_
     - Dependencies: 3.13, 3.15
     - Deliverables: `backend/scenarios/demo-fork-inputs.json` (Demo_Commands as an Inputs_File), `backend/scenarios/golden/demo-fork.hash`, `backend/internal/sim/golden_test.go` (`TestGoldenFlagshipHash`), CI step running it on both architectures
     - Verify: `cd backend && go test ./internal/sim -run TestGoldenFlagshipHash && go run ./cmd/parallel-sim verify --scenario scenarios/black-friday.json --seed 2026 --inputs scenarios/demo-fork-inputs.json --expect "$(cat scenarios/golden/demo-fork.hash)"`
     - Acceptance: the test passes locally and in both CI architecture jobs; the golden file changes only with an engine version bump noted in the commit message.
-  - [ ] 3.17 Checkpoint — M2 complete
+  - [x] 3.17 Checkpoint — M2 complete
     - Run `cd backend && go test ./... && go vet ./...` and `cd web && npx tsc --noEmit && npx vitest --run`. Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 4. M3 — Persistence, replay and branching (~350 credits)
-  - [ ] 4.1 Write the Goose migrations
+  - [-] 4.1 Write the Goose migrations
     - _Requirements: 28.1, 28.2, 28.5_
     - Dependencies: 3.17
     - Deliverables: `backend/migrations/00001_init.sql` (tables `worlds`, `branches`, `input_log` with UNIQUE constraints and the append-only trigger, `snapshots`, `tick_summaries`; full down section), `backend/cmd/parallel-api/migrate.go` (or a `migrate` subcommand) that runs Goose with a separate migration role URL
@@ -880,7 +880,7 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
 - Deviations from plan:
   - `OrderBook.Settled` was added to `State`.
   - Scenario fields `openingCashCents` and `demand.baseConversionBps` were added.
-  - The supplier role for an outage is stored in `ActiveDisruption.MagnitudeBps` (tech debt).
+  - The supplier role for an outage was stored in `ActiveDisruption.MagnitudeBps` (tech debt). Fixed in 3.5: `ActiveDisruption.Role` (encoded) and `sim.EngineVersion` = 2. The Seed 2026 no-command hash changed from `96e7d8d9...bce08` to `4c6d0dd0...ab99e`.
   - SSE is not in the slice.
   - Local ports: web 3100, API 8080 (3000 and 8000 are used by other local apps).
   - The demo-reproducibility property test takes about 60 s.

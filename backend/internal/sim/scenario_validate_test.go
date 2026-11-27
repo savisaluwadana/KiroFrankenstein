@@ -27,7 +27,8 @@ func validScenario() *Scenario {
 		Workforce:              WorkforceSpec{10, 20, 2, 5, 6},
 		Wages:                  WagesSpec{2000, 3000, 2500},
 		Costs:                  CostsSpec{300, 500, 4, 100, 200},
-		Demand:                 DemandSpec{BaseArrivalsPerTick: 60, BaseConversionBps: 5000, PriceElasticityBps: 1500, MarketingEffectBps: 300, CancelThresholdTicks: 48},
+		Demand:                 DemandSpec{BaseArrivalsPerTick: 60, BaseConversionBps: 5000, PriceElasticityBps: 1500, MarketingEffectBps: 300, CancelThresholdTicks: 48, NoiseBps: 2000, MarketingSpendUnitCents: 10000, MaxMarketingSpendCentsPerHour: 50000},
+		Pricing:                PricingSpec{MinPriceBps: 5000, MaxPriceBps: 20000},
 		DisruptionScript:       []DisruptionSpec{},
 	}
 	for i := 0; i < HourlyProfileLen; i++ {
@@ -43,6 +44,9 @@ func validScenario() *Scenario {
 		case akRate:
 			unit = "bps"
 			max = BpsScale
+			if r.path == "pricing.maxPriceBps" {
+				max = 100000
+			}
 		}
 		s.AssumptionMeta[r.path] = AssumptionMeta{Unit: unit, Default: r.get(), Min: min, Max: max, Rationale: "synthetic, illustrative"}
 	}

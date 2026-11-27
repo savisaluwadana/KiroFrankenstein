@@ -24,7 +24,7 @@ Headless run:
 cd backend && go run ./cmd/parallel-sim run --scenario scenarios/black-friday.json --seed 2026
 ```
 
-Output at the time of writing: engine version 1, tick 120, state hash `96e7d8d94bc1b3d0e81598272df984b0e0afe86c8e848bc34275781b513bce08`, net profit -4342800 cents, service level 2206 bps.
+Output at the time of writing: engine version 2, tick 120, state hash `4c6d0dd08cf7c1c8c27991355f734705356aced57fe060556e0d038ad03ab99e`, net profit -4342800 cents, service level 2214 bps. (Engine version 1 produced hash `96e7d8d94bc1b3d0e81598272df984b0e0afe86c8e848bc34275781b513bce08` and service level 2206 bps; version 2 adds the per-tick severity draw and the disruption role field.)
 
 Tests:
 

@@ -51,6 +51,18 @@
     "2.45 Property test: demo reproducibility (required)": {
       "status": "passed",
       "lastRunTimestamp": 1795712555247
+    },
+    "3.3 Property test: temp worker onboarding wages and zero capacity": {
+      "status": "passed",
+      "lastRunTimestamp": 1795731503812
+    },
+    "3.9 Property test: Composite_Score competitor independence (required)": {
+      "status": "passed",
+      "lastRunTimestamp": 1795749343652
+    },
+    "3.12 Property test: Inputs_File round trip (required)": {
+      "status": "passed",
+      "lastRunTimestamp": 1795749654431
     }
   },
   "executionHistory": {
@@ -762,6 +774,217 @@
         "executionId": "7e822f8e-d13a-48ee-84f6-4b7744df9e8b",
         "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
         "timestamp": 1795717152866
+      }
+    ],
+    "3.1 Implement `expedite_purchase_order`": [
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795730882498
+      },
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795730888934
+      },
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795731205488
+      }
+    ],
+    "3.2 Implement `schedule_overtime` and `hire_temp_workers`": [
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795731206415
+      },
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795731413696
+      }
+    ],
+    "3.3 Property test: temp worker onboarding wages and zero capacity": [
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795731413711
+      },
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795731921488
+      }
+    ],
+    "3.4 Implement `set_marketing_spend`": [
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795731414198
+      },
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795731922528
+      }
+    ],
+    "3.5 Implement demand_surge, workforce_absence and injected Disruptions in the engine": [
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795731923324
+      },
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795737182507
+      }
+    ],
+    "3.6 Implement the Disruption_Injector and its endpoint": [
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795737182544
+      },
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795748284080
+      }
+    ],
+    "3.7 Implement the Composite_Score calculator": [
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795737182554
+      },
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795748284175
+      }
+    ],
+    "3.15 Extend the Demo_Path plan with the staffing Command": [
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795737182803
+      },
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795749849096
+      }
+    ],
+    "3.8 Property test: Composite_Score bounds (required)": [
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795749282257
+      },
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795749587388
+      }
+    ],
+    "3.9 Property test: Composite_Score competitor independence (required)": [
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795749282264
+      },
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795749587402
+      }
+    ],
+    "3.11 Implement the Inputs_File parser and printer and the export endpoint": [
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795749282270
+      },
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795749587504
+      }
+    ],
+    "3.12 Property test: Inputs_File round trip (required)": [
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795749588577
+      },
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795749847156
+      }
+    ],
+    "3.13 Extend `parallel-sim` with `--inputs` and `verify`": [
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795749589676
+      },
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795749847174
+      }
+    ],
+    "3.14 Add the State, Ledger, journal and End_Of_Horizon_Statement read endpoints": [
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795749590620
+      },
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795749847996
+      }
+    ],
+    "3.16 Add the golden flagship hash test": [
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795749850074
+      },
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795750065726
+      }
+    ],
+    "3.17 Checkpoint — M2 complete": [
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795750065870
+      },
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795750732200
+      }
+    ],
+    "3. M2 — Complete simulation and financial engine (~600 credits)": [
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795750732204
+      }
+    ],
+    "4.1 Write the Goose migrations": [
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795751786313
       }
     ]
   }

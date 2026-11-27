@@ -38,6 +38,10 @@ jobs:
         run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
       - name: go test
         run: go test ./...
+      - name: golden flagship hash (both architectures)
+        run: |
+          go test ./internal/sim -run TestGoldenFlagshipHash -count=1
+          go run ./cmd/parallel-sim verify --scenario scenarios/black-friday.json --seed 2026 --inputs scenarios/demo-fork-inputs.json --expect "$(cat scenarios/golden/demo-fork.hash)"
 
   web:
     name: web

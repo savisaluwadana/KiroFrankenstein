@@ -6,9 +6,8 @@ import (
 	"testing"
 )
 
-// The flagship's demand_surge and workforce_absence disruptions are valid
-// script entries, but the vertical-slice engine only implements
-// supplier_outage; later engine tasks give the other kinds behaviour. The
+// The flagship's disruption script (demand_surge, workforce_absence,
+// supplier_outage) is run by the engine (see disruption_kinds_test.go). The
 // script is not an Assumption and is not in assumptionMeta.
 
 func TestFlagshipScenario(t *testing.T) {

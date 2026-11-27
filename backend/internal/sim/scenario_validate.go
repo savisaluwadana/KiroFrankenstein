@@ -100,6 +100,11 @@ func assumptionRefs(s *Scenario) []assumptionRef {
 		refBps("demand.priceElasticityBps", &s.Demand.PriceElasticityBps),
 		refBps("demand.marketingEffectBps", &s.Demand.MarketingEffectBps),
 		refInt("demand.cancelThresholdTicks", &s.Demand.CancelThresholdTicks),
+		refBps("demand.noiseBps", &s.Demand.NoiseBps),
+		refCents("demand.marketingSpendUnitCents", &s.Demand.MarketingSpendUnitCents),
+		refCents("demand.maxMarketingSpendCentsPerHour", &s.Demand.MaxMarketingSpendCentsPerHour),
+		refBps("pricing.minPriceBps", &s.Pricing.MinPriceBps),
+		refBps("pricing.maxPriceBps", &s.Pricing.MaxPriceBps),
 	}
 	for i := range s.SKUs {
 		k := &s.SKUs[i]
@@ -331,6 +336,23 @@ func ValidateScenario(s *Scenario) error {
 	}
 	if s.TieToleranceHundredths < 0 || s.TieToleranceHundredths > BpsScale {
 		add("tieToleranceHundredths", "value %d outside allowed range %s", s.TieToleranceHundredths, rangeText(0, BpsScale))
+	}
+
+	// Cross-field rules that keep the engine total: no division by zero in
+	// the marketing uplift, noise that cannot make arrivals negative, and a
+	// non-empty price range.
+	if s.Demand.MarketingSpendUnitCents < 1 {
+		add("demand.marketingSpendUnitCents", "value %d must be at least 1", int64(s.Demand.MarketingSpendUnitCents))
+	}
+	if s.Demand.NoiseBps < 0 || s.Demand.NoiseBps > BpsScale {
+		add("demand.noiseBps", "value %d outside allowed range %s", int64(s.Demand.NoiseBps), rangeText(0, BpsScale))
+	}
+	if s.Pricing.MinPriceBps < 1 {
+		add("pricing.minPriceBps", "value %d must be at least 1", int64(s.Pricing.MinPriceBps))
+	}
+	if s.Pricing.MinPriceBps > s.Pricing.MaxPriceBps {
+		add("pricing.minPriceBps", "value %d must not exceed pricing.maxPriceBps %d",
+			int64(s.Pricing.MinPriceBps), int64(s.Pricing.MaxPriceBps))
 	}
 
 	if len(issues) == 0 {

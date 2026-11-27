@@ -91,6 +91,64 @@ func PlacePurchaseOrder(sc *Scenario, st *State, q *EventQueue, sku int64, role 
 	return po, nil
 }
 
+// Expedite errors.
+var (
+	ErrAlreadyExpedited = errors.New("sim: purchase order is already expedited")
+	ErrSupplierDown     = errors.New("sim: supplier is in an outage")
+)
+
+// ExpeditePurchaseOrder moves the due time of open purchase order id earlier by
+// the Scenario's expedite reduction (Ticks converted to minutes, never earlier
+// than at), marks it expedited, posts one balanced entry (Dr Freight_Expense,
+// Cr Cash) for the expedite fee and schedules a receipt at the new due time;
+// the receipt queued for the old due time is then stale and ignored (Req 8.4,
+// 10.7). An order can be expedited once. While its supplier is in an outage the
+// order cannot be expedited. On error st and q are unchanged.
+func ExpeditePurchaseOrder(sc *Scenario, st *State, q *EventQueue, id uint64, at SimMinute) error {
+	idx := -1
+	for i, p := range st.PurchaseOs {
+		if p.ID == id {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return fmt.Errorf("%w: %d", ErrUnknownPO, id)
+	}
+	po := &st.PurchaseOs[idx]
+	if po.Expedited != 0 {
+		return fmt.Errorf("%w: %d", ErrAlreadyExpedited, id)
+	}
+	if _, down := outageEnd(st.Disruptions, po.SKU, po.Supplier, at); down {
+		return fmt.Errorf("%w: purchase order %d", ErrSupplierDown, id)
+	}
+	if fee := sc.Costs.ExpediteFeeCents; fee > 0 {
+		entry := LedgerEntry{
+			Tick: TickOf(at), At: at, Cause: CauseFreight, CauseRef: int64(id),
+			Lines: []LedgerLine{
+				{Account: AccountFreightExpense, Debit: fee},
+				{Account: AccountCash, Credit: fee},
+			},
+		}
+		if err := st.Ledger.Post(entry); err != nil {
+			return fmt.Errorf("purchase order %d expedite fee posting: %w", id, err)
+		}
+	}
+	due := po.DueAt - SimMinute(sc.Costs.ExpediteReductionTicks*MinutesPerTick)
+	if due < at {
+		due = at
+	}
+	po.DueAt = due
+	po.Expedited = 1
+	q.Push(Event{
+		At:       due,
+		Priority: PriorityPurchaseReceipt,
+		Kind:     EvPurchaseReceipt,
+		Payload:  EventPayload{Ref: int64(po.ID), SKU: po.SKU, Qty: po.Qty},
+	})
+	return nil
+}
+
 // receive handles EvPurchaseReceipt for the purchase order in ev.Payload.Ref:
 // on-hand and Received rise by the quantity, Inventory_Value by Supplier_Unit_Cost
 // times quantity, one balanced entry (Dr Inventory, Cr Cash) is posted, and the
@@ -105,6 +163,11 @@ func (e *stepper) receive(ev Event) error {
 		}
 	}
 	if idx < 0 {
+		if ev.Payload.Ref >= 0 && uint64(ev.Payload.Ref) < e.st.POSeq {
+			// Stale receipt of an order already received at an earlier,
+			// expedited due time.
+			return nil
+		}
 		return fmt.Errorf("%w: %d", ErrUnknownPO, ev.Payload.Ref)
 	}
 	po := e.st.PurchaseOs[idx]

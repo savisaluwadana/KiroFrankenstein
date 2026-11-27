@@ -26,6 +26,7 @@ type Scenario struct {
 	Wages                  WagesSpec                 `json:"wages"`
 	Costs                  CostsSpec                 `json:"costs"`
 	Demand                 DemandSpec                `json:"demand"`
+	Pricing                PricingSpec               `json:"pricing"`
 	AssumptionMeta         map[string]AssumptionMeta `json:"assumptionMeta"`
 	DisruptionScript       []DisruptionSpec          `json:"disruptionScript"`
 }
@@ -85,14 +86,26 @@ type CostsSpec struct {
 // BaseConversionBps is the share of Potential_Arrivals that become orders at
 // the reference price with no marketing spend. MarketingEffectBps is the
 // conversion uplift, in basis points, per MarketingSpendUnitCents of hourly
-// marketing spend on a SKU (see demand.go).
+// marketing spend on a SKU (see demand.go). NoiseBps is the half-width of the
+// uniform arrival noise, MarketingSpendUnitCents is the hourly spend per
+// uplift step and MaxMarketingSpendCentsPerHour caps set_marketing_spend per
+// SKU.
 type DemandSpec struct {
-	HourlyProfile        []Bps `json:"hourlyProfile"`
-	BaseArrivalsPerTick  int64 `json:"baseArrivalsPerTick"`
-	BaseConversionBps    Bps   `json:"baseConversionBps"`
-	PriceElasticityBps   Bps   `json:"priceElasticityBps"`
-	MarketingEffectBps   Bps   `json:"marketingEffectBps"`
-	CancelThresholdTicks int64 `json:"cancelThresholdTicks"`
+	HourlyProfile                 []Bps `json:"hourlyProfile"`
+	BaseArrivalsPerTick           int64 `json:"baseArrivalsPerTick"`
+	BaseConversionBps             Bps   `json:"baseConversionBps"`
+	PriceElasticityBps            Bps   `json:"priceElasticityBps"`
+	MarketingEffectBps            Bps   `json:"marketingEffectBps"`
+	CancelThresholdTicks          int64 `json:"cancelThresholdTicks"`
+	NoiseBps                      Bps   `json:"noiseBps"`
+	MarketingSpendUnitCents       Cents `json:"marketingSpendUnitCents"`
+	MaxMarketingSpendCentsPerHour Cents `json:"maxMarketingSpendCentsPerHour"`
+}
+
+// PricingSpec bounds set_price as basis points of each SKU's reference price.
+type PricingSpec struct {
+	MinPriceBps Bps `json:"minPriceBps"`
+	MaxPriceBps Bps `json:"maxPriceBps"`
 }
 
 // AssumptionMeta is the metadata every Assumption must carry (Req 1.7). The

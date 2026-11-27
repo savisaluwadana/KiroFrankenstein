@@ -11,6 +11,9 @@ import "fmt"
 //	overtime: Regular workers * overtime hours per worker * overtime hourly wage
 //	temp:     contracted temps (HiredAt <= at, including onboarding) * temp wage
 func (e *stepper) laborAccrual(at SimMinute) error {
+	// Overtime and temp wages are real since schedule_overtime and
+	// hire_temp_workers exist (Req 37.13, 37.14); cohorts are paid from HiredAt,
+	// including onboarding, while capacity starts at ReadyAt.
 	w := e.st.Workforce
 	wages := e.sc.Wages
 	regular := Cents(w.Regular) * wages.RegularPerHourCents

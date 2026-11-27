@@ -7,8 +7,14 @@ import (
 )
 
 // EngineVersion identifies the within-tick offset table and event semantics
-// below. Changing any offset, priority or draw count requires a new version.
-const EngineVersion = 1
+// below. Changing any offset, priority, draw count or the state encoding
+// requires a new version.
+//
+// Version 2 (task 3.5): the supplier role of a supplier_outage moved from
+// ActiveDisruption.MagnitudeBps to its own Role field (state encoding gains one
+// byte per active disruption), one disruption-stream draw per Tick drives
+// severity jitter, and injected Disruption Inputs are applied.
+const EngineVersion = 2
 
 // Disruption kind codes stored in ActiveDisruption.Kind. Append only.
 const (
@@ -94,16 +100,7 @@ type Input struct {
 	Seq           uint64
 	Kind          InputKind
 	Command       Command         // Kind == InputCommand
-	Disruption    DisruptionInput // Kind == InputDisruption (placeholder until M2)
-}
-
-// DisruptionInput is the payload placeholder of an injected Disruption. The
-// engine rejects InputDisruption with ErrInputsUnsupported until M2.
-type DisruptionInput struct {
-	Kind          uint8
-	Target        int64
-	DurationTicks int64
-	MagnitudeBps  Bps
+	Disruption    DisruptionInput // Kind == InputDisruption
 }
 
 // OutcomeKind identifies an entry of the per-tick outcome journal.
@@ -209,6 +206,9 @@ type stepper struct {
 	streams []Stream // parallel to st.Streams
 	journal []Outcome
 	fcr     FulfilmentConstraintReport // set by the fulfilment event of the Tick
+	// severity is the Tick's single disruption-stream draw, taken before any
+	// event whether or not a Disruption is active or starting.
+	severity uint64
 }
 
 // StepTick advances in by exactly one Tick and returns the new State, the
@@ -218,7 +218,10 @@ type stepper struct {
 // equal to the Tick being computed; its Command is applied at the start
 // boundary at priority 0, in ascending input Seq order (Req 5.7). Inputs are
 // assumed to have passed Validate; an input that cannot be applied returns an
-// error. Applying inputs never draws from a random stream.
+// error. Applying inputs never draws from a random stream. A Disruption Input
+// is scheduled at the start boundary with the Disruption priorities, after the
+// script entries already queued (Req 5.8). Exactly DisruptionDrawsPerTick draw
+// is taken from the disruption stream per call.
 func StepTick(sc Scenario, in State, inputs []Input) (State, []Outcome, FulfilmentConstraintReport, error) {
 	var fcr FulfilmentConstraintReport
 	if !in.Clock.IsBoundary() {
@@ -238,16 +241,28 @@ func StepTick(sc Scenario, in State, inputs []Input) (State, []Outcome, Fulfilme
 		e.streams = append(e.streams, RestoreStream(ns.State))
 	}
 
+	dstream, err := e.stream(StreamDisruption)
+	if err != nil {
+		return State{}, nil, fcr, err
+	}
+	e.severity = dstream.Next()
+
 	ordered := append([]Input(nil), inputs...)
 	sort.SliceStable(ordered, func(i, j int) bool { return ordered[i].Seq < ordered[j].Seq })
 	for _, inp := range ordered {
 		if inp.EffectiveTick != dest {
 			return State{}, nil, fcr, fmt.Errorf("%w: input %d has tick %d, computing %d", ErrBadInputTick, inp.Seq, inp.EffectiveTick, dest)
 		}
-		if inp.Kind != InputCommand {
+		switch inp.Kind {
+		case InputCommand:
+			q.Push(commandEvent(in.Clock, inp))
+		case InputDisruption:
+			if err := scheduleInjected(&sc, q, in.Clock, inp); err != nil {
+				return State{}, nil, fcr, err
+			}
+		default:
 			return State{}, nil, fcr, fmt.Errorf("%w: input %d kind %d", ErrInputsUnsupported, inp.Seq, inp.Kind)
 		}
-		q.Push(commandEvent(in.Clock, inp))
 	}
 
 	limit := dest.Boundary()

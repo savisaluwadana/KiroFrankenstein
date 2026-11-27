@@ -239,7 +239,7 @@ func TestDemandPriceLowersOrdersWithoutChangingStream(t *testing.T) {
 }
 
 func TestDemandSurgeAndConversion(t *testing.T) {
-	d := DemandSpec{BaseArrivalsPerTick: 100, BaseConversionBps: 2500, PriceElasticityBps: 1500, MarketingEffectBps: 300}
+	d := DemandSpec{BaseArrivalsPerTick: 100, BaseConversionBps: 2500, PriceElasticityBps: 1500, MarketingEffectBps: 300, NoiseBps: 2000, MarketingSpendUnitCents: 10000}
 	d.HourlyProfile = make([]Bps, 24)
 	for i := range d.HourlyProfile {
 		d.HourlyProfile[i] = 10000
@@ -371,7 +371,7 @@ func TestStepTickPurityHorizonAndRecurrence(t *testing.T) {
 	if _, _, _, err := StepTick(sc, last, nil); !errors.Is(err, ErrHorizonReached) {
 		t.Errorf("err = %v, want ErrHorizonReached", err)
 	}
-	if _, _, _, err := StepTick(sc, st, []Input{{EffectiveTick: 1, Kind: InputDisruption}}); !errors.Is(err, ErrInputsUnsupported) {
+	if _, _, _, err := StepTick(sc, st, []Input{{EffectiveTick: 1, Kind: InputKind(99)}}); !errors.Is(err, ErrInputsUnsupported) {
 		t.Errorf("err = %v, want ErrInputsUnsupported", err)
 	}
 }

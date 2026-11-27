@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -137,7 +138,7 @@ func TestHealth(t *testing.T) {
 	h := newHandler(t, nil)
 	rec := do(t, h, "GET", "/health", nil)
 	m := mustStatus(t, rec, http.StatusOK)
-	if m["status"] != "ok" || m["engineVersion"] != "1" {
+	if m["status"] != "ok" || m["engineVersion"] != strconv.Itoa(sim.EngineVersion) {
 		t.Fatalf("health = %v", m)
 	}
 	for k, want := range map[string]string{"X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer"} {
@@ -302,7 +303,7 @@ func TestWorldReadOmitsScript(t *testing.T) {
 			t.Errorf("assumption lacks %q: %v", k, a)
 		}
 	}
-	if w["currency"] != "USD" || w["engineVersion"] != "1" {
+	if w["currency"] != "USD" || w["engineVersion"] != strconv.Itoa(sim.EngineVersion) {
 		t.Errorf("world = %v", w)
 	}
 }
@@ -494,7 +495,7 @@ func TestRejectedCommandsAndRequestValidation(t *testing.T) {
 	path := "/branches/" + b + "/commands"
 	res := mustStatus(t, do(t, h, "POST", path, obj{"windowTick": 0, "commands": []obj{
 		{"kind": "set_price", "sku": 0, "amountCents": 1},
-		{"kind": "hire_temp_workers", "qty": 3},
+		{"kind": "set_marketing_spend", "sku": 0, "amountCents": 99999999},
 		{"kind": "place_purchase_order", "sku": 99, "role": "primary", "qty": 5},
 		{"kind": "place_purchase_order", "sku": 0, "qty": 5},
 	}}), http.StatusOK)
@@ -502,7 +503,7 @@ func TestRejectedCommandsAndRequestValidation(t *testing.T) {
 	for _, r := range res["rejected"].([]any) {
 		codes = append(codes, r.(obj)["code"].(string))
 	}
-	if got := strings.Join(codes, ","); got != "price_out_of_bounds,not_implemented,unknown_sku,unknown_supplier" {
+	if got := strings.Join(codes, ","); got != "price_out_of_bounds,marketing_exceeds_limit,unknown_sku,unknown_supplier" {
 		t.Errorf("reject codes = %s", got)
 	}
 	if len(res["accepted"].([]any)) != 0 {
@@ -645,5 +646,62 @@ func TestSameSeedSameHashesOverHTTP(t *testing.T) {
 	}
 	if last != ha {
 		t.Fatalf("hash after single steps %v != %v", last, ha)
+	}
+}
+
+func TestInjectDisruptionEndpoint(t *testing.T) {
+	h := newHandler(t, nil)
+	b := branchID(demo(t, h))
+	path := "/branches/" + b + "/disruptions"
+	body := obj{"kind": "workforce_absence", "startTick": 10, "durationTicks": 6, "magnitudeBps": 3000}
+
+	res := mustStatus(t, do(t, h, "POST", path, body, "Idempotency-Key", "inj-1"), http.StatusOK)
+	if res["kind"] != "workforce_absence" || num(t, res, "effectiveTick") != 10 || res["provenance"] != "injected" || res["duplicate"] != false {
+		t.Fatalf("result = %v", res)
+	}
+	dup := mustStatus(t, do(t, h, "POST", path, body, "Idempotency-Key", "inj-1"), http.StatusOK)
+	if dup["duplicate"] != true || num(t, dup, "seq") != num(t, res, "seq") {
+		t.Fatalf("duplicate = %v", dup)
+	}
+
+	// Out of range: 422 validation naming the allowed range.
+	p := wantProblem(t, do(t, h, "POST", path, obj{"kind": "workforce_absence", "startTick": 12, "durationTicks": 6, "magnitudeBps": 20000}), http.StatusUnprocessableEntity, "validation")
+	if !strings.Contains(fmt.Sprint(p["issues"]), "0..10000") {
+		t.Errorf("issues do not name the range: %v", p["issues"])
+	}
+	wantProblem(t, do(t, h, "POST", path, obj{"kind": "nope", "startTick": 12, "durationTicks": 6}), http.StatusBadRequest, "bad-request")
+	wantProblem(t, do(t, h, "POST", path, obj{"kind": "supplier_outage", "startTick": 12, "durationTicks": 6}), http.StatusBadRequest, "bad-request")
+	wantProblem(t, do(t, h, "POST", path, obj{"kind": "workforce_absence", "durationTicks": 6}), http.StatusBadRequest, "bad-request")
+	wantProblem(t, do(t, h, "POST", path, obj{"kind": "workforce_absence", "startTick": 12, "durationTicks": 6, "bogus": 1}), http.StatusBadRequest, "bad-request")
+	wantProblem(t, do(t, h, "POST", path, obj{"kind": "workforce_absence", "startTick": 12, "durationTicks": 6, "expectedHeadTick": 5}), http.StatusConflict, "stale-head")
+
+	// Advance pauses at the injected onset (tick 10 is not a cadence tick).
+	var head int64
+	for i := 0; i < 5 && head < 10; i++ {
+		adv := mustStatus(t, do(t, h, "POST", "/branches/"+b+"/advance", obj{}), http.StatusOK)
+		head = num(t, adv, "headTick")
+		if head == 10 && fmt.Sprint(adv["windowReasons"]) != "[disruption_onset]" {
+			t.Fatalf("onset reasons = %v", adv["windowReasons"])
+		}
+	}
+	if head != 10 {
+		t.Fatalf("advance stopped at %d, want 10", head)
+	}
+	// History is immutable: the start tick is now computed.
+	wantProblem(t, do(t, h, "POST", path, obj{"kind": "workforce_absence", "startTick": 10, "durationTicks": 2, "magnitudeBps": 100}), http.StatusConflict, "history-immutable")
+
+	// A supplier outage needs a role.
+	mustStatus(t, do(t, h, "POST", path, obj{"kind": "supplier_outage", "role": "backup", "startTick": 20, "durationTicks": 4}), http.StatusOK)
+}
+
+func TestEndWindowStaleHeadIsCheckedByService(t *testing.T) {
+	h := newHandler(t, nil)
+	b := branchID(demo(t, h))
+	p := wantProblem(t, do(t, h, "POST", "/branches/"+b+"/decision-window/end", obj{"windowTick": 0, "expectedHeadTick": 7}), http.StatusConflict, "stale-head")
+	if num(t, p, "expectedHeadTick") != 7 || num(t, p, "actualHeadTick") != 0 {
+		t.Errorf("stale ticks = %v", p)
+	}
+	if rec := do(t, h, "POST", "/branches/"+b+"/decision-window/end", obj{"windowTick": 0, "expectedHeadTick": 0}); rec.Code != http.StatusNoContent {
+		t.Fatalf("matching end status = %d %s", rec.Code, rec.Body.String())
 	}
 }

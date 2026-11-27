@@ -22,6 +22,12 @@ func buildEngineInputs(records []InputRecord) ([]sim.Input, error) {
 				return nil, fmt.Errorf("input %d of branch %s: %w", r.Seq, r.BranchID, err)
 			}
 			in.Command = c
+		case sim.InputDisruption:
+			d, err := sim.DecodeDisruptionInput(r.Payload)
+			if err != nil {
+				return nil, fmt.Errorf("input %d of branch %s: %w", r.Seq, r.BranchID, err)
+			}
+			in.Disruption = d
 		default:
 			return nil, fmt.Errorf("input %d of branch %s kind %d: %w", r.Seq, r.BranchID, r.Kind, ErrUnsupportedInput)
 		}

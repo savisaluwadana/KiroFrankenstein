@@ -25,8 +25,8 @@ var (
 type Command struct {
 	Kind     string `json:"kind"`
 	SKUIndex int64  `json:"skuIndex"`
-	SKUID    string `json:"skuId"`
-	Role     string `json:"role"`
+	SKUID    string `json:"skuId,omitempty"`
+	Role     string `json:"role,omitempty"`
 	Qty      int64  `json:"qty"`
 }
 
@@ -44,11 +44,18 @@ type Plan struct {
 func (p Plan) SimCommands() []sim.Command {
 	out := make([]sim.Command, 0, len(p.Commands))
 	for _, c := range p.Commands {
-		role := sim.SupplierPrimary
-		if c.Role == "backup" {
-			role = sim.SupplierBackup
+		switch c.Kind {
+		case "hire_temp_workers":
+			out = append(out, sim.Command{Kind: sim.CmdHireTempWorkers, Qty: c.Qty})
+		case "schedule_overtime":
+			out = append(out, sim.Command{Kind: sim.CmdScheduleOvertime, Qty: c.Qty})
+		default:
+			role := sim.SupplierPrimary
+			if c.Role == "backup" {
+				role = sim.SupplierBackup
+			}
+			out = append(out, sim.Command{Kind: sim.CmdPlacePurchaseOrder, SKU: c.SKUIndex, Role: role, Qty: c.Qty})
 		}
-		out = append(out, sim.Command{Kind: sim.CmdPlacePurchaseOrder, SKU: c.SKUIndex, Role: role, Qty: c.Qty})
 	}
 	return out
 }
@@ -182,13 +189,31 @@ func Derive(sc sim.Scenario, seed sim.Seed) (Plan, error) {
 			break
 		}
 	}
-	if sku < 0 {
-		plan.Reasons = append(plan.Reasons, "no stock-bound order after the fork tick in the no-command run: no purchase order proposed")
-		return plan, nil
-	}
-
 	st := r.states[fork]
 	obs := sim.Observe(sc, st)
+	free := int64(obs.Cash)
+	for _, po := range obs.PurchaseOrders {
+		free -= int64(po.UnitCost) * po.Qty
+	}
+	if sku < 0 {
+		plan.Reasons = append(plan.Reasons, "no stock-bound order after the fork tick in the no-command run: no purchase order proposed")
+	} else {
+		free = derivePurchaseOrder(sc, &plan, obs, st, fork, sku, boundUnits, boundTick, free)
+	}
+	if err := deriveStaffing(sc, r, &plan, obs, fork, free); err != nil {
+		return Plan{}, err
+	}
+	for _, v := range sim.Validate(sc, obs, plan.SimCommands(), sc.CommandBudget) {
+		if !v.OK {
+			return Plan{}, fmt.Errorf("demoplan: derived command rejected by the validator at tick %d: %s: %s", fork, v.Code, v.Message)
+		}
+	}
+	return plan, nil
+}
+
+// derivePurchaseOrder appends the backup-supplier order (if any) and returns
+// the cash still uncommitted after it.
+func derivePurchaseOrder(sc sim.Scenario, plan *Plan, obs sim.Observation, st sim.State, fork, sku, boundUnits, boundTick, free int64) int64 {
 	var o sim.ObsSKU
 	for _, s := range obs.SKUs {
 		if s.SKU == sku {
@@ -220,10 +245,6 @@ func Derive(sc sim.Scenario, seed sim.Seed) (Plan, error) {
 		qty = sim.MaxOrderQuantity
 		reasons = append(reasons, fmt.Sprintf("bounded to the maximum order quantity %d", qty))
 	}
-	free := int64(obs.Cash)
-	for _, po := range obs.PurchaseOrders {
-		free -= int64(po.UnitCost) * po.Qty
-	}
 	if sup.UnitCostCents > 0 {
 		if afford := free / int64(sup.UnitCostCents); afford < qty {
 			qty = afford
@@ -233,15 +254,63 @@ func Derive(sc sim.Scenario, seed sim.Seed) (Plan, error) {
 	if qty < 1 {
 		plan.Reasons = append(plan.Reasons, reasons...)
 		plan.Reasons = append(plan.Reasons, "bounded quantity is below 1: no purchase order proposed")
-		return plan, nil
+		return free
 	}
 	plan.Commands = append(plan.Commands, Command{Kind: "place_purchase_order", SKUIndex: sku, SKUID: o.ID, Role: "backup", Qty: qty})
 	plan.Reasons = append(plan.Reasons, reasons...)
+	return free - qty*int64(sup.UnitCostCents)
+}
 
-	for _, v := range sim.Validate(sc, obs, plan.SimCommands(), sc.CommandBudget) {
-		if !v.OK {
-			return Plan{}, fmt.Errorf("demoplan: derived command rejected by the validator at tick %d: %s: %s", fork, v.Code, v.Message)
+// deriveStaffing appends one hire_temp_workers Command only when the no-command
+// run reports capacity-bound orders after the fork Tick (Req 34.6).
+//
+//	peak  = the largest per-Tick sum, over SKUs, of capacity-bound units in the
+//	        Fulfilment_Constraint_Report for Ticks after the fork Tick
+//	count = ceil(peak / UnitsPerWorkerHour)
+//
+// bounded by Workforce.MaxTempWorkers (less temporary workers already
+// contracted) and by the cash left after the purchase order divided by the
+// temporary hourly wage. A count below 1 proposes nothing. Overtime is not
+// proposed: it scales only the regular workers and its hours are capped, so
+// temporary workers are the larger lever.
+func deriveStaffing(sc sim.Scenario, r run, plan *Plan, obs sim.Observation, fork, free int64) error {
+	var peak, peakTick int64
+	for _, f := range r.frames {
+		if int64(f.Tick) <= fork {
+			continue
+		}
+		var units int64
+		for _, c := range f.Report.SKUs {
+			units += c.CapacityBoundUnits
+		}
+		if units > peak {
+			peak, peakTick = units, int64(f.Tick)
 		}
 	}
-	return plan, nil
+	if peak == 0 {
+		plan.Reasons = append(plan.Reasons, "no capacity-bound order after the fork tick in the no-command run: no staffing command proposed")
+		return nil
+	}
+	per := sc.Workforce.UnitsPerWorkerHour
+	if per < 1 {
+		return fmt.Errorf("demoplan: workforce.unitsPerWorkerHour %d is below 1", per)
+	}
+	count := (peak + per - 1) / per
+	reasons := []string{fmt.Sprintf("hire %d temporary workers = ceil(%d capacity-bound units at tick %d / %d units per worker hour)", count, peak, peakTick, per)}
+	if room := sc.Workforce.MaxTempWorkers - obs.Workforce.TempsOnShift - obs.Workforce.TempsOnboarding; count > room {
+		count = room
+		reasons = append(reasons, fmt.Sprintf("bounded to %d by the temporary worker limit %d", count, sc.Workforce.MaxTempWorkers))
+	}
+	if w := int64(sc.Wages.TempPerHourCents); w > 0 && free/w < count {
+		count = free / w
+		reasons = append(reasons, fmt.Sprintf("bounded to %d by uncommitted cash %d cents at %d cents per worker hour", count, free, w))
+	}
+	if count < 1 {
+		plan.Reasons = append(plan.Reasons, reasons...)
+		plan.Reasons = append(plan.Reasons, "bounded worker count is below 1: no staffing command proposed")
+		return nil
+	}
+	plan.Commands = append(plan.Commands, Command{Kind: "hire_temp_workers", Qty: count})
+	plan.Reasons = append(plan.Reasons, reasons...)
+	return nil
 }

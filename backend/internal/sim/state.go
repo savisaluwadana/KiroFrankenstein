@@ -122,8 +122,9 @@ type ActiveDisruption struct {
 	InputSeq     uint64
 	Onset        SimMinute
 	End          SimMinute
-	MagnitudeBps Bps
+	MagnitudeBps Bps   // surge multiplier or absence share; 0 for a supplier_outage
 	Target       int64 // SKU index, or -1 when the Disruption has no target
+	Role         uint8 // supplier role (SupplierPrimary/Backup) of a supplier_outage; 0 otherwise
 }
 
 // SKUPrice is the current selling price and hourly marketing spend of a SKU.

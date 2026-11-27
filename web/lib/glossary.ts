@@ -255,6 +255,11 @@ const REJECTION_COPY: Record<string, string> = {
   unknown_supplier: "That supplier isn't available.",
   supplier_unavailable: "That supplier can't deliver right now.",
   insufficient_cash: "Not enough cash for this order.",
+  unknown_purchase_order: "That delivery isn't on order any more.",
+  already_expedited: "That delivery has already been rushed.",
+  overtime_exceeds_limit: "That is more overtime per worker than the business allows.",
+  too_many_temp_workers: "That would be more temporary workers than the business allows.",
+  marketing_exceeds_limit: "That is more marketing spend per hour than the business allows.",
 };
 
 /** Plain-language sentence for a server rejection code. Unknown codes get a generic sentence. */
@@ -296,7 +301,14 @@ export function accountLabel(account: string): string {
   return ACCOUNT_LABELS[account] ?? account.replace(/_/g, " ");
 }
 
-/** Allowed price range hint: 50% to 200% of the reference price (integer math; the server decides). */
-export function priceRangeCents(referencePriceCents: number): { min: number; max: number } {
+/**
+ * Allowed price range hint. Prefers the server's bounds from the observation; without them it falls back
+ * to the default 50% to 200% of the reference price (integer math; the server decides).
+ */
+export function priceRangeCents(
+  referencePriceCents: number,
+  serverBounds?: { minCents: number; maxCents: number },
+): { min: number; max: number } {
+  if (serverBounds !== undefined) return { min: serverBounds.minCents, max: serverBounds.maxCents };
   return { min: divRoundHalfEven(referencePriceCents, 2), max: referencePriceCents * 2 };
 }

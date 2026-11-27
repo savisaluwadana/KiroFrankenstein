@@ -227,6 +227,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/branches/{branchId}/disruptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Inject a Disruption into the Branch's future.
+         * @description Appends exactly one Input (kind disruption, provenance `injected`)
+         *     that takes effect at `startTick`. `startTick` must be above the
+         *     Head_Tick; otherwise the request fails with `history-immutable`
+         *     (fork to change the past). Values outside the allowed ranges fail with
+         *     `validation`, and the issue names the range. The Disruption is not
+         *     visible in any Observation before its onset Tick, and its onset opens
+         *     a Decision_Window, so advancing pauses there. A repeated
+         *     `Idempotency-Key` on the same Branch returns the original Input with
+         *     `duplicate: true` and appends nothing.
+         */
+        post: operations["injectDisruption"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/branches/{branchId}/tick-frames": {
         parameters: {
             query?: never;
@@ -306,6 +334,81 @@ export interface paths {
          *     Results are paged with `limit` and `offset`.
          */
         get: operations["listLedgerEntries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/branches/{branchId}/journal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the outcome journal for a range of Ticks.
+         * @description Returns the demand, shipment and order-cancellation outcomes of Ticks
+         *     `from` through `to` inclusive, in engine order. The journal is derived
+         *     output: it is rebuilt by replaying the Branch's Inputs, so it is never
+         *     stored and never changes a State_Hash. A range spans at most 24 Ticks.
+         *     `to` must not exceed the Head_Tick. A cancellation creates no Ledger
+         *     entry. Results are paged with `limit` and `offset`.
+         */
+        get: operations["listJournal"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/branches/{branchId}/end-of-horizon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the End_Of_Horizon_Statement.
+         * @description Reports positions as they stand at a Tick: open orders as backlog,
+         *     open purchase-order commitments, remaining stock at cost, and the
+         *     balance identity. Nothing is written down, liquidated or accrued.
+         *     Without `tick` the statement is for the Head_Tick. `atHorizon` is true
+         *     only when the Tick is the Scenario horizon.
+         */
+        get: operations["getEndOfHorizon"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/branches/{branchId}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export the Inputs_File of a Branch.
+         * @description Returns the Inputs of the Branch as a canonical Inputs_File, together
+         *     with the Scenario hash, Seed and engine version. Inputs inherited from
+         *     ancestor Branches are included up to each fork Tick; an ancestor's
+         *     later Inputs are not. Seq is renumbered 1 to n in effective-Tick order,
+         *     as replay does. Idempotency keys, timestamps and model names are not
+         *     exported. Provenance and rationale are metadata and never change a
+         *     State_Hash. The rationale is untrusted text.
+         */
+        get: operations["exportBranchInputs"];
         put?: never;
         post?: never;
         delete?: never;
@@ -434,6 +537,66 @@ export interface components {
          * @description World seed. The API limits it to 2^53 - 1 so JavaScript clients keep it exact.
          */
         Seed: number;
+        /**
+         * @description Canonical Inputs_File. Scenario hash, Seed and engine version identify
+         *     the conditions under which the Inputs were recorded.
+         */
+        InputsFile: {
+            /** @description Lowercase hex SHA-256 of the canonical Scenario. */
+            scenarioHash: string;
+            seed: components["schemas"]["Seed"];
+            engineVersion: string;
+            inputs: components["schemas"]["InputsFileInput"][];
+        };
+        /** @description One Input. Exactly one of `command` and `disruption` is present, matching `kind`. */
+        InputsFileInput: {
+            effectiveTick: components["schemas"]["Tick"];
+            /** Format: int64 */
+            seq: number;
+            /** @enum {string} */
+            kind: "command" | "disruption";
+            command?: components["schemas"]["InputsFileCommand"];
+            disruption?: components["schemas"]["InputsFileDisruption"];
+            provenance: components["schemas"]["Provenance"];
+            /** @description Optional untrusted display text. Omitted when empty. */
+            rationale?: string;
+        };
+        /**
+         * @description A Command in its canonical fields. Only the fields named for the kind
+         *     are read by the engine; the others are 0.
+         */
+        InputsFileCommand: {
+            /** @enum {string} */
+            kind: "set_price" | "place_purchase_order" | "expedite_purchase_order" | "schedule_overtime" | "hire_temp_workers" | "set_marketing_spend";
+            /**
+             * Format: int64
+             * @description Index into the Scenario SKUs.
+             */
+            sku: number;
+            /** @description Supplier role code, 0 primary and 1 backup. */
+            role: number;
+            /** Format: int64 */
+            qty: number;
+            /** Format: int64 */
+            amountCents: number;
+            /** Format: int64 */
+            poRef: number;
+        };
+        /** @description An injected Disruption in its canonical fields. */
+        InputsFileDisruption: {
+            kind: components["schemas"]["DisruptionKind"];
+            /**
+             * Format: int64
+             * @description SKU index, or -1 for every SKU.
+             */
+            target: number;
+            /** @description Supplier role code, 0 primary and 1 backup. */
+            role: number;
+            /** Format: int64 */
+            durationTicks: number;
+            /** Format: int64 */
+            magnitudeBps: number;
+        };
         CreateWorldResponse: {
             world: components["schemas"]["World"];
             rootBranch: components["schemas"]["Branch"];
@@ -538,23 +701,64 @@ export interface components {
             commands: components["schemas"]["Command"][];
             expectedHeadTick?: components["schemas"]["Tick"];
         };
+        /**
+         * @description Allowed ranges: `startTick` above the Head_Tick and at most the
+         *     horizon; `durationTicks` 1 to the horizon; `target` -1 (all) or a SKU
+         *     index. `demand_surge`: `magnitudeBps` 1 to 100000 and no `role`.
+         *     `supplier_outage`: `role` required, `magnitudeBps` 0 or absent.
+         *     `workforce_absence`: `magnitudeBps` 0 to 10000, target -1, no `role`.
+         */
+        InjectDisruptionRequest: {
+            kind: components["schemas"]["DisruptionKind"];
+            startTick: components["schemas"]["Tick"];
+            /** Format: int32 */
+            durationTicks: number;
+            /** Format: int64 */
+            magnitudeBps?: number;
+            /**
+             * Format: int64
+             * @default -1
+             */
+            target: number;
+            /** @enum {string} */
+            role?: "primary" | "backup";
+            expectedHeadTick?: components["schemas"]["Tick"];
+        };
+        InjectDisruptionResult: {
+            /** Format: int64 */
+            seq: number;
+            effectiveTick: components["schemas"]["Tick"];
+            kind: components["schemas"]["DisruptionKind"];
+            /** Format: int32 */
+            durationTicks: number;
+            /** Format: int64 */
+            magnitudeBps: number;
+            /** Format: int64 */
+            target: number;
+            /** @enum {string} */
+            role?: "primary" | "backup";
+            /** @enum {string} */
+            provenance: "injected";
+            duplicate: boolean;
+        };
         EndWindowRequest: {
             windowTick: components["schemas"]["Tick"];
             expectedHeadTick?: components["schemas"]["Tick"];
         };
         /**
-         * @description The closed Command_Set. In the slice only `set_price` and
-         *     `place_purchase_order` are implemented. The others are valid kinds
-         *     that the validator rejects with code `not_implemented`.
+         * @description The closed Command_Set. `set_price`, `place_purchase_order`,
+         *     `expedite_purchase_order`, `schedule_overtime` and `hire_temp_workers`
+         *     are implemented. The others are valid kinds that the validator rejects
+         *     with code `not_implemented`.
          * @enum {string}
          */
         CommandKind: "set_price" | "place_purchase_order" | "expedite_purchase_order" | "schedule_overtime" | "hire_temp_workers" | "set_marketing_spend";
         /**
          * @description A manager decision. Only the fields named for the kind are read.
-         *     `set_price`: sku, amountCents (new unit price within 50 % to 200 % of the
-         *     reference price). `place_purchase_order`: sku, role, qty (1 to 1000000).
-         *     `expedite_purchase_order`: poRef. `schedule_overtime`: qty (hours per worker).
-         *     `hire_temp_workers`: qty (workers). `set_marketing_spend`: sku, amountCents per hour.
+         *     `set_price`: sku, amountCents (new unit price within the scenario price bounds, by default 50 % to 200 % of the
+         *     reference price, see `pricing.minPriceBps` and `pricing.maxPriceBps`; the bounds per product are in the observation as `priceBounds`). `place_purchase_order`: sku, role, qty (1 to 1000000).
+         *     `expedite_purchase_order`: poRef (an open purchase order, expedited at most once, not during a supplier outage; the fee is affordable). `schedule_overtime`: qty (overtime hours per regular worker per tick, from the next tick until changed; 0 cancels; at most the scenario maximum, else `overtime_exceeds_limit`).
+         *     `hire_temp_workers`: qty (workers, at least 1; total contracted at most the scenario maximum, else `too_many_temp_workers`; paid from the effective tick including onboarding, capacity only after onboarding; first-tick wages must be affordable). `set_marketing_spend`: sku, amountCents (spend per hour from the effective tick until changed; 0 stops it; at most `demand.maxMarketingSpendCentsPerHour`, else `marketing_exceeds_limit`; the first hour's spend must be affordable; it is posted as Marketing_Expense every tick and raises conversion of the same potential arrivals).
          */
         Command: {
             kind: components["schemas"]["CommandKind"];
@@ -577,7 +781,7 @@ export interface components {
          * @description Machine-readable reason a Command was rejected.
          * @enum {string}
          */
-        RejectCode: "unknown_command" | "not_implemented" | "budget_exhausted" | "unknown_sku" | "price_out_of_bounds" | "invalid_quantity" | "unknown_supplier" | "supplier_unavailable" | "insufficient_cash";
+        RejectCode: "unknown_command" | "not_implemented" | "budget_exhausted" | "unknown_sku" | "price_out_of_bounds" | "invalid_quantity" | "unknown_supplier" | "supplier_unavailable" | "insufficient_cash" | "unknown_purchase_order" | "already_expedited" | "overtime_exceeds_limit" | "too_many_temp_workers" | "marketing_exceeds_limit";
         ValidationResult: {
             /** @description Position of the Command in the request. */
             index: number;
@@ -916,6 +1120,11 @@ export interface components {
             onHand: number;
             inventoryValueCents: components["schemas"]["Cents"];
             referencePriceCents: components["schemas"]["Cents"];
+            /** @description Allowed `set_price` range for this product, from the scenario's pricing assumptions. */
+            priceBounds: {
+                minCents: components["schemas"]["Cents"];
+                maxCents: components["schemas"]["Cents"];
+            };
             /** @description Current selling price. */
             priceCents: components["schemas"]["Cents"];
             /** @description Current hourly marketing spend. */
@@ -1034,6 +1243,100 @@ export interface components {
             debitCents: number;
             /** Format: int64 */
             creditCents: number;
+        };
+        JournalResponse: {
+            branchId: components["schemas"]["Uuid"];
+            from: components["schemas"]["Tick"];
+            to: components["schemas"]["Tick"];
+            /** @description Number of outcomes in the range. */
+            total: number;
+            offset: number;
+            entries: components["schemas"]["JournalEntry"][];
+            currency: components["schemas"]["Currency"];
+            disclaimer: components["schemas"]["Disclaimer"];
+        };
+        /**
+         * @description One outcome. `demand` sets potentialArrivals, conversionBps and
+         *     ordersCreated. `order_cancelled` sets orderId, units and ageMinutes.
+         *     `shipment` sets orderId, units and minutesLate (0 when on time).
+         */
+        JournalEntry: {
+            /** @description Position in the journal of the requested range. */
+            index: number;
+            tick: components["schemas"]["Tick"];
+            simMinute: components["schemas"]["SimMinute"];
+            /** @enum {string} */
+            kind: "demand" | "order_cancelled" | "shipment";
+            /**
+             * Format: int64
+             * @description Index into the Scenario SKUs.
+             */
+            sku: number;
+            /** Format: int64 */
+            potentialArrivals?: number;
+            conversionBps?: components["schemas"]["Bps"];
+            /** Format: int64 */
+            ordersCreated?: number;
+            /** Format: int64 */
+            orderId?: number;
+            /** Format: int64 */
+            units?: number;
+            /** Format: int64 */
+            ageMinutes?: number;
+            /** Format: int64 */
+            minutesLate?: number;
+        };
+        EndOfHorizonResponse: {
+            branchId: components["schemas"]["Uuid"];
+            stateHash: components["schemas"]["StateHash"];
+            statement: components["schemas"]["EndOfHorizon"];
+            currency: components["schemas"]["Currency"];
+            disclaimer: components["schemas"]["Disclaimer"];
+        };
+        EndOfHorizon: {
+            tick: components["schemas"]["Tick"];
+            /** @description True when the Tick is the Scenario horizon. */
+            atHorizon: boolean;
+            metrics: components["schemas"]["Metrics"];
+            /** @description Always 0. Open orders have no revenue recorded. */
+            backlogRevenueRecognisedCents: components["schemas"]["Cents"];
+            /** @description Always 0. Open orders have no service credit recorded. */
+            backlogServiceCreditCents: components["schemas"]["Cents"];
+            openPurchaseOrders: components["schemas"]["PurchaseOrderCommitment"][];
+            /** Format: int64 */
+            committedUnits: number;
+            committedCostCents: components["schemas"]["Cents"];
+            /** @description Remaining stock per SKU at moving-average cost, ascending by SKU. */
+            stock: components["schemas"]["StockLine"][];
+            /** Format: int64 */
+            stockUnits: number;
+            stockValueCents: components["schemas"]["Cents"];
+            /** @description True when the stock value equals the Inventory account balance. */
+            inventoryMatch: boolean;
+            /** @description Always 0. Wages are paid in the Tick earned. */
+            accruedUnpaidWagesCents: components["schemas"]["Cents"];
+            /** @description True when cash plus inventory equals opening equity plus net profit. */
+            balanceIdentityHolds: boolean;
+        };
+        PurchaseOrderCommitment: {
+            /** Format: int64 */
+            purchaseOrderId: number;
+            /** Format: int64 */
+            sku: number;
+            supplier: components["schemas"]["SupplierRole"];
+            /** Format: int64 */
+            qty: number;
+            unitCostCents: components["schemas"]["Cents"];
+            committedCostCents: components["schemas"]["Cents"];
+            /** @description The Tick whose step receives the purchase order. */
+            dueAtTick: components["schemas"]["Tick"];
+        };
+        StockLine: {
+            /** Format: int64 */
+            sku: number;
+            /** Format: int64 */
+            onHand: number;
+            valueCents: components["schemas"]["Cents"];
         };
         CreateDemoRequest: {
             name?: components["schemas"]["Name"];
@@ -1418,6 +1721,40 @@ export interface operations {
             413: components["responses"]["PayloadTooLarge"];
         };
     };
+    injectDisruption: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-chosen key, 1 to 128 printable ASCII characters. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                branchId: components["parameters"]["BranchId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InjectDisruptionRequest"];
+            };
+        };
+        responses: {
+            /** @description The recorded Disruption Input. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InjectDisruptionResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
     listTickFrames: {
         parameters: {
             query: {
@@ -1536,6 +1873,89 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["Unprocessable"];
+        };
+    };
+    listJournal: {
+        parameters: {
+            query: {
+                from: components["schemas"]["Tick"];
+                to: components["schemas"]["Tick"];
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                branchId: components["parameters"]["BranchId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The outcomes. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JournalResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    getEndOfHorizon: {
+        parameters: {
+            query?: {
+                /** @description A Tick from 0 through the Head_Tick. Defaults to the Head_Tick. */
+                tick?: components["schemas"]["Tick"];
+            };
+            header?: never;
+            path: {
+                branchId: components["parameters"]["BranchId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The statement. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EndOfHorizonResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    exportBranchInputs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: components["parameters"]["BranchId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Inputs_File. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InputsFile"];
+                };
+            };
+            404: components["responses"]["NotFound"];
         };
     };
 }

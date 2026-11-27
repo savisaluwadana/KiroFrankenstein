@@ -35,11 +35,15 @@ type ObsSKU struct {
 	OnHand              int64
 	InventoryValue      Cents
 	ReferencePriceCents Cents
-	PriceCents          Cents
-	MarketingCents      Cents
-	InboundPOs          int64
-	InboundUnits        int64
-	Suppliers           []ObsSupplier
+	// MinPriceCents and MaxPriceCents are the set_price bounds from the
+	// Scenario's pricing assumptions.
+	MinPriceCents  Cents
+	MaxPriceCents  Cents
+	PriceCents     Cents
+	MarketingCents Cents
+	InboundPOs     int64
+	InboundUnits   int64
+	Suppliers      []ObsSupplier
 }
 
 // ObsSupplier is one supplier role of a SKU. Available is false while a
@@ -81,8 +85,8 @@ type ObsWorkforce struct {
 	TempsOnboarding int64
 }
 
-// ObsDisruption is an active Disruption. Target is a SKU index or -1; for a
-// supplier_outage MagnitudeBps carries the supplier role code. OnsetTick is
+// ObsDisruption is an active Disruption. Target is a SKU index or -1; Role is
+// the supplier role code of a supplier_outage. OnsetTick is
 // at most the Observation Tick, and EndTick is the Tick at whose boundary the
 // Disruption is over.
 type ObsDisruption struct {
@@ -90,6 +94,7 @@ type ObsDisruption struct {
 	Origin       uint8
 	InputSeq     uint64
 	Target       int64
+	Role         uint8
 	MagnitudeBps Bps
 	OnsetTick    Tick
 	EndTick      Tick
@@ -125,6 +130,7 @@ func Observe(sc Scenario, st State) Observation {
 	for _, i := range idx {
 		spec := sc.SKUs[i]
 		o := ObsSKU{SKU: int64(i), ID: spec.ID, ReferencePriceCents: spec.ReferencePriceCents}
+		o.MinPriceCents, o.MaxPriceCents = PriceBounds(sc, spec.ReferencePriceCents)
 		for _, inv := range st.Inventory {
 			if inv.SKU == int64(i) {
 				o.OnHand, o.InventoryValue = inv.OnHand, inv.Value
@@ -188,7 +194,7 @@ func Observe(sc Scenario, st State) Observation {
 			continue
 		}
 		obs.Disruptions = append(obs.Disruptions, ObsDisruption{
-			Kind: d.Kind, Origin: d.Origin, InputSeq: d.InputSeq, Target: d.Target,
+			Kind: d.Kind, Origin: d.Origin, InputSeq: d.InputSeq, Target: d.Target, Role: d.Role,
 			MagnitudeBps: d.MagnitudeBps, OnsetTick: TickOf(d.Onset), EndTick: Tick(int64(d.End) / MinutesPerTick),
 		})
 	}
@@ -203,7 +209,7 @@ func Observe(sc Scenario, st State) Observation {
 		return x.InputSeq < y.InputSeq
 	})
 
-	open, reasons := DecisionWindowOpen(sc, tick)
+	open, reasons := DecisionWindowOpenState(sc, st)
 	obs.Window = ObsWindow{
 		Open: open, Reasons: reasons, CadenceTicks: sc.DecisionCadenceTicks,
 		CommandBudget: sc.CommandBudget, HorizonTicks: sc.HorizonTicks,

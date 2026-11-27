@@ -145,7 +145,14 @@
     "baseConversionBps": 2500,
     "priceElasticityBps": 1500,
     "marketingEffectBps": 300,
-    "cancelThresholdTicks": 48
+    "cancelThresholdTicks": 48,
+    "noiseBps": 2000,
+    "marketingSpendUnitCents": 10000,
+    "maxMarketingSpendCentsPerHour": 50000
+  },
+  "pricing": {
+    "minPriceBps": 5000,
+    "maxPriceBps": 20000
   },
   "assumptionMeta": {
     "horizonTicks": {
@@ -350,6 +357,41 @@
       "min": 1,
       "max": 240,
       "rationale": "synthetic, illustrative: open orders older than 48 hours are cancelled"
+    },
+    "demand.noiseBps": {
+      "unit": "bps",
+      "default": 2000,
+      "min": 0,
+      "max": 10000,
+      "rationale": "synthetic, illustrative: potential arrivals vary uniformly by plus or minus 20% around their expected value; 0 gives exact arrivals"
+    },
+    "demand.marketingSpendUnitCents": {
+      "unit": "cents",
+      "default": 10000,
+      "min": 100,
+      "max": 1000000,
+      "rationale": "synthetic, illustrative: $100 of hourly marketing spend on a SKU is one uplift step of demand.marketingEffectBps"
+    },
+    "demand.maxMarketingSpendCentsPerHour": {
+      "unit": "cents",
+      "default": 50000,
+      "min": 0,
+      "max": 10000000,
+      "rationale": "synthetic, illustrative: at most $500 of marketing spend per hour on one SKU"
+    },
+    "pricing.minPriceBps": {
+      "unit": "bps",
+      "default": 5000,
+      "min": 100,
+      "max": 10000,
+      "rationale": "synthetic, illustrative: a price may not go below 50% of the reference price"
+    },
+    "pricing.maxPriceBps": {
+      "unit": "bps",
+      "default": 20000,
+      "min": 10000,
+      "max": 100000,
+      "rationale": "synthetic, illustrative: a price may not go above 200% of the reference price"
     },
     "demand.hourlyProfile": {
       "unit": "bps",

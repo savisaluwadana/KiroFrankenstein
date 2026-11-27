@@ -227,9 +227,12 @@ func (s *BranchService) engineInputs(ctx context.Context, id BranchID, upTo sim.
 }
 
 // windowAt reports whether a Decision_Window is open at tick and why: the
-// Scenario's windows plus the fork window of a child Branch.
-func windowAt(sc sim.Scenario, b Branch, tick sim.Tick) (bool, []sim.WindowReason) {
-	open, reasons := sim.DecisionWindowOpen(sc, tick)
+// Scenario's windows, the onsets of injected Disruptions (read from the state
+// at tick, which lists an injected Disruption in its onset Tick) and the fork
+// window of a child Branch.
+func windowAt(sc sim.Scenario, b Branch, st sim.State) (bool, []sim.WindowReason) {
+	tick := st.Tick()
+	open, reasons := sim.DecisionWindowOpenState(sc, st)
 	if b.ParentBranchID != "" && b.ForkTick == tick && int64(tick) < sc.HorizonTicks {
 		open, reasons = true, append(reasons, sim.WindowFork)
 	}
@@ -300,7 +303,7 @@ func (s *BranchService) Advance(ctx context.Context, req AdvanceRequest) (Advanc
 		st = step.State
 		res.Frames = append(res.Frames, step.Frame)
 		tick := st.Tick()
-		open, reasons := windowAt(c.sc, c.b, tick)
+		open, reasons := windowAt(c.sc, c.b, st)
 		switch {
 		case tick >= horizon:
 			res.Paused = PauseHorizon
@@ -367,14 +370,13 @@ func (s *BranchService) SubmitCommands(ctx context.Context, req SubmitRequest) (
 		return SubmitResult{}, fmt.Errorf("effective tick %d <= head %d: %w", req.WindowTick+1, head, ErrHistoryImmutable)
 	}
 	if req.IdempotencyKey != "" {
-		if rec, ok, err := s.store.FindByIdempotencyKey(ctx, req.Branch, idemKey(req.IdempotencyKey, 0)); err != nil {
+		if _, ok, err := s.store.FindByIdempotencyKey(ctx, req.Branch, idemKey(req.IdempotencyKey, 0)); err != nil {
 			return SubmitResult{}, fmt.Errorf("idempotency lookup: %w", err)
 		} else if ok {
-			prev, err := s.previousSubmission(ctx, req, rec)
-			return prev, err
+			return s.previousSubmission(ctx, req, c)
 		}
 	}
-	open, _ := windowAt(c.sc, c.b, head)
+	open, _ := windowAt(c.sc, c.b, c.head.state)
 	if !open || s.endedAt(req.Branch, head) {
 		return SubmitResult{}, fmt.Errorf("tick %d: %w", head, ErrWindowNotOpen)
 	}
@@ -424,8 +426,13 @@ func (s *BranchService) endedAt(id BranchID, head sim.Tick) bool {
 
 // previousSubmission rebuilds the original result of a repeated idempotency
 // key from the stored inputs; nothing is appended.
-func (s *BranchService) previousSubmission(ctx context.Context, req SubmitRequest, first InputRecord) (SubmitResult, error) {
+func (s *BranchService) previousSubmission(ctx context.Context, req SubmitRequest, c branchCtx) (SubmitResult, error) {
 	out := SubmitResult{Duplicate: true}
+	used, err := s.budgetUsed(ctx, req.Branch, c.head.state.Tick())
+	if err != nil {
+		return SubmitResult{}, err
+	}
+	out.BudgetRemaining = max(c.sc.CommandBudget-used, 0)
 	for i := 0; ; i++ {
 		rec, ok, err := s.store.FindByIdempotencyKey(ctx, req.Branch, idemKey(req.IdempotencyKey, i))
 		if err != nil {
@@ -441,7 +448,7 @@ func (s *BranchService) previousSubmission(ctx context.Context, req SubmitReques
 
 // EndDecisionWindow closes the open window at the head Tick without further
 // Commands. Commands already submitted stay recorded.
-func (s *BranchService) EndDecisionWindow(ctx context.Context, id BranchID, windowTick sim.Tick) error {
+func (s *BranchService) EndDecisionWindow(ctx context.Context, id BranchID, windowTick sim.Tick, expected *sim.Tick) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	c, err := s.load(ctx, id)
@@ -449,13 +456,16 @@ func (s *BranchService) EndDecisionWindow(ctx context.Context, id BranchID, wind
 		return err
 	}
 	head := c.head.state.Tick()
+	if err := checkExpected(expected, head); err != nil {
+		return err
+	}
 	if windowTick > head {
 		return fmt.Errorf("window tick %d, head %d: %w", windowTick, head, ErrNotYetSimulated)
 	}
 	if windowTick < head {
 		return fmt.Errorf("window tick %d < head %d: %w", windowTick, head, ErrHistoryImmutable)
 	}
-	if open, _ := windowAt(c.sc, c.b, head); !open || s.endedAt(id, head) {
+	if open, _ := windowAt(c.sc, c.b, c.head.state); !open || s.endedAt(id, head) {
 		return fmt.Errorf("tick %d: %w", head, ErrWindowNotOpen)
 	}
 	s.ended[id] = head
@@ -555,7 +565,7 @@ func (s *BranchService) ObservationAt(ctx context.Context, id BranchID, t sim.Ti
 		return sim.Observation{}, err
 	}
 	obs := sim.Observe(c.sc, st)
-	open, reasons := windowAt(c.sc, c.b, t)
+	open, reasons := windowAt(c.sc, c.b, st)
 	obs.Window.Open, obs.Window.Reasons = open, reasons
 	return obs, nil
 }

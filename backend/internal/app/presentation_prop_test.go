@@ -53,7 +53,7 @@ func piDrawPlan(t *rapid.T, sc sim.Scenario) piPlan {
 				cmds = append(cmds, sim.Command{Kind: sim.CmdPlacePurchaseOrder, SKU: int64(sku),
 					Role: sim.SupplierPrimary, Qty: rapid.Int64Range(1, 50).Draw(t, "qty")})
 			} else {
-				lo, hi := sim.PriceBounds(sc.SKUs[sku].ReferencePriceCents)
+				lo, hi := sim.PriceBounds(sc, sc.SKUs[sku].ReferencePriceCents)
 				cmds = append(cmds, sim.Command{Kind: sim.CmdSetPrice, SKU: int64(sku),
 					AmountCents: sim.Cents(rapid.Int64Range(int64(lo), int64(hi)).Draw(t, "price"))})
 			}
@@ -128,7 +128,7 @@ func TestPropPresentationIndependence(t *testing.T) {
 				break
 			}
 			if piSubmit(ctx, t, svc, id, plan, head) && rapid.Bool().Draw(t, "endWindow") {
-				if err := svc.EndDecisionWindow(ctx, id, head); err != nil {
+				if err := svc.EndDecisionWindow(ctx, id, head, nil); err != nil {
 					t.Fatalf("end window %d: %v", head, err)
 				}
 			}

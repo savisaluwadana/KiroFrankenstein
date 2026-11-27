@@ -10,9 +10,8 @@ import (
 // are stored in the Input_Log; append only.
 type CommandKind uint8
 
-// The Command_Set. Only set_price and place_purchase_order are implemented in
-// the slice; the others are valid kinds that the validator and the engine
-// answer with ReasonNotImplemented until M2.
+// The Command_Set. All kinds are implemented; ReasonNotImplemented remains for
+// kinds a future engine version adds.
 const (
 	CmdSetPrice CommandKind = iota
 	CmdPlacePurchaseOrder
@@ -48,10 +47,12 @@ func (k CommandKind) Name() string {
 //
 //	set_price             SKU, AmountCents (new unit price)
 //	place_purchase_order  SKU, Role (SupplierPrimary or SupplierBackup), Qty
-//	expedite_purchase_order  PORef                     (M2)
-//	schedule_overtime     Qty (hours per worker)       (M2)
-//	hire_temp_workers     Qty (workers)                (M2)
-//	set_marketing_spend   SKU, AmountCents (per hour)  (M2)
+//	expedite_purchase_order  PORef
+//	schedule_overtime     Qty (overtime hours per regular worker per Tick, from the
+//	                      next Tick until changed; 0 cancels)
+//	hire_temp_workers     Qty (workers; paid from the effective Tick, capacity after onboarding)
+//	set_marketing_spend   SKU, AmountCents (spend per Tick, in force from the effective
+//	                      Tick until changed; 0 stops it)
 //
 // SKU is an index into Scenario.SKUs.
 type Command struct {
@@ -107,8 +108,11 @@ func DecodeCommand(b []byte) (Command, error) {
 func commandEvent(at SimMinute, inp Input) Event {
 	c := inp.Command
 	qty := c.Qty
-	if c.Kind == CmdSetPrice {
+	switch c.Kind {
+	case CmdSetPrice, CmdSetMarketingSpend:
 		qty = int64(c.AmountCents)
+	case CmdExpeditePurchaseOrder:
+		qty = int64(c.PORef) // the order to expedite
 	}
 	return Event{
 		At:       at,
@@ -140,8 +144,26 @@ func (e *stepper) applyCommand(ev Event) error {
 			return fmt.Errorf("%w: place_purchase_order: %w", ErrBadCommand, err)
 		}
 		return nil
-	case CmdExpeditePurchaseOrder, CmdScheduleOvertime, CmdHireTempWorkers, CmdSetMarketingSpend:
-		return fmt.Errorf("%w: %s", ErrCommandNotImplemented, kind.Name())
+	case CmdExpeditePurchaseOrder:
+		if err := ExpeditePurchaseOrder(e.sc, &e.st, e.q, uint64(ev.Payload.Qty), ev.At); err != nil {
+			return fmt.Errorf("%w: expedite_purchase_order: %w", ErrBadCommand, err)
+		}
+		return nil
+	case CmdScheduleOvertime:
+		if err := ScheduleOvertime(e.sc, &e.st, ev.Payload.Qty); err != nil {
+			return fmt.Errorf("%w: schedule_overtime: %w", ErrBadCommand, err)
+		}
+		return nil
+	case CmdHireTempWorkers:
+		if err := HireTempWorkers(e.sc, &e.st, ev.Payload.Qty, ev.At); err != nil {
+			return fmt.Errorf("%w: hire_temp_workers: %w", ErrBadCommand, err)
+		}
+		return nil
+	case CmdSetMarketingSpend:
+		if err := SetMarketingSpend(e.sc, &e.st, ev.Payload.SKU, Cents(ev.Payload.Qty)); err != nil {
+			return fmt.Errorf("%w: set_marketing_spend: %w", ErrBadCommand, err)
+		}
+		return nil
 	}
 	return fmt.Errorf("%w: unknown kind %d", ErrBadCommand, kind)
 }

@@ -31,7 +31,7 @@ func TestValidateRejections(t *testing.T) {
 	sc, _, obs := flagshipObs(t)
 	pos, s0 := obsSKU(t, obs, 0)
 	ref := s0.ReferencePriceCents
-	_, hi := PriceBounds(ref)
+	_, hi := PriceBounds(sc, ref)
 	outage := obs
 	outage.SKUs = append([]ObsSKU(nil), obs.SKUs...)
 	outage.SKUs[pos].Suppliers = append([]ObsSupplier(nil), s0.Suppliers...)
@@ -45,7 +45,8 @@ func TestValidateRejections(t *testing.T) {
 		want RejectCode
 	}{
 		{"unknown kind", obs, Command{Kind: 99}, 5, ReasonUnknownCommand},
-		{"not implemented", obs, Command{Kind: CmdHireTempWorkers, Qty: 2}, 5, ReasonNotImplemented},
+		{"marketing limit", obs, Command{Kind: CmdSetMarketingSpend, SKU: 0, AmountCents: sc.Demand.MaxMarketingSpendCentsPerHour + 1}, 5, ReasonMarketingExceedsLimit},
+		{"marketing negative", obs, Command{Kind: CmdSetMarketingSpend, SKU: 0, AmountCents: -1}, 5, ReasonInvalidQuantity},
 		{"budget", obs, Command{Kind: CmdSetPrice, SKU: 0, AmountCents: ref}, 0, ReasonBudgetExhausted},
 		{"unknown sku", obs, Command{Kind: CmdSetPrice, SKU: 77, AmountCents: ref}, 5, ReasonUnknownSKU},
 		{"price high", obs, Command{Kind: CmdSetPrice, SKU: 0, AmountCents: hi + 1}, 5, ReasonPriceOutOfBounds},
@@ -201,7 +202,7 @@ func TestCommandApplyPurchaseOrder(t *testing.T) {
 func TestCommandApplySetPriceChangesConversion(t *testing.T) {
 	sc := loadFlagship(t)
 	st := mustInit(t, sc, 2026)
-	_, hi := PriceBounds(sc.SKUs[0].ReferencePriceCents)
+	_, hi := PriceBounds(sc, sc.SKUs[0].ReferencePriceCents)
 	cmd := Command{Kind: CmdSetPrice, SKU: 0, AmountCents: hi}
 
 	base, baseOut := mustStep(t, sc, st)
@@ -243,8 +244,8 @@ func TestCommandApplyErrors(t *testing.T) {
 	if _, _, _, err := StepTick(sc, st, in(2, Command{Kind: CmdSetPrice})); !errors.Is(err, ErrBadInputTick) {
 		t.Errorf("wrong tick err = %v", err)
 	}
-	if _, _, _, err := StepTick(sc, st, in(1, Command{Kind: CmdScheduleOvertime, Qty: 1})); !errors.Is(err, ErrCommandNotImplemented) {
-		t.Errorf("not implemented err = %v", err)
+	if _, _, _, err := StepTick(sc, st, in(1, Command{Kind: CmdSetMarketingSpend, SKU: 0, AmountCents: sc.Demand.MaxMarketingSpendCentsPerHour + 1})); !errors.Is(err, ErrMarketingLimit) {
+		t.Errorf("marketing limit err = %v", err)
 	}
 	if _, _, _, err := StepTick(sc, st, in(1, Command{Kind: CmdSetPrice, SKU: 9, AmountCents: 100})); !errors.Is(err, ErrBadCommand) {
 		t.Errorf("bad command err = %v", err)

@@ -79,3 +79,61 @@ func TestDemoPlanStructure(t *testing.T) {
 		t.Error("Derive is not deterministic")
 	}
 }
+
+func TestDemoPlanFlagshipHasNoStaffingCommand(t *testing.T) {
+	plan, err := Derive(loadFlagship(t), DefaultSeed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Commands) != 1 || plan.Commands[0].Kind != "place_purchase_order" {
+		t.Fatalf("commands = %+v, want the single backup purchase order", plan.Commands)
+	}
+	found := false
+	for _, r := range plan.Reasons {
+		if r == "no capacity-bound order after the fork tick in the no-command run: no staffing command proposed" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("missing no-capacity-bound reason in %v", plan.Reasons)
+	}
+}
+
+// With a smaller regular workforce the no-command run is capacity bound, so the
+// plan gains a hire_temp_workers Command that passes the validator.
+func TestDeriveAddsStaffingWhenCapacityBound(t *testing.T) {
+	sc := loadFlagship(t)
+	sc.Workforce.RegularWorkers = 4
+	plan, err := Derive(sc, DefaultSeed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var hire *Command
+	for i := range plan.Commands {
+		if plan.Commands[i].Kind == "hire_temp_workers" {
+			hire = &plan.Commands[i]
+		}
+	}
+	if hire == nil {
+		t.Fatalf("no staffing command; reasons: %v", plan.Reasons)
+	}
+	if hire.Qty < 1 || hire.Qty > sc.Workforce.MaxTempWorkers {
+		t.Errorf("hire qty %d outside 1..%d", hire.Qty, sc.Workforce.MaxTempWorkers)
+	}
+	st, err := sim.Init(sc, DefaultSeed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for int64(st.Tick()) < plan.ForkTick {
+		step, err := sim.Advance(sc, st, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		st = step.State
+	}
+	for _, v := range sim.Validate(sc, sim.Observe(sc, st), plan.SimCommands(), sc.CommandBudget) {
+		if !v.OK {
+			t.Errorf("rejected: %s %s", v.Code, v.Message)
+		}
+	}
+}

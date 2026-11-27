@@ -156,7 +156,7 @@ func GenProposals(sc *sim.Scenario) *rapid.Generator[Proposals] {
 			for i := 0; i < n; i++ {
 				sku := rapid.Int64Range(0, nSKU-1).Draw(t, "sku")
 				if rapid.Bool().Draw(t, "isPrice") {
-					lo, hi := sim.PriceBounds(sc.SKUs[sku].ReferencePriceCents)
+					lo, hi := sim.PriceBounds(*sc, sc.SKUs[sku].ReferencePriceCents)
 					p[tick] = append(p[tick], sim.Command{
 						Kind: sim.CmdSetPrice, SKU: sku,
 						AmountCents: sim.Cents(rapid.Int64Range(int64(lo), int64(hi)).Draw(t, "price")),

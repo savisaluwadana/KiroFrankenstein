@@ -241,23 +241,129 @@ func (s *Server) endDecisionWindow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	bid := app.BranchID(id)
-	if req.ExpectedHeadTick != nil {
-		head, err := s.svc.HeadTick(r.Context(), bid)
-		if err != nil {
-			s.fail(w, r, err)
-			return
-		}
-		if *req.ExpectedHeadTick != int64(head) {
-			stale := fmt.Errorf("expected head tick %d, actual %d: %w", *req.ExpectedHeadTick, head, app.ErrStaleHead)
-			s.fail(w, r, s.stale(r.Context(), stale, bid, req.ExpectedHeadTick))
-			return
-		}
-	}
-	if err := s.svc.EndDecisionWindow(r.Context(), bid, sim.Tick(*req.WindowTick)); err != nil {
-		s.fail(w, r, err)
+	if err := s.svc.EndDecisionWindow(r.Context(), bid, sim.Tick(*req.WindowTick), tickPtr(req.ExpectedHeadTick)); err != nil {
+		s.fail(w, r, s.stale(r.Context(), err, bid, req.ExpectedHeadTick))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+type injectDisruptionRequest struct {
+	Kind             string `json:"kind"`
+	StartTick        *int64 `json:"startTick"`
+	DurationTicks    *int64 `json:"durationTicks"`
+	MagnitudeBps     *int64 `json:"magnitudeBps"`
+	Target           *int64 `json:"target"`
+	Role             string `json:"role"`
+	ExpectedHeadTick *int64 `json:"expectedHeadTick"`
+}
+
+type injectDisruptionResponse struct {
+	Seq           uint64 `json:"seq"`
+	EffectiveTick int64  `json:"effectiveTick"`
+	Kind          string `json:"kind"`
+	DurationTicks int64  `json:"durationTicks"`
+	MagnitudeBps  int64  `json:"magnitudeBps"`
+	Target        int64  `json:"target"`
+	Role          string `json:"role,omitempty"`
+	Provenance    string `json:"provenance"`
+	Duplicate     bool   `json:"duplicate"`
+}
+
+func disruptionKindCode(name string) (uint8, bool) {
+	for _, c := range []uint8{sim.DisruptionDemandSurge, sim.DisruptionSupplierOutage, sim.DisruptionWorkforceAbsence} {
+		if disruptionKindName(c) == name {
+			return c, true
+		}
+	}
+	return 0, false
+}
+
+func (s *Server) injectDisruption(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r, "branchId")
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	var req injectDisruptionRequest
+	if err := decodeBody(w, r, &req, false); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	for _, f := range []struct {
+		name string
+		p    *int64
+	}{{"startTick", req.StartTick}, {"durationTicks", req.DurationTicks}} {
+		if err := requireField(f.name, f.p); err != nil {
+			s.fail(w, r, err)
+			return
+		}
+	}
+	kind, ok := disruptionKindCode(req.Kind)
+	if !ok {
+		s.fail(w, r, badRequest("unknown disruption kind", issue("kind", "must be demand_surge, supplier_outage or workforce_absence")))
+		return
+	}
+	in := app.InjectRequest{
+		Branch: app.BranchID(id), Kind: kind, StartTick: sim.Tick(*req.StartTick),
+		DurationTicks: *req.DurationTicks, Target: -1, ExpectedHeadTick: tickPtr(req.ExpectedHeadTick),
+	}
+	if req.Target != nil {
+		in.Target = *req.Target
+	}
+	if req.MagnitudeBps != nil {
+		in.MagnitudeBps = sim.Bps(*req.MagnitudeBps)
+	}
+	switch req.Role {
+	case "":
+	case "primary":
+		in.Role = sim.SupplierPrimary
+	case "backup":
+		in.Role = sim.SupplierBackup
+	default:
+		s.fail(w, r, badRequest("unknown supplier role", issue("role", "must be primary or backup")))
+		return
+	}
+	if kind == sim.DisruptionSupplierOutage && req.Role == "" {
+		s.fail(w, r, badRequest("missing request field", issue("role", "is required for supplier_outage")))
+		return
+	}
+	if kind != sim.DisruptionSupplierOutage && req.Role != "" {
+		s.fail(w, r, validation("a disruption input is invalid", issue("role", "only supplier_outage takes a role")))
+		return
+	}
+	if key, has := r.Header["Idempotency-Key"]; has {
+		if !validIdempotencyKey(key[0]) {
+			s.fail(w, r, badRequest("malformed header", issue("Idempotency-Key", "must be 1 to %d printable ASCII characters", maxIdemKeyLen)))
+			return
+		}
+		in.IdempotencyKey = key[0]
+	}
+	res, err := s.svc.InjectDisruption(r.Context(), in)
+	if err != nil {
+		if errors.Is(err, sim.ErrBadDisruption) {
+			err = validation("the disruption is outside its allowed range", issue("disruption", "%s", err.Error()))
+		}
+		s.fail(w, r, s.stale(r.Context(), err, app.BranchID(id), req.ExpectedHeadTick))
+		return
+	}
+	d, err := sim.DecodeDisruptionInput(res.Input.Payload)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	out := injectDisruptionResponse{
+		Seq: res.Input.Seq, EffectiveTick: int64(res.Input.EffectiveTick), Kind: disruptionKindName(d.Kind),
+		DurationTicks: d.DurationTicks, MagnitudeBps: int64(d.MagnitudeBps), Target: d.Target,
+		Provenance: string(res.Input.Metadata.Provenance), Duplicate: res.Duplicate,
+	}
+	if d.Kind == sim.DisruptionSupplierOutage {
+		out.Role = "primary"
+		if d.Role == sim.SupplierBackup {
+			out.Role = "backup"
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 type tickFramesResponse struct {

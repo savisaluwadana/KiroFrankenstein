@@ -21,8 +21,9 @@ const (
 // DecisionWindowOpen reports whether a Decision_Window opens at the
 // Tick_Boundary of tick and why, in ascending reason order (Req 18.1). It
 // looks only at the Scenario: cadence multiples and Disruption_Script onset
-// Ticks. Injected Disruption onsets and fork Ticks are known to the app layer,
-// which adds WindowDisruptionOnset or WindowFork itself. No window opens at or
+// Ticks. Injected Disruption onsets are added by DecisionWindowOpenInjected
+// and DecisionWindowOpenState; fork Ticks are known to the app layer, which
+// adds WindowFork itself. No window opens at or
 // after the horizon, because a Command there would take effect after it.
 func DecisionWindowOpen(sc Scenario, tick Tick) (open bool, reasons []WindowReason) {
 	if tick < 0 || int64(tick) >= sc.HorizonTicks {
@@ -71,6 +72,7 @@ type DisruptionFrame struct {
 	Origin          uint8
 	InputSeq        uint64
 	Target          int64
+	Role            uint8 // supplier role of a supplier_outage
 	MagnitudeBps    Bps
 	Onset           SimMinute
 	End             SimMinute
@@ -137,7 +139,7 @@ func BuildTickFrame(sc Scenario, st State, report FulfilmentConstraintReport) (T
 			continue
 		}
 		f.Disruptions = append(f.Disruptions, DisruptionFrame{
-			Kind: d.Kind, Origin: d.Origin, InputSeq: d.InputSeq, Target: d.Target,
+			Kind: d.Kind, Origin: d.Origin, InputSeq: d.InputSeq, Target: d.Target, Role: d.Role,
 			MagnitudeBps: d.MagnitudeBps, Onset: d.Onset, End: d.End,
 			TicksSinceOnset: int64(tick) - int64(TickOf(d.Onset)),
 		})
@@ -145,7 +147,7 @@ func BuildTickFrame(sc Scenario, st State, report FulfilmentConstraintReport) (T
 			f.Markers = append(f.Markers, FrameMarker{Kind: MarkerDisruptionOnset, Ref: int64(d.Kind)})
 		}
 	}
-	if _, reasons := DecisionWindowOpen(sc, tick); len(reasons) > 0 {
+	if _, reasons := DecisionWindowOpenState(sc, st); len(reasons) > 0 {
 		for _, r := range reasons {
 			f.Markers = append(f.Markers, FrameMarker{Kind: MarkerDecisionWindow, Ref: int64(r)})
 		}
@@ -182,7 +184,7 @@ func Advance(sc Scenario, st State, inputs []Input) (Step, error) {
 	if err != nil {
 		return Step{}, fmt.Errorf("sim: build tick frame: %w", err)
 	}
-	open, reasons := DecisionWindowOpen(sc, next.Tick())
+	open, reasons := DecisionWindowOpenState(sc, next)
 	return Step{
 		State: next, Outcomes: outcomes, Report: report, Frame: frame,
 		Window: open, WindowReasons: reasons,
@@ -196,6 +198,6 @@ func InitialFrame(sc Scenario, st State) (TickFrame, bool, error) {
 	if err != nil {
 		return TickFrame{}, false, err
 	}
-	open, _ := DecisionWindowOpen(sc, st.Tick())
+	open, _ := DecisionWindowOpenState(sc, st)
 	return f, open, nil
 }

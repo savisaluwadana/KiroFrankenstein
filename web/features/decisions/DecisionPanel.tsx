@@ -423,8 +423,8 @@ export function DecisionPanel(props: DecisionPanelProps) {
         {prSkuObs !== undefined ? (
           <p className="text-ivory-dim tabular-nums">
             Now {formatMoney(prSkuObs.priceCents)}. Allowed range: between{" "}
-            {formatMoney(priceRangeCents(prSkuObs.referencePriceCents).min)} and{" "}
-            {formatMoney(priceRangeCents(prSkuObs.referencePriceCents).max)}.
+            {formatMoney(priceRangeCents(prSkuObs.referencePriceCents, prSkuObs.priceBounds).min)} and{" "}
+            {formatMoney(priceRangeCents(prSkuObs.referencePriceCents, prSkuObs.priceBounds).max)}.
           </p>
         ) : null}
         <button type="button" className={button} onClick={addPrice}>

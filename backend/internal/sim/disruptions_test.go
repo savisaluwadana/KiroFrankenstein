@@ -82,7 +82,7 @@ func TestSupplierOutagePlacedDuringOutage(t *testing.T) {
 }
 
 func TestSupplierOutageBackupUnaffected(t *testing.T) {
-	d := ActiveDisruption{Kind: DisruptionSupplierOutage, Onset: 0, End: 100, MagnitudeBps: Bps(SupplierPrimary), Target: -1}
+	d := ActiveDisruption{Kind: DisruptionSupplierOutage, Onset: 0, End: 100, Role: SupplierPrimary, Target: -1}
 	if _, down := outageEnd([]ActiveDisruption{d}, 0, SupplierBackup, 10); down {
 		t.Error("primary outage must not affect the backup supplier")
 	}

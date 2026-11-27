@@ -120,7 +120,7 @@ func TestBranchServiceHistoryImmutable(t *testing.T) {
 			t.Errorf("window %d err = %v, want history-immutable", wt, err)
 		}
 	}
-	if err := svc.EndDecisionWindow(ctx, b.ID, 0); !errors.Is(err, app.ErrHistoryImmutable) {
+	if err := svc.EndDecisionWindow(ctx, b.ID, 0, nil); !errors.Is(err, app.ErrHistoryImmutable) {
 		t.Errorf("end old window err = %v", err)
 	}
 	if recs, _ := st.InputsForBranch(ctx, b.ID, 100); len(recs) != 0 {
@@ -242,7 +242,7 @@ func TestBranchServiceBudgetAndWindow(t *testing.T) {
 	if _, err := svc.SubmitCommands(ctx, app.SubmitRequest{Branch: b.ID, WindowTick: 0, Commands: []sim.Command{cmd}}); !errors.Is(err, app.ErrBudgetExceeded) {
 		t.Errorf("budget err = %v", err)
 	}
-	if err := svc.EndDecisionWindow(ctx, b.ID, 0); err != nil {
+	if err := svc.EndDecisionWindow(ctx, b.ID, 0, nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := svc.SubmitCommands(ctx, app.SubmitRequest{Branch: b.ID, WindowTick: 0}); !errors.Is(err, app.ErrWindowNotOpen) {

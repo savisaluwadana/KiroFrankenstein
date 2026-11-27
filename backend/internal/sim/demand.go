@@ -8,14 +8,6 @@ const (
 	// per SKU per Tick. It is fixed and never depends on commands, prices or
 	// disruptions (common random numbers, Req 7.2, INV-12).
 	DemandDrawsPerSKUPerTick = 1
-
-	// DemandNoiseBps is the half-width of the uniform arrival noise: the
-	// draw scales the expected arrivals by 1 +/- DemandNoiseBps/10000.
-	DemandNoiseBps = 2000
-
-	// MarketingSpendUnitCents is the hourly marketing spend ($100) to which
-	// DemandSpec.MarketingEffectBps applies once.
-	MarketingSpendUnitCents = 10000
 )
 
 // hourOfDay returns the hour of day (0..23) of sim minute at. Sim minute 0 is
@@ -41,8 +33,10 @@ func surgeBps(ds []ActiveDisruption, sku int64) Bps {
 // potentialArrivals is a pure function of the scenario, the hour profile, the
 // surge multiplier and one raw stream draw:
 // base * profile * surge * (1 + noise), with a single half-to-even rounding.
+// The noise is uniform in +/- d.NoiseBps; the draw is consumed regardless.
 func potentialArrivals(d DemandSpec, hour int, surge Bps, draw uint64) int64 {
-	noise := int64(draw%(2*DemandNoiseBps+1)) - DemandNoiseBps
+	amp := int64(d.NoiseBps)
+	noise := int64(draw%uint64(2*amp+1)) - amp
 	a := d.BaseArrivalsPerTick * int64(d.HourlyProfile[hour])
 	b := int64(surge) * (BpsScale + noise)
 	return MulDiv(a, b, BpsScale*BpsScale*BpsScale)
@@ -54,7 +48,7 @@ func potentialArrivals(d DemandSpec, hour int, surge Bps, draw uint64) int64 {
 func conversionBps(d DemandSpec, sku SKUSpec, price, marketing Cents) Bps {
 	priceDelta := MulDiv(int64(price-sku.ReferencePriceCents), BpsScale, int64(sku.ReferencePriceCents))
 	priceEffect := MulDiv(priceDelta, int64(d.PriceElasticityBps), BpsScale)
-	uplift := MulDiv(int64(marketing), int64(d.MarketingEffectBps), MarketingSpendUnitCents)
+	uplift := MulDiv(int64(marketing), int64(d.MarketingEffectBps), int64(d.MarketingSpendUnitCents))
 	c := int64(d.BaseConversionBps) - priceEffect + uplift
 	if c < 0 {
 		c = 0

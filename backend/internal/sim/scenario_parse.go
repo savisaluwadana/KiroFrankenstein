@@ -196,6 +196,13 @@ var scenarioSchema = obj(
 		req("priceElasticityBps", sInt),
 		req("marketingEffectBps", sInt),
 		req("cancelThresholdTicks", sInt),
+		req("noiseBps", sInt),
+		req("marketingSpendUnitCents", sInt),
+		req("maxMarketingSpendCentsPerHour", sInt),
+	)),
+	req("pricing", obj(
+		req("minPriceBps", sInt),
+		req("maxPriceBps", sInt),
 	)),
 	req("assumptionMeta", &schema{kind: kMap, elem: obj(
 		req("unit", sStr),

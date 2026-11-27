@@ -112,10 +112,14 @@ func (s *Server) Handler() http.Handler {
 		r.Post("/branches/{branchId}/advance", s.advanceBranch)
 		r.Post("/branches/{branchId}/commands", s.submitCommands)
 		r.Post("/branches/{branchId}/decision-window/end", s.endDecisionWindow)
+		r.Post("/branches/{branchId}/disruptions", s.injectDisruption)
 		r.Get("/branches/{branchId}/tick-frames", s.listTickFrames)
 		r.Get("/branches/{branchId}/state", s.getBranchState)
 		r.Get("/branches/{branchId}/metrics", s.getBranchMetrics)
 		r.Get("/branches/{branchId}/ledger", s.listLedgerEntries)
+		r.Get("/branches/{branchId}/journal", s.listJournal)
+		r.Get("/branches/{branchId}/end-of-horizon", s.getEndOfHorizon)
+		r.Get("/branches/{branchId}/export", s.exportBranch)
 	})
 	return r
 }

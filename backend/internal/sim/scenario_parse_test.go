@@ -31,7 +31,8 @@ const validScenarioDoc = `{
   "workforce": {"regularWorkers": 20, "unitsPerWorkerHour": 8, "maxOvertimePerWorker": 4, "maxTempWorkers": 30, "tempOnboardingTicks": 6},
   "wages": {"regularPerHourCents": 2200, "overtimePerHourCents": 3300, "tempPerHourCents": 2500},
   "costs": {"outboundShipCentsPerUnit": 400, "expediteFeeCents": 5000, "expediteReductionTicks": 4, "hourlyOverheadCents": 120000, "serviceCreditPerLateOrderCents": 500},
-  "demand": {"hourlyProfile": [100, 200, 300], "baseArrivalsPerTick": 60, "baseConversionBps": 5000, "priceElasticityBps": 1500, "marketingEffectBps": 300, "cancelThresholdTicks": 48},
+  "demand": {"hourlyProfile": [100, 200, 300], "baseArrivalsPerTick": 60, "baseConversionBps": 5000, "priceElasticityBps": 1500, "marketingEffectBps": 300, "cancelThresholdTicks": 48, "noiseBps": 2000, "marketingSpendUnitCents": 10000, "maxMarketingSpendCentsPerHour": 50000},
+  "pricing": {"minPriceBps": 5000, "maxPriceBps": 20000},
   "assumptionMeta": {
     "wages.tempPerHourCents": {"unit": "cents/hour", "default": 2500, "min": 1000, "max": 6000, "rationale": "Agency rate"},
     "workforce.tempOnboardingTicks": {"unit": "ticks", "default": 6, "min": 0, "max": 24, "rationale": "Hiring lag"}

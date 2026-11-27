@@ -450,15 +450,6 @@ type tickFrameDTO struct {
 	Metrics         metricsDTO           `json:"metrics"`
 }
 
-// frameMagnitude hides the role code that the engine stores in MagnitudeBps of
-// a supplier_outage (the contract reports it as supplierRole on Observations).
-func frameMagnitude(kind uint8, bps sim.Bps) int64 {
-	if kind == sim.DisruptionSupplierOutage {
-		return 0
-	}
-	return int64(bps)
-}
-
 func frameToDTO(f sim.TickFrame) tickFrameDTO {
 	d := tickFrameDTO{
 		Tick: int64(f.Tick), StateHash: hashHex(f.Hash), SKUs: make([]skuFrameDTO, 0, len(f.SKUs)),
@@ -476,7 +467,7 @@ func frameToDTO(f sim.TickFrame) tickFrameDTO {
 	for _, x := range f.Disruptions {
 		d.Disruptions = append(d.Disruptions, disruptionFrameDTO{
 			Kind: disruptionKindName(x.Kind), Origin: disruptionOriginName(x.Origin), InputSeq: x.InputSeq, Target: x.Target,
-			MagnitudeBps: frameMagnitude(x.Kind, x.MagnitudeBps), OnsetTick: int64(sim.TickOf(x.Onset)), EndTick: int64(x.End) / sim.MinutesPerTick,
+			MagnitudeBps: int64(x.MagnitudeBps), OnsetTick: int64(sim.TickOf(x.Onset)), EndTick: int64(x.End) / sim.MinutesPerTick,
 			TicksSinceOnset: x.TicksSinceOnset,
 		})
 	}
@@ -507,12 +498,19 @@ type obsSupplierDTO struct {
 	AvailableFromTick int64  `json:"availableFromTick"`
 }
 
+// priceBoundsDTO is the allowed set_price range of one product.
+type priceBoundsDTO struct {
+	MinCents int64 `json:"minCents"`
+	MaxCents int64 `json:"maxCents"`
+}
+
 type obsSKUDTO struct {
 	SKU                 int64            `json:"sku"`
 	ID                  string           `json:"id"`
 	OnHand              int64            `json:"onHand"`
 	InventoryValueCents int64            `json:"inventoryValueCents"`
 	ReferencePriceCents int64            `json:"referencePriceCents"`
+	PriceBounds         priceBoundsDTO   `json:"priceBounds"`
 	PriceCents          int64            `json:"priceCents"`
 	MarketingCents      int64            `json:"marketingCents"`
 	InboundPOs          int64            `json:"inboundPOs"`
@@ -594,7 +592,8 @@ func observationToDTO(o sim.Observation) observationDTO {
 	for _, s := range o.SKUs {
 		x := obsSKUDTO{
 			SKU: s.SKU, ID: s.ID, OnHand: s.OnHand, InventoryValueCents: int64(s.InventoryValue), ReferencePriceCents: int64(s.ReferencePriceCents),
-			PriceCents: int64(s.PriceCents), MarketingCents: int64(s.MarketingCents), InboundPOs: s.InboundPOs, InboundUnits: s.InboundUnits,
+			PriceBounds: priceBoundsDTO{MinCents: int64(s.MinPriceCents), MaxCents: int64(s.MaxPriceCents)},
+			PriceCents:  int64(s.PriceCents), MarketingCents: int64(s.MarketingCents), InboundPOs: s.InboundPOs, InboundUnits: s.InboundUnits,
 			Suppliers: make([]obsSupplierDTO, 0, len(s.Suppliers)),
 		}
 		for _, u := range s.Suppliers {
@@ -617,10 +616,10 @@ func observationToDTO(o sim.Observation) observationDTO {
 	for _, x := range o.Disruptions {
 		od := obsDisruptionDTO{
 			Kind: disruptionKindName(x.Kind), Origin: disruptionOriginName(x.Origin), InputSeq: x.InputSeq, Target: x.Target,
-			MagnitudeBps: frameMagnitude(x.Kind, x.MagnitudeBps), OnsetTick: int64(x.OnsetTick), EndTick: int64(x.EndTick),
+			MagnitudeBps: int64(x.MagnitudeBps), OnsetTick: int64(x.OnsetTick), EndTick: int64(x.EndTick),
 		}
 		if x.Kind == sim.DisruptionSupplierOutage {
-			od.SupplierRole = supplierRoleName(uint8(x.MagnitudeBps))
+			od.SupplierRole = supplierRoleName(x.Role)
 		}
 		d.Disruptions = append(d.Disruptions, od)
 	}

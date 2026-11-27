@@ -28,7 +28,8 @@ func roundTripBase() *Scenario {
 		Workforce:              WorkforceSpec{10, 20, 2, 5, 6},
 		Wages:                  WagesSpec{2000, 3000, 2500},
 		Costs:                  CostsSpec{300, 500, 4, 100, 200},
-		Demand:                 DemandSpec{BaseArrivalsPerTick: 60, BaseConversionBps: 5000, PriceElasticityBps: 1500, MarketingEffectBps: 300, CancelThresholdTicks: 48},
+		Demand:                 DemandSpec{BaseArrivalsPerTick: 60, BaseConversionBps: 5000, PriceElasticityBps: 1500, MarketingEffectBps: 300, CancelThresholdTicks: 48, NoiseBps: 2000, MarketingSpendUnitCents: 10000, MaxMarketingSpendCentsPerHour: 50000},
+		Pricing:                PricingSpec{MinPriceBps: 5000, MaxPriceBps: 20000},
 	}
 	for i := 0; i < HourlyProfileLen; i++ {
 		s.Demand.HourlyProfile = append(s.Demand.HourlyProfile, 10000)
@@ -66,6 +67,7 @@ func genScenario(t *rapid.T) *Scenario {
 	fixed := map[string]bool{
 		"tieToleranceHundredths": true, "profitFloorCents": true, "profitTargetCents": true,
 		"scoreWeights.financialWeightBps": true, "scoreWeights.fulfilmentWeightBps": true, "scoreWeights.onTimeWeightBps": true,
+		"demand.marketingSpendUnitCents": true, "pricing.minPriceBps": true, "pricing.maxPriceBps": true,
 	}
 	s.AssumptionMeta = map[string]AssumptionMeta{}
 	for _, r := range assumptionRefs(s) {

@@ -144,6 +144,7 @@ func Encode(s State) []byte {
 		e.i64(int64(d.End))
 		e.i64(int64(d.MagnitudeBps))
 		e.i64(d.Target)
+		e.u8(d.Role)
 	}
 
 	prices := append([]SKUPrice(nil), s.Prices...)
@@ -333,7 +334,7 @@ func Decode(b []byte) (State, error) {
 		}
 	}
 
-	if n := d.count(42); n > 0 {
+	if n := d.count(43); n > 0 {
 		s.Disruptions = make([]ActiveDisruption, n)
 		for i := range s.Disruptions {
 			a := &s.Disruptions[i]
@@ -344,6 +345,7 @@ func Decode(b []byte) (State, error) {
 			a.End = SimMinute(d.i64())
 			a.MagnitudeBps = Bps(d.i64())
 			a.Target = d.i64()
+			a.Role = d.u8()
 		}
 	}
 

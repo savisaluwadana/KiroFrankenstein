@@ -1,0 +1,21 @@
+{
+  "scenarioHash": "cfe8373209240221e76d87cfb559d8fc7314784f22ba98eb63af5a28fe87afe8",
+  "seed": 2026,
+  "engineVersion": "2",
+  "inputs": [
+    {
+      "effectiveTick": 21,
+      "seq": 1,
+      "kind": "command",
+      "command": {
+        "kind": "place_purchase_order",
+        "sku": 2,
+        "role": 1,
+        "qty": 315,
+        "amountCents": 0,
+        "poRef": 0
+      },
+      "provenance": "human"
+    }
+  ]
+}
