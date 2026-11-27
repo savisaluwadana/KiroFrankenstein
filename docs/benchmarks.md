@@ -8,11 +8,11 @@ Early benchmark report (Requirement 29.8 to 29.11). Every figure below comes fro
 |---|---|---|
 | 29.1 Flagship replay, Tick 0 to 120, Sim_CLI-equivalent in-process | 500 ms | **Measured (early proxy, in-process engine loop)**: median 87.4 ms, p95 98.3 ms. Met. |
 | 29.2 50-Seed Paired_Experiment | 60 s | **Measured (task 7.15, real Ensemble_Runner, engine version 2, calibrated flagship)**: median 3.27 s at the default concurrency (GOMAXPROCS 10), p95 3.38 s; median 13.00 s at concurrency 1. Target 60 s: met, with the default-concurrency median at about 5.5% of the budget and the sequential median at about 21.7%. See "50-Seed paired ensemble (2026-11-27)" below. |
-| 29.3 State read p95 300 ms | | target, not yet measured |
-| 29.4 Fork 500 ms | | target, not yet measured |
-| 29.5 Diff 1 s | | target, not yet measured |
-| 29.6 Advance to horizon 1 s | | target, not yet measured |
-| 29.7 Tick_Frames range 1 s | | target, not yet measured |
+| 29.3 State read p95 300 ms | 300 ms (p95, demo host) | **Measured (task 8.2, laptop, not the demo host)**: horizon read warm median 1.47 ms, cold-service median 46.3 ms; rewind read of Tick 60 warm median 14.0 ms, cold 35.9 ms (worst p95 47.9 ms). Met by about 252 ms. |
+| 29.4 Fork 500 ms | 500 ms (demo host) | **Measured (task 8.2, laptop)**: median 1.71 ms, p95 1.77 ms. Met by about 498 ms. |
+| 29.5 Diff 1 s | 1 s (demo host) | **Measured (task 8.2, laptop)**: warm median 62.5 ms, cold-service median 242.2 ms (p95 253.9 ms). Met by about 746 ms (cold). |
+| 29.6 Advance to horizon 1 s | 1 s (demo host) | **Measured (task 8.2, laptop)**: one request from Tick 60 to the horizon median 316.6 ms (p95 402.2 ms); Tick 0 to the horizon through 4 requests median 308.0 ms (p95 349.0 ms). Met by about 598 ms (worst p95). |
+| 29.7 Tick_Frames range 1 s | 1 s (demo host) | **Met after the M7 fix (laptop)**: 120 frames cold median 114.6 ms, worst of 5 means 120.6 ms (met by about 879 ms); warm median 0.68 ms. **Earlier miss, kept on record (task 8.2)**: cold median 1881.3 ms, p95 1906.9 ms, missed by about 881 ms. See "M7 fix: cold frame range read" below. |
 
 Note: the figures below were measured with engine version 1 (`sim.EngineVersion` = 1, hash `96e7d8d9...`). Engine version 2 (task 3.5) adds one disruption-stream draw per Tick and one encoded byte per active disruption; the numbers predate it and have not been re-measured.
 
@@ -171,3 +171,159 @@ BenchmarkPairedEnsemble50/concurrency-1-10                	       3	12773738861 
 PASS
 ok  	github.com/savisaluwadana/KiroFrankenstein/backend/internal/app/ensemble	326.145s
 ```
+
+## API operation benchmarks (Postgres) (2026-11-28)
+
+Task 8.2, Requirements 29.3 to 29.7, 29.8, 29.10, 29.11. Results are for synthetic simulation only. The 29.3 to 29.7 budgets are stated for "the demo host", which is not chosen yet, and these numbers come from a developer laptop. Treat them as indicative until a demo host exists; they do not show the budgets are met on that host.
+
+Benchmarks: `backend/internal/httpapi/bench_test.go`, package `httpapi_test`. Each request goes through the real Chi router and middleware, `BranchService`, `postgres.Store` (PostgreSQL 16) and the engine, using `httptest` (no TCP, so network and TLS time are not included, and SSE is not involved). The measured build keeps every check on: command validation, invariants, snapshot verification, projections, canonical encoding and state hashing. Only the per-IP request-rate and World-creation limiters are raised in the harness, because setup creates many Worlds.
+
+| Item | Value |
+|---|---|
+| Hardware, CPU, memory | MacBook Pro Mac17,2, Apple M5 (10 cores), 16 GB (17179869184 bytes); `GOMAXPROCS` 10 |
+| OS, Go | macOS 26.2, darwin/arm64, go1.25.5 |
+| Engine version | `sim.EngineVersion` = 2 |
+| Scenario | `backend/scenarios/black-friday.json`, "Black Friday Meltdown" (calibrated), 4 SKUs, horizon 120 Ticks; canonical scenario hash `1a56aa3aee635ea8164f0379f3e184474d37949a2f67c6a6f8784416e0e7a337`; demo plan Seed 2026 (the `/demo` endpoint). Event count per run not measured. |
+| PostgreSQL | 16.16 in Docker (`postgres:16`, compose service `db`) on the same machine, published as `127.0.0.1:55432`; database `parallel_test`, runtime role `parallel_app`; migrated to version 6 with the `parallel_migrator` role first |
+| Commit | `3dc50289ff6285e93d138b6bf0ff7d2198f22e6c` with a **dirty working tree** (about 124 changed or untracked paths, including the new `bench_test.go`) |
+| Machine state | Quiet apart from an idle `parallel-api` dev process (about 0% CPU) and the idle Postgres container |
+| Command | `cd backend && PARALLEL_TEST_DATABASE_URL=postgres://parallel_app:app_dev_password@127.0.0.1:55432/parallel_test?sslmode=disable go test ./internal/httpapi -run '^$' -bench . -benchtime 20x -count 5` (the task's command with the local URL and port; one adjustment: the task text shows `parallel:parallel@localhost:5432`). Wall clock 373.7 s. |
+| Iterations | Go runs one calibration iteration (b.N = 1) before each sample, discarded. Each benchmark also performs one untimed request first (warm-up and response check). 20 measured iterations per sample, 5 samples, so 100 measured requests per benchmark. |
+| Statistics | Each sample is the mean over its 20 iterations. Median is the 3rd sorted sample; p95 is linear interpolation at rank 3.8 of the 5 sample means. It is not a per-request p95, so it understates tail latency; treat as indicative. |
+
+What each benchmark measures:
+
+- `StateRead`: `GET /branches/{id}/state?tick=T` for a root Branch at the horizon, T = 120 ("horizon") and T = 60 (a rewind read). "warm": one service instance, head cached. "cold": a new `BranchService` per iteration over the same database (service construction is untimed), as after a restart.
+- `Fork`: `POST /branches/{id}/fork` at Tick 60 of a Branch at the horizon. A World allows 32 Branches, so a fresh World is prepared (untimed) every 30 forks.
+- `Diff`: `POST /diffs` of the parent and a fork child (forked at the plan fork Tick, one demo command, advanced to the horizon), `comparisonTick` 120. Warm and cold as above.
+- `Advance`: a fresh demo World each iteration (creation untimed). `from-zero`: Tick 0 to the horizon through 4 requests (the root pauses at disruption onsets, so the requests resume after each pause; the 4 requests are timed together). `last-segment`: the setup advances to Tick 60, which is where the last pause ends; the timed part is the single request from Tick 60 to the horizon, which has no open Decision_Window in between (the 29.6 wording). Persistence of inputs, projections and snapshots is included.
+- `TickFrames`: `GET /branches/{id}/tick-frames?from=1&to=120` (120 frames, 29.7), warm and cold.
+
+Results (milliseconds, over the 5 sample means):
+
+| Benchmark | Min | Median | p95 | Max | Budget | Verdict |
+|---|---|---|---|---|---|---|
+| StateRead horizon warm | 1.37 | 1.47 | 1.57 | 1.59 | 300 ms p95 (29.3) | measured 1.57 vs 300: met by 298.4 |
+| StateRead horizon cold | 45.15 | 46.26 | 47.94 | 48.13 | 300 ms p95 (29.3) | measured 47.94 vs 300: met by 252.1 |
+| StateRead rewind Tick 60 warm | 13.53 | 14.00 | 16.78 | 17.07 | 300 ms p95 (29.3) | measured 16.78 vs 300: met by 283.2 |
+| StateRead rewind Tick 60 cold | 34.55 | 35.90 | 40.97 | 42.19 | 300 ms p95 (29.3) | measured 40.97 vs 300: met by 259.0 |
+| Fork at Tick 60 | 1.59 | 1.71 | 1.77 | 1.77 | 500 ms (29.4) | measured 1.77 vs 500: met by 498.2 |
+| Diff at horizon warm | 60.52 | 62.48 | 66.61 | 67.52 | 1000 ms (29.5) | measured 66.61 vs 1000: met by 933.4 |
+| Diff at horizon cold | 231.55 | 242.18 | 253.86 | 255.88 | 1000 ms (29.5) | measured 253.86 vs 1000: met by 746.1 |
+| Advance Tick 60 to horizon (one request) | 267.59 | 316.63 | 402.18 | 420.17 | 1000 ms (29.6) | measured 402.18 vs 1000: met by 597.8 |
+| Advance Tick 0 to horizon (4 requests) | 297.50 | 308.03 | 348.99 | 353.48 | 1000 ms (29.6, stricter than the wording) | measured 348.99 vs 1000: met by 651.0 |
+| TickFrames 120 warm | 21.36 | 26.38 | 26.53 | 26.54 | 1000 ms (29.7) | measured 26.53 vs 1000: met by 973.5 |
+| TickFrames 120 cold | 1852.78 | 1881.29 | 1906.89 | 1912.57 | 1000 ms (29.7) | **measured 1906.89 vs 1000: missed by 906.9** (median 1881.3, missed by 881.3) |
+
+29.3 is a 95th percentile over requests; the figures above are percentile-of-means, so 29.3 is only indicatively met. No other budget is within a factor of two of its limit except the cold Tick_Frames read.
+
+Shortfall and hot spot (29.11): the cold 120-frame read misses 1 s. A CPU profile of `BenchmarkAPITickFrames/cold` (`-cpuprofile`, 5 iterations; most of the run is untimed setup) shows the handler time dominated by `(*BranchService).FrameAt` (2.63 s cumulative) which calls `rebuild` (2.40 s), which runs `sim.Advance` (2.37 s) with `sim.BuildTickFrame` (1.89 s) and `sim.Hash` (1.79 s). `listTickFrames` calls `FrameAt` once per Tick and `FrameAt` rebuilds from the stored inputs for any Tick not in the cached head, so a cold range read appears to replay the Branch once per frame (up to 120 replays, 7,260 `Advance` steps) instead of once for the range. Reading the code and the profile agree on this; I did not count the replays directly. A fix (rebuild once per range, or cache the rebuilt frames) changes `internal/app` and `internal/httpapi`, so it was not done in this task (outside the allowed files, and not trivially safe). All determinism, invariant and validation checks stayed enabled. The warm read (head cached) takes about 26 ms; I did not measure whether a second read after a cold one is warm, so how often the cold case occurs in the demo is not established.
+
+Raw output (`/tmp/api-bench.txt`):
+
+```
+goos: darwin
+goarch: arm64
+pkg: github.com/savisaluwadana/KiroFrankenstein/backend/internal/httpapi
+cpu: Apple M5
+BenchmarkAPIStateRead/horizon-warm-10         	      20	   1589746 ns/op
+BenchmarkAPIStateRead/horizon-warm-10         	      20	   1465019 ns/op
+BenchmarkAPIStateRead/horizon-warm-10         	      20	   1453435 ns/op
+BenchmarkAPIStateRead/horizon-warm-10         	      20	   1369533 ns/op
+BenchmarkAPIStateRead/horizon-warm-10         	      20	   1489340 ns/op
+BenchmarkAPIStateRead/horizon-cold-10         	      20	  47205125 ns/op
+BenchmarkAPIStateRead/horizon-cold-10         	      20	  45147460 ns/op
+BenchmarkAPIStateRead/horizon-cold-10         	      20	  46264204 ns/op
+BenchmarkAPIStateRead/horizon-cold-10         	      20	  48128231 ns/op
+BenchmarkAPIStateRead/horizon-cold-10         	      20	  45179158 ns/op
+BenchmarkAPIStateRead/rewind-60-warm-10       	      20	  13999225 ns/op
+BenchmarkAPIStateRead/rewind-60-warm-10       	      20	  13684846 ns/op
+BenchmarkAPIStateRead/rewind-60-warm-10       	      20	  17074538 ns/op
+BenchmarkAPIStateRead/rewind-60-warm-10       	      20	  15580850 ns/op
+BenchmarkAPIStateRead/rewind-60-warm-10       	      20	  13531731 ns/op
+BenchmarkAPIStateRead/rewind-60-cold-10       	      20	  34656269 ns/op
+BenchmarkAPIStateRead/rewind-60-cold-10       	      20	  42194235 ns/op
+BenchmarkAPIStateRead/rewind-60-cold-10       	      20	  34547988 ns/op
+BenchmarkAPIStateRead/rewind-60-cold-10       	      20	  35900910 ns/op
+BenchmarkAPIStateRead/rewind-60-cold-10       	      20	  36057058 ns/op
+BenchmarkAPIFork-10                           	      20	   1706938 ns/op
+BenchmarkAPIFork-10                           	      20	   1738265 ns/op
+BenchmarkAPIFork-10                           	      20	   1591750 ns/op
+BenchmarkAPIFork-10                           	      20	   1774435 ns/op
+BenchmarkAPIFork-10                           	      20	   1656369 ns/op
+BenchmarkAPIDiff/warm-10                      	      20	  62945665 ns/op
+BenchmarkAPIDiff/warm-10                      	      20	  60518077 ns/op
+BenchmarkAPIDiff/warm-10                      	      20	  62478040 ns/op
+BenchmarkAPIDiff/warm-10                      	      20	  61580990 ns/op
+BenchmarkAPIDiff/warm-10                      	      20	  67521315 ns/op
+BenchmarkAPIDiff/cold-10                      	      20	 231551098 ns/op
+BenchmarkAPIDiff/cold-10                      	      20	 242178658 ns/op
+BenchmarkAPIDiff/cold-10                      	      20	 245763287 ns/op
+BenchmarkAPIDiff/cold-10                      	      20	 255879936 ns/op
+BenchmarkAPIDiff/cold-10                      	      20	 240327556 ns/op
+BenchmarkAPIAdvance/from-zero-10              	      20	 308027923 ns/op	         4.000 requests/op
+BenchmarkAPIAdvance/from-zero-10              	      20	 298680481 ns/op	         4.000 requests/op
+BenchmarkAPIAdvance/from-zero-10              	      20	 297497881 ns/op	         4.000 requests/op
+BenchmarkAPIAdvance/from-zero-10              	      20	 331040942 ns/op	         4.000 requests/op
+BenchmarkAPIAdvance/from-zero-10              	      20	 353481506 ns/op	         4.000 requests/op
+BenchmarkAPIAdvance/last-segment-10           	      20	 288914977 ns/op	        60.00 start-tick
+BenchmarkAPIAdvance/last-segment-10           	      20	 330206340 ns/op	        60.00 start-tick
+BenchmarkAPIAdvance/last-segment-10           	      20	 316634736 ns/op	        60.00 start-tick
+BenchmarkAPIAdvance/last-segment-10           	      20	 420169054 ns/op	        60.00 start-tick
+BenchmarkAPIAdvance/last-segment-10           	      20	 267591810 ns/op	        60.00 start-tick
+BenchmarkAPITickFrames/warm-10                	      20	  26541233 ns/op
+BenchmarkAPITickFrames/warm-10                	      20	  22795181 ns/op
+BenchmarkAPITickFrames/warm-10                	      20	  26384685 ns/op
+BenchmarkAPITickFrames/warm-10                	      20	  21364535 ns/op
+BenchmarkAPITickFrames/warm-10                	      20	  26465633 ns/op
+BenchmarkAPITickFrames/cold-10                	      20	1881290106 ns/op
+BenchmarkAPITickFrames/cold-10                	      20	1912567679 ns/op
+BenchmarkAPITickFrames/cold-10                	      20	1884172769 ns/op
+BenchmarkAPITickFrames/cold-10                	      20	1852776908 ns/op
+BenchmarkAPITickFrames/cold-10                	      20	1870692813 ns/op
+PASS
+ok  	github.com/savisaluwadana/KiroFrankenstein/backend/internal/httpapi	373.708s
+```
+
+## M7 fix: cold frame range read (2026-11-28)
+
+The 8.2 miss above (cold 120-frame `tick-frames` read, 1881 ms median against 1 s) was fixed in the M7 final checkpoint. The earlier numbers and analysis above stay as recorded.
+
+Change: `BranchService.FramesRange(ctx, id, from, to)` (`backend/internal/app/branch_service.go`) returns the frames from the head cache when it holds all of them, else recomputes the whole range with ONE replay from the best trusted snapshot at or before `from-1` (else from Init), through the same `replayTo` that `FrameAt` uses. `listTickFrames` and the SSE catch-up (`drain`) call it instead of `FrameAt` once per tick. No engine code, state or hash changed; frames are the engine's own output. Tests (`backend/internal/app/frames_range_test.go`): a cold range equals `FrameAt` hash and tick for every tick in six ranges; the `ReplayStart` hook shows at most one replay per range, resuming at snapshot 24 for range 30..40; the same holds on a fork child across the ancestor's snapshot; a range beyond the head fails. I did not verify what caused the faster warm read (26 ms to 0.68 ms); the warm path now makes one lock acquisition and one cache walk instead of 120, which may explain part of it.
+
+Command (same hardware and method as the 8.2 section: Apple M5, 10 cores, 16 GB, macOS, Go 1.25, PostgreSQL 16 on Docker port 55432):
+
+`cd backend && PARALLEL_TEST_DATABASE_URL=postgres://parallel_app:app_dev_password@127.0.0.1:55432/parallel_test?sslmode=disable go test ./internal/httpapi -run '^$' -bench 'TickFrames' -benchtime 20x -count 5`
+
+| Case | Runs (ms/op) | Median | Budget | Result |
+|---|---|---|---|---|
+| TickFrames 120 warm | 0.685, 0.681, 0.685, 0.663, 0.706 | 0.685 | 1000 ms (29.7) | met |
+| TickFrames 120 cold | 114.58, 120.63, 112.74, 115.56, 110.23 | 114.58 (max 120.63) | 1000 ms (29.7) | met by about 879 ms |
+
+Same caveat as before: a developer laptop, not the demo host; percentile-of-means over 5 samples.
+
+Raw output:
+
+```
+BenchmarkAPITickFrames/warm-10         	      20	    685171 ns/op
+BenchmarkAPITickFrames/warm-10         	      20	    681377 ns/op
+BenchmarkAPITickFrames/warm-10         	      20	    684619 ns/op
+BenchmarkAPITickFrames/warm-10         	      20	    663090 ns/op
+BenchmarkAPITickFrames/warm-10         	      20	    705831 ns/op
+BenchmarkAPITickFrames/cold-10         	      20	 114580865 ns/op
+BenchmarkAPITickFrames/cold-10         	      20	 120631413 ns/op
+BenchmarkAPITickFrames/cold-10         	      20	 112736996 ns/op
+BenchmarkAPITickFrames/cold-10         	      20	 115561608 ns/op
+BenchmarkAPITickFrames/cold-10         	      20	 110230323 ns/op
+```
+
+## Live provider run
+
+Not run. Live provider verification is PENDING: no credentials were available during development. Fill this table only from the report of `parallel-sim llm-check --confirm-paid-call` (procedure: `docs/live-llm-verification.md`).
+
+| Field | Value |
+|---|---|
+| Date (UTC), provider host, model id | not run |
+| Completion latency (ms), HTTP status | not run |
+| Prompt, completion, total tokens (provider-reported) | not run |
+| Reserved estimate | not run |
