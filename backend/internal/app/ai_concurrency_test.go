@@ -463,7 +463,8 @@ func TestAIConcurrencyWorldCaps(t *testing.T) {
 		reply stubReply
 	}{
 		{"call cap", func(c *llm.Config) { c.MaxCallsPerWorld = 3 }, okReply(validProposal)},
-		{"token cap", func(c *llm.Config) { c.MaxTokensPerCall, c.MaxTotalTokensPerWorld = 100, 300 }, stubReply{content: validProposal, prompt: 60, completion: 40}},
+		// A window reserves about 1440 tokens (estimated prompt + 100): 3 fit in 5000, a fourth does not.
+		{"token cap", func(c *llm.Config) { c.MaxTokensPerCall, c.MaxTotalTokensPerWorld = 100, 5000 }, stubReply{content: validProposal, prompt: 60, completion: 40}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

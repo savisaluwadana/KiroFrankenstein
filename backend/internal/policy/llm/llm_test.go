@@ -23,7 +23,7 @@ func env(m map[string]string) func(string) string { return func(k string) string
 
 func testConfig(base string) Config {
 	return Config{BaseURL: base, APIKey: testKey, Model: "test-model", RequestTimeout: 2 * time.Second,
-		MaxCallsPerWorld: 5, MaxTokensPerCall: 256, MaxTotalTokensPerWorld: 1000, AppTitle: "Parallel", HTTPReferer: "http://x.test"}
+		MaxCallsPerWorld: 5, MaxTokensPerCall: 256, MaxTotalTokensPerWorld: 4000, AppTitle: "Parallel", HTTPReferer: "http://x.test"}
 }
 
 func envelope(content string, total int) string {
@@ -252,7 +252,7 @@ func TestBudgetExhaustion(t *testing.T) {
 	calls := 0
 	m, _ := newManager(t, func(w http.ResponseWriter, r *http.Request) {
 		calls++
-		_, _ = io.WriteString(w, envelope(`{"commands":[],"rationale":"hold"}`, 600))
+		_, _ = io.WriteString(w, envelope(`{"commands":[],"rationale":"hold"}`, 1500))
 	})
 	if _, err := m.Propose(context.Background(), testObs(), 2); err != nil {
 		t.Fatal(err)
@@ -260,7 +260,8 @@ func TestBudgetExhaustion(t *testing.T) {
 	if _, err := m.Propose(context.Background(), testObs(), 2); err != nil {
 		t.Fatal(err)
 	}
-	// 1200 >= 1000 total tokens: exhausted before the third call.
+	// 3000 used + reservation (~256 + prompt estimate) > 1000: exhausted
+	// before the third call.
 	_, err := m.Propose(context.Background(), testObs(), 2)
 	if !errors.Is(err, ErrBudgetExhausted) || FallbackReason(err) != "budget_exhausted" || calls != 2 {
 		t.Fatalf("err = %v, calls = %d", err, calls)
@@ -268,12 +269,12 @@ func TestBudgetExhaustion(t *testing.T) {
 	// Call cap.
 	tr := NewTracker(testConfig("x"))
 	for i := 0; i < 5; i++ {
-		if err := tr.Reserve(); err != nil {
+		if err := tr.Reserve(10); err != nil {
 			t.Fatal(err)
 		}
-		tr.Record(Usage{}) // every Reserve is settled by one Record
+		tr.Settle(10, Usage{}) // every Reserve is settled by one Settle
 	}
-	if err := tr.Reserve(); !errors.Is(err, ErrBudgetExhausted) || tr.Usage().Calls != 5 {
+	if err := tr.Reserve(10); !errors.Is(err, ErrBudgetExhausted) || tr.Usage().Calls != 5 {
 		t.Fatalf("call cap: %v %+v", err, tr.Usage())
 	}
 }
@@ -283,8 +284,10 @@ func TestMissingUsageChargesCap(t *testing.T) {
 	if _, err := m.Propose(context.Background(), testObs(), 1); err != nil {
 		t.Fatal(err)
 	}
-	if m.Usage().TotalTokens != 256 {
-		t.Fatalf("usage = %+v", m.Usage())
+	// The whole reservation is charged: prompt estimate + max_tokens.
+	sys, user := SystemPrompt(1), mustPrompt(t, 1)
+	if want := m.cfg.ReservationTokens(sys, user); m.Usage().TotalTokens != want || want <= 256 {
+		t.Fatalf("usage = %+v, want total %d", m.Usage(), want)
 	}
 }
 
@@ -317,22 +320,31 @@ func TestNewClientNotConfigured(t *testing.T) {
 	}
 }
 
-// Reservations that are not yet recorded count against the token limit, so
+func mustPrompt(t *testing.T, budget int) string {
+	t.Helper()
+	u, err := UserPrompt(testObs(), budget)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return u
+}
+
+// Reservations that are not yet settled count against the token limit, so
 // concurrent windows cannot all pass a limit only the first ones fit.
 func TestTrackerCountsInflightTokens(t *testing.T) {
 	cfg := testConfig("x")
-	cfg.MaxTokensPerCall, cfg.MaxTotalTokensPerWorld = 100, 300
+	cfg.MaxTotalTokensPerWorld = 300
 	tr := NewTracker(cfg)
 	for i := 0; i < 3; i++ {
-		if err := tr.Reserve(); err != nil {
+		if err := tr.Reserve(100); err != nil {
 			t.Fatalf("reserve %d: %v", i, err)
 		}
 	}
-	if err := tr.Reserve(); !errors.Is(err, ErrBudgetExhausted) {
+	if err := tr.Reserve(1); !errors.Is(err, ErrBudgetExhausted) {
 		t.Fatalf("fourth reserve = %v, want exhausted", err)
 	}
-	tr.Record(Usage{PromptTokens: 10, CompletionTokens: 10, TotalTokens: 20})
-	if err := tr.Reserve(); err != nil {
+	tr.Settle(100, Usage{PromptTokens: 10, CompletionTokens: 10})
+	if err := tr.Reserve(80); err != nil {
 		t.Fatalf("a settled reservation must free its share: %v", err)
 	}
 }

@@ -28,7 +28,7 @@ func TestEnvExample(t *testing.T) {
 			t.Errorf(".env.example lacks line %q", l)
 		}
 	}
-	for _, v := range []string{EnvTimeoutSeconds, EnvMaxCalls, EnvMaxTokens, EnvMaxTotalTokens, EnvHTTPReferer, EnvAppTitle} {
+	for _, v := range []string{EnvTimeoutSeconds, EnvMaxCalls, EnvMaxTokens, EnvMaxTotalTokens, EnvHTTPReferer, EnvAppTitle, EnvMaxPromptBytes, EnvGlobalMaxCalls, EnvGlobalMaxTokens, EnvGlobalWindow, EnvMaxConcurrentCalls} {
 		if !regexp.MustCompile(`(?m)^# ` + v + `=`).MatchString(s) {
 			t.Errorf(".env.example lacks commented placeholder for %s", v)
 		}

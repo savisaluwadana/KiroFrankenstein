@@ -88,4 +88,34 @@ func RunDecisions(t *testing.T, f Factory) {
 			t.Fatalf("unknown branch: %v", err)
 		}
 	})
+
+	t.Run("llm usage since sums records over all branches", func(t *testing.T) {
+		s := f(t)
+		d := s.(app.DecisionRepo)
+		seed(t, s, "w1", app.Branch{ID: "a", ManagerKind: app.ManagerAILLM})
+		seed(t, s, "w2", app.Branch{ID: "b", ManagerKind: app.ManagerAILLM})
+		cut := time.Date(2026, 11, 27, 0, 0, 0, 0, time.UTC)
+		// The database may hold other rows (records are append-only), so the
+		// test compares the sum before and after its own inserts.
+		before, err := d.LLMUsageSince(ctx, cut)
+		if err != nil {
+			t.Fatal(err)
+		}
+		old := rec("a", 0)
+		old.CreatedAt = cut.Add(-time.Second) // before the cut: not counted
+		for _, r := range []app.DecisionRecord{old, rec("a", 4), rec("b", 0), rec("b", 4)} {
+			if err := d.AppendDecision(ctx, r); err != nil {
+				t.Fatal(err)
+			}
+		}
+		after, err := d.LLMUsageSince(ctx, cut)
+		got := app.LLMUsageSum{Calls: after.Calls - before.Calls, PromptTokens: after.PromptTokens - before.PromptTokens, CompletionTokens: after.CompletionTokens - before.CompletionTokens}
+		want := app.LLMUsageSum{Calls: 3, PromptTokens: 360, CompletionTokens: 135}
+		if err != nil || got != want {
+			t.Fatalf("usage = %+v, %v; want %+v", got, err, want)
+		}
+		if none, _ := d.LLMUsageSince(ctx, time.Date(2999, 1, 1, 0, 0, 0, 0, time.UTC)); none != (app.LLMUsageSum{}) {
+			t.Fatalf("future cut = %+v", none)
+		}
+	})
 }

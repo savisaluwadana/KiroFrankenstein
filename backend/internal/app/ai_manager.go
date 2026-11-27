@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/savisaluwadana/KiroFrankenstein/backend/internal/policy"
 	"github.com/savisaluwadana/KiroFrankenstein/backend/internal/policy/rulebased"
@@ -117,6 +118,22 @@ func (d *memDecisions) DecisionsForBranch(_ context.Context, id BranchID) ([]Dec
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return append([]DecisionRecord(nil), d.m[id]...), nil
+}
+
+func (d *memDecisions) LLMUsageSince(_ context.Context, since time.Time) (LLMUsageSum, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	var u LLMUsageSum
+	for _, recs := range d.m {
+		for _, r := range recs {
+			if !r.CreatedAt.Before(since) {
+				u.Calls += r.LLMCallsCharged
+				u.PromptTokens += r.PromptTokens
+				u.CompletionTokens += r.CompletionTokens
+			}
+		}
+	}
+	return u, nil
 }
 
 // observeWindow is the Observation of a Branch at state st as a Human gets it:
@@ -372,6 +389,17 @@ func (s *BranchService) commitDecisionLocked(ctx context.Context, c branchCtx, d
 			IdempotencyKey: fmt.Sprintf("ai-window-%d", tick),
 			Metadata:       Metadata{Provenance: dec.Provenance, Rationale: dec.Rationale, ModelName: dec.Model},
 		})
+		if errors.Is(err, ErrDuplicateIdempotencyKey) {
+			// Another writer over the same store (another process) committed this
+			// window's decision between our check and our insert. The stored inputs
+			// stand; ours are discarded unchanged and no second record is written.
+			// shortcut: the call this process made is not persisted (one record per
+			// window, the winner's); upgrade if multi-process writers are supported.
+			slog.Warn("ai-decision-lost-race", "branch", string(c.b.ID), "tick", int64(tick))
+			s.ended[c.b.ID] = tick
+			s.bump(c.b.ID)
+			return nil
+		}
 		if err != nil {
 			return fmt.Errorf("submit ai commands of branch %s at tick %d: %w", c.b.ID, tick, err)
 		}

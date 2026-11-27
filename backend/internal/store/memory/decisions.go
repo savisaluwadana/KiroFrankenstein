@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/savisaluwadana/KiroFrankenstein/backend/internal/app"
 )
@@ -43,4 +44,21 @@ func (s *Store) DecisionsForBranch(_ context.Context, id app.BranchID) ([]app.De
 		out = append(out, cloneDecision(d))
 	}
 	return out, nil
+}
+
+// LLMUsageSince implements app.DecisionRepo.
+func (s *Store) LLMUsageSince(_ context.Context, since time.Time) (app.LLMUsageSum, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var u app.LLMUsageSum
+	for _, recs := range s.decisions {
+		for _, r := range recs {
+			if !r.CreatedAt.Before(since) {
+				u.Calls += r.LLMCallsCharged
+				u.PromptTokens += r.PromptTokens
+				u.CompletionTokens += r.CompletionTokens
+			}
+		}
+	}
+	return u, nil
 }

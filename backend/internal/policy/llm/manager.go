@@ -3,6 +3,7 @@ package llm
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"unicode"
 	"unicode/utf8"
@@ -51,16 +52,21 @@ func (m *Manager) Propose(ctx context.Context, obs sim.Observation, budget int) 
 	if budget < 0 {
 		budget = 0
 	}
-	if err := m.tracker.Reserve(); err != nil {
-		return policy.Proposal{}, err
-	}
 	user, err := UserPrompt(obs, budget)
 	if err != nil {
-		m.tracker.Record(Usage{}) // settle the reservation: no request was made
 		return policy.Proposal{}, fmt.Errorf("%w: encode observation", ErrHTTP)
 	}
-	content, usage, err := m.client.Complete(ctx, SystemPrompt(budget), user)
-	m.tracker.Record(usage)
+	system := SystemPrompt(budget)
+	res, err := m.client.Reserve(m.tracker, system, user)
+	if err != nil {
+		return policy.Proposal{}, err
+	}
+	content, usage, err := m.client.Complete(ctx, system, user)
+	if errors.Is(err, ErrSaturated) {
+		res.Release() // no request was made
+	} else {
+		res.Settle(usage)
+	}
 	if err != nil {
 		return policy.Proposal{}, err
 	}

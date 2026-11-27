@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/savisaluwadana/KiroFrankenstein/backend/internal/app"
 	"github.com/savisaluwadana/KiroFrankenstein/backend/internal/sim"
@@ -85,4 +86,17 @@ func (s *Store) DecisionsForBranch(ctx context.Context, id app.BranchID) ([]app.
 		out = append(out, d)
 	}
 	return out, rows.Err()
+}
+
+// LLMUsageSince implements app.DecisionRepo. It is served by the
+// decision_records_created_at_idx index.
+func (s *Store) LLMUsageSince(ctx context.Context, since time.Time) (app.LLMUsageSum, error) {
+	var calls, ptok, ctok int64
+	err := s.pool.QueryRow(ctx,
+		`SELECT COALESCE(SUM(llm_calls_charged), 0), COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0)
+		 FROM decision_records WHERE created_at >= $1`, since).Scan(&calls, &ptok, &ctok)
+	if err != nil {
+		return app.LLMUsageSum{}, fmt.Errorf("postgres: llm usage since: %w", err)
+	}
+	return app.LLMUsageSum{Calls: int(calls), PromptTokens: int(ptok), CompletionTokens: int(ctok)}, nil
 }

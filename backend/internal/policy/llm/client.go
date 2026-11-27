@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // MaxResponseBytes caps the provider response body.
@@ -22,6 +23,10 @@ var (
 	ErrHTTP            = errors.New("llm: provider request failed")
 	ErrInvalidJSON     = errors.New("llm: invalid JSON from provider")
 	ErrSchemaViolation = errors.New("llm: proposal violates the schema")
+	// ErrSaturated means no in-flight slot (LLM_MAX_CONCURRENT_REQUESTS)
+	// became free within the request timeout. No request was made. It
+	// matches ErrTimeout, so the fallback reason is timeout.
+	ErrSaturated = fmt.Errorf("%w: no free request slot", ErrTimeout)
 )
 
 // HTTPError carries the provider status (0 for a transport failure). It
@@ -40,8 +45,10 @@ func (e *HTTPError) Is(target error) bool { return target == ErrHTTP }
 
 // Client calls an OpenAI-compatible chat completions endpoint.
 type Client struct {
-	cfg  Config
-	http *http.Client
+	cfg    Config
+	http   *http.Client
+	sem    chan struct{} // in-flight request slots
+	global *Tracker      // server-wide daily limits
 }
 
 // NewClient returns a Client. httpClient may be nil; its Timeout is set from
@@ -55,10 +62,25 @@ func NewClient(cfg Config, httpClient *http.Client) (*Client, error) {
 		cp := *httpClient
 		hc = &cp
 	}
+	cfg = cfg.withDefaults()
 	hc.Timeout = cfg.RequestTimeout
 	// A provider must not redirect the bearer token elsewhere.
 	hc.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	return &Client{cfg: cfg, http: hc}, nil
+	return &Client{cfg: cfg, http: hc, sem: make(chan struct{}, cfg.MaxConcurrentRequests), global: NewGlobalTracker(cfg, nil)}, nil
+}
+
+// Global is the server-wide daily call and token Tracker shared by every
+// world that uses this Client.
+func (c *Client) Global() *Tracker { return c.global }
+
+// Reserve checks the prompt size and reserves estimated prompt tokens plus
+// max_tokens against the world and the global Tracker. A prompt above
+// LLM_MAX_PROMPT_BYTES returns ErrPromptTooLarge and holds nothing.
+func (c *Client) Reserve(world *Tracker, system, user string) (*Reservation, error) {
+	if len(system)+len(user) > c.cfg.MaxPromptBytes {
+		return nil, ErrPromptTooLarge
+	}
+	return Reserve(world, c.global, EstimatePromptTokens(system, user), c.cfg.ReservationTokens(system, user))
 }
 
 type chatMessage struct {
@@ -94,8 +116,23 @@ type chatResponse struct {
 // Complete sends one system and one user message and returns the assistant
 // content and the token usage. Usage is returned (when the provider sent a
 // well-formed response) even alongside ErrInvalidJSON. When the provider
-// reports no usage, the per-call completion cap is charged conservatively.
+// reports no usage, Usage.Unreported is set and the caller charges its whole
+// reservation. At most MaxConcurrentRequests requests are in flight; a call
+// waits up to the request timeout for a slot, then fails with ErrSaturated.
 func (c *Client) Complete(ctx context.Context, system, user string) (string, Usage, error) {
+	if len(system)+len(user) > c.cfg.MaxPromptBytes {
+		return "", Usage{}, ErrPromptTooLarge
+	}
+	wait := time.NewTimer(c.cfg.RequestTimeout)
+	defer wait.Stop()
+	select {
+	case c.sem <- struct{}{}:
+		defer func() { <-c.sem }()
+	case <-wait.C:
+		return "", Usage{}, ErrSaturated
+	case <-ctx.Done():
+		return "", Usage{}, fmt.Errorf("%w: canceled", ErrSaturated)
+	}
 	body, err := json.Marshal(chatRequest{
 		Model:          c.cfg.Model,
 		Messages:       []chatMessage{{Role: "system", Content: system}, {Role: "user", Content: user}},
@@ -157,13 +194,15 @@ func (c *Client) Complete(ctx context.Context, system, user string) (string, Usa
 	u := Usage{}
 	if cr.Usage != nil {
 		u.PromptTokens, u.CompletionTokens, u.TotalTokens = cr.Usage.PromptTokens, cr.Usage.CompletionTokens, cr.Usage.TotalTokens
-		if u.TotalTokens == 0 {
-			u.TotalTokens = u.PromptTokens + u.CompletionTokens
+		// A total above prompt+completion (for example reasoning tokens) is
+		// billed as completion, so no reported token goes uncounted.
+		if extra := u.TotalTokens - u.PromptTokens - u.CompletionTokens; extra > 0 {
+			u.CompletionTokens += extra
 		}
+		u.TotalTokens = u.PromptTokens + u.CompletionTokens
 	}
-	if cr.Usage == nil || u.TotalTokens == 0 {
-		u.CompletionTokens = c.cfg.MaxTokensPerCall
-		u.TotalTokens = c.cfg.MaxTokensPerCall
+	if cr.Usage == nil || u.TotalTokens <= 0 {
+		u = Usage{Unreported: true}
 	}
 	if len(cr.Choices) == 0 || strings.TrimSpace(cr.Choices[0].Message.Content) == "" {
 		return "", u, fmt.Errorf("%w: no content", ErrInvalidJSON)

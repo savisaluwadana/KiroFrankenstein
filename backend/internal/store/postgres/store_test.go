@@ -10,6 +10,7 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -159,6 +160,10 @@ func (a mapped) DecisionsForBranch(ctx context.Context, id app.BranchID) ([]app.
 		l[i].BranchID = id
 	}
 	return l, err
+}
+
+func (a mapped) LLMUsageSince(ctx context.Context, since time.Time) (app.LLMUsageSum, error) {
+	return a.s.(app.DecisionRepo).LLMUsageSince(ctx, since)
 }
 
 func (a mapped) CreateDuel(ctx context.Context, d app.Duel) error {

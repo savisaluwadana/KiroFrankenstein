@@ -11,6 +11,9 @@ type managerDTO struct {
 	Available         bool   `json:"available"`
 	Model             string `json:"model,omitempty"`
 	UnavailableReason string `json:"unavailableReason,omitempty"`
+	// Server-wide LLM allowance left today (UTC); only when the LLM is available.
+	LLMGlobalCallsRemaining  *int `json:"llmGlobalCallsRemaining,omitempty"`
+	LLMGlobalTokensRemaining *int `json:"llmGlobalTokensRemaining,omitempty"`
 }
 
 type managerListDTO struct {
@@ -18,7 +21,7 @@ type managerListDTO struct {
 }
 
 // listManagers handles GET /managers.
-func (s *Server) listManagers(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) listManagers(w http.ResponseWriter, r *http.Request) {
 	llmOK, model := s.svc.LLMAvailable()
 	llm := managerDTO{
 		Kind: "ai_llm", Name: "LLM AI", Available: llmOK,
@@ -28,6 +31,9 @@ func (s *Server) listManagers(w http.ResponseWriter, _ *http.Request) {
 	}
 	if llmOK {
 		llm.Model = model
+		if calls, tokens, ok, err := s.svc.LLMGlobalStatus(r.Context()); ok && err == nil {
+			llm.LLMGlobalCallsRemaining, llm.LLMGlobalTokensRemaining = &calls, &tokens
+		}
 	} else {
 		llm.UnavailableReason = "not configured"
 	}

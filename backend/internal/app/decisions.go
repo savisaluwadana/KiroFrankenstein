@@ -101,3 +101,10 @@ func DecodeRejected(b []byte) ([]RejectedProposal, error) {
 	}
 	return out, nil
 }
+
+// LLMUsageSum is the LLM usage summed over decision records.
+type LLMUsageSum struct {
+	Calls            int
+	PromptTokens     int
+	CompletionTokens int
+}

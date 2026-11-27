@@ -36,13 +36,16 @@ func TestManagers(t *testing.T) {
 	if _, ok := l["model"]; ok {
 		t.Fatal("model present without configuration")
 	}
+	if _, ok := l["llmGlobalCallsRemaining"]; ok {
+		t.Fatal("global usage present without configuration")
+	}
 
 	const key = "sk-test-SECRET-xyz"
 	stub := httptest.NewServer(http.NotFoundHandler())
 	defer stub.Close()
 	opt, err := app.WithLLM(llm.Config{
 		BaseURL: stub.URL, APIKey: key, Model: "test/model-1", RequestTimeout: time.Second,
-		MaxCallsPerWorld: 7, MaxTokensPerCall: 256, MaxTotalTokensPerWorld: 1000,
+		MaxCallsPerWorld: 7, MaxTokensPerCall: 256, MaxTotalTokensPerWorld: 100000,
 	}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -54,6 +57,10 @@ func TestManagers(t *testing.T) {
 	}
 	if _, ok := l["unavailableReason"]; ok {
 		t.Fatal("unavailableReason present when available")
+	}
+	// Server-wide allowance left today; defaults of the unset global limits.
+	if num(t, l, "llmGlobalCallsRemaining") != llm.DefaultGlobalMaxCalls || num(t, l, "llmGlobalTokensRemaining") != llm.DefaultGlobalMaxTokens {
+		t.Fatalf("global remaining = %v", l)
 	}
 	if strings.Contains(body, key) || strings.Contains(body, stub.URL) {
 		t.Fatal("managers response leaks the key or the endpoint")
@@ -80,7 +87,7 @@ func TestWorldReadReportsLLMUsageWithoutKey(t *testing.T) {
 	defer stub.Close()
 	opt, err := app.WithLLM(llm.Config{
 		BaseURL: stub.URL, APIKey: key, Model: "test/model-1", RequestTimeout: 2 * time.Second,
-		MaxCallsPerWorld: 7, MaxTokensPerCall: 256, MaxTotalTokensPerWorld: 1000,
+		MaxCallsPerWorld: 7, MaxTokensPerCall: 256, MaxTotalTokensPerWorld: 100000,
 	}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -92,7 +99,7 @@ func TestWorldReadReportsLLMUsageWithoutKey(t *testing.T) {
 	got := mustStatus(t, do(t, h, "GET", "/worlds/"+w["id"].(string), nil), http.StatusOK)
 	if got["llmAvailable"] != true || got["llmModel"] != "test/model-1" ||
 		num(t, got, "llmCallsMade") != 1 || num(t, got, "llmCallsRemaining") != 6 ||
-		num(t, got, "llmTokensUsed") != 15 || num(t, got, "llmTokensRemaining") != 985 {
+		num(t, got, "llmTokensUsed") != 15 || num(t, got, "llmTokensRemaining") != 99985 {
 		t.Fatalf("world = %v", got)
 	}
 	body := do(t, h, "GET", "/worlds/"+w["id"].(string), nil).Body.String()

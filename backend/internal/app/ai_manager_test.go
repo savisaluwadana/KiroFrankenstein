@@ -237,7 +237,8 @@ func TestLLMFallback(t *testing.T) {
 		{"schema negative", nil, okReply(`{"commands":[{"kind":"hire_temp_workers","qty":-3}],"rationale":"x"}`), "schema_violation", 1, 3},
 		{"schema too many commands", nil, okReply(tooMany), "schema_violation", 1, 3},
 		{"budget_exhausted calls", func(c *llm.Config) { c.MaxCallsPerWorld = 1 }, okReply(validProposal), "budget_exhausted", 0, 1},
-		{"budget_exhausted tokens", func(c *llm.Config) { c.MaxTotalTokensPerWorld = 100 }, okReply(validProposal), "budget_exhausted", 0, 1},
+		// The reservation (estimated prompt tokens + max_tokens) exceeds the cap: no request.
+		{"budget_exhausted tokens", func(c *llm.Config) { c.MaxTotalTokensPerWorld = 1000 }, okReply(validProposal), "budget_exhausted", 0, 0},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -407,11 +408,13 @@ func TestLLMBudget(t *testing.T) {
 	t.Run("token cap", func(t *testing.T) {
 		stub := newStub(t, always(stubReply{content: validProposal, prompt: 400, completion: 200}))
 		cfg := llmCfg(stub.srv.URL)
-		cfg.MaxTotalTokensPerWorld = 1000
+		// A window reserves about 1600 tokens (estimated prompt + max_tokens 256).
+		cfg.MaxTotalTokensPerWorld = 2500
 		svc, w, b := newLLMWorld(t, memory.New(), cfg, app.ManagerAILLM)
 		runTo(t, svc, b.ID, 16)
 		recs, _ := svc.DecisionRecords(ctx, b.ID)
-		// 600 after the first call, 1200 after the second: the third window is capped.
+		// 600 used after the first call, 1200 after the second: the third
+		// reservation (1200 + ~1600) exceeds 2500, so that window is capped.
 		for i, r := range recs {
 			if i < 2 && r.Provenance != app.ProvAILLM {
 				t.Fatalf("window %d = %+v", i, r)
@@ -424,7 +427,7 @@ func TestLLMBudget(t *testing.T) {
 			t.Fatalf("provider requests = %d, want 2", got)
 		}
 		s, _ := svc.LLMStatus(ctx, w.ID)
-		if s.TokensUsed != 1200 || s.TokensRemaining != 0 {
+		if s.TokensUsed != 1200 || s.TokensRemaining != 1300 {
 			t.Fatalf("status = %+v", s)
 		}
 	})

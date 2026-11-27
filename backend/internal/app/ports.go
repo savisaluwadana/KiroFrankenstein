@@ -183,6 +183,10 @@ type DecisionRepo interface {
 	// DecisionsForBranch returns the branch's own records (not its ancestors')
 	// in ascending window tick.
 	DecisionsForBranch(ctx context.Context, b BranchID) ([]DecisionRecord, error)
+	// LLMUsageSince sums the LLM usage of all records, over every world,
+	// whose CreatedAt is at or after since. It rebuilds the server-wide daily
+	// LLM limits after a restart.
+	LLMUsageSince(ctx context.Context, since time.Time) (LLMUsageSum, error)
 }
 
 // Store bundles all repositories; the in-memory and PostgreSQL stores both

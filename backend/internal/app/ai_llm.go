@@ -2,9 +2,12 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/savisaluwadana/KiroFrankenstein/backend/internal/policy/llm"
 	"github.com/savisaluwadana/KiroFrankenstein/backend/internal/sim"
@@ -37,6 +40,10 @@ type LLMProvider struct {
 
 	mu     sync.Mutex
 	worlds map[WorldID]*llmWorld
+
+	globalMu    sync.Mutex
+	globalReady bool
+	now         func() time.Time
 }
 
 // llmWorld is the live state of one World's LLM usage.
@@ -64,7 +71,7 @@ func WithLLM(cfg llm.Config, httpClient *http.Client) (Option, error) {
 		return nil, err
 	}
 	return func(s *BranchService) {
-		p := &LLMProvider{cfg: cfg, client: client, svc: s, worlds: map[WorldID]*llmWorld{}}
+		p := &LLMProvider{cfg: cfg, client: client, svc: s, worlds: map[WorldID]*llmWorld{}, now: time.Now}
 		s.llm = p
 		s.ai.factories[ManagerAILLM] = p.factory
 	}, nil
@@ -72,6 +79,28 @@ func WithLLM(cfg llm.Config, httpClient *http.Client) (Option, error) {
 
 func (p *LLMProvider) factory(sc sim.Scenario) AIDecider {
 	return llmDecider{p: p, rb: RuleBasedDecider(sc)}
+}
+
+// ensureGlobal rebuilds the server-wide daily usage from the decision records
+// created since the start of the current UTC day, once per start. The
+// Tracker itself resets when the UTC day changes while running.
+func (p *LLMProvider) ensureGlobal(ctx context.Context) error {
+	p.globalMu.Lock()
+	defer p.globalMu.Unlock()
+	if p.globalReady {
+		return nil
+	}
+	n := p.now().UTC()
+	sum, err := p.svc.ai.dec.LLMUsageSince(ctx, time.Date(n.Year(), n.Month(), n.Day(), 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		return fmt.Errorf("restore global llm usage: %w", err)
+	}
+	p.client.Global().Restore(llm.Usage{
+		Calls: sum.Calls, PromptTokens: sum.PromptTokens, CompletionTokens: sum.CompletionTokens,
+		TotalTokens: sum.PromptTokens + sum.CompletionTokens,
+	})
+	p.globalReady = true
+	return nil
 }
 
 // world returns the live state of a World, rebuilding the counters from the
@@ -137,6 +166,20 @@ func (s *BranchService) LLMStatus(ctx context.Context, id WorldID) (LLMStatus, e
 	}, nil
 }
 
+// LLMGlobalStatus reports the calls and tokens left in today's (UTC)
+// server-wide LLM limits. ok is false when no LLM is configured. It never
+// includes the API key or the endpoint URL.
+func (s *BranchService) LLMGlobalStatus(ctx context.Context) (callsRemaining, tokensRemaining int, ok bool, err error) {
+	if s.llm == nil {
+		return 0, 0, false, nil
+	}
+	if err := s.llm.ensureGlobal(ctx); err != nil {
+		return 0, 0, true, err
+	}
+	c, t := s.llm.client.Global().Remaining()
+	return c, t, true, nil
+}
+
 // llmDecider is the AIDecider of ManagerAILLM Branches of one World.
 type llmDecider struct {
 	p  *LLMProvider
@@ -185,34 +228,49 @@ func (d llmDecider) Prepare(ctx context.Context, b Branch, obs sim.Observation, 
 	if budget <= 0 {
 		return &Decision{Provenance: ProvAILLM, Model: model, Rationale: "No Command_Budget left in this window, so no LLM request was made."}, nil, nil
 	}
-	if err := w.tracker.Reserve(); err != nil {
-		dec, err := d.fallback(ctx, b, obs, budget, llm.FallbackReason(err), 0, llm.Usage{})
-		return &dec, nil, err
+	if err := d.p.ensureGlobal(ctx); err != nil {
+		return nil, nil, err
 	}
+	system := llm.SystemPrompt(budget)
 	user, err := llm.UserPrompt(obs, budget)
 	if err != nil {
-		w.tracker.Record(llm.Usage{}) // settle the reservation
-		dec, err := d.fallback(ctx, b, obs, budget, llm.FallbackReason(fmt.Errorf("%w: %w", llm.ErrHTTP, err)), 1, llm.Usage{})
+		dec, err := d.fallback(ctx, b, obs, budget, llm.FallbackReason(fmt.Errorf("%w: %w", llm.ErrHTTP, err)), 0, llm.Usage{})
+		return &dec, nil, err
+	}
+	// Reserve estimated prompt tokens + max_tokens against the World and the
+	// server-wide limits; an oversized prompt reserves nothing.
+	res, err := d.p.client.Reserve(w.tracker, system, user)
+	if err != nil {
+		dec, err := d.fallback(ctx, b, obs, budget, llm.FallbackReason(err), 0, llm.Usage{})
 		return &dec, nil, err
 	}
 	// The fallback is computed now, under the caller's lock; it is only used
 	// when the request fails.
 	probe, err := d.fallback(ctx, b, obs, budget, "", 1, llm.Usage{})
 	if err != nil {
-		w.tracker.Record(llm.Usage{})
+		res.Release()
 		return nil, nil, err
 	}
 	run := func(ctx context.Context) (Decision, error) {
-		content, raw, err := d.p.client.Complete(ctx, llm.SystemPrompt(budget), user)
-		u := llm.Usage{
-			PromptTokens:     clampTokens(raw.PromptTokens),
-			CompletionTokens: clampTokens(raw.CompletionTokens),
+		content, raw, err := d.p.client.Complete(ctx, system, user)
+		calls := 1
+		var u llm.Usage
+		if errors.Is(err, llm.ErrSaturated) {
+			res.Release() // no request was made: the call is not charged
+			calls = 0
+		} else {
+			if !raw.Unreported {
+				raw.PromptTokens, raw.CompletionTokens = clampTokens(raw.PromptTokens), clampTokens(raw.CompletionTokens)
+			}
+			u = res.Settle(raw)
+			if u.TotalTokens > res.Tokens {
+				slog.Warn("llm provider reported more tokens than reserved; actual usage accounted",
+					"reserved", res.Tokens, "actual", u.TotalTokens, "world", string(b.WorldID))
+			}
 		}
-		u.TotalTokens = u.PromptTokens + u.CompletionTokens
-		w.tracker.Record(u)
 		withUsage := func(reason string) Decision {
 			dec := probe
-			dec.FallbackReason, dec.PromptTokens, dec.CompletionTokens = reason, u.PromptTokens, u.CompletionTokens
+			dec.FallbackReason, dec.PromptTokens, dec.CompletionTokens, dec.LLMCallsCharged = reason, u.PromptTokens, u.CompletionTokens, calls
 			return dec
 		}
 		var dec Decision
