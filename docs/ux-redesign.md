@@ -708,3 +708,19 @@ Observed and not changed:
 - The duel panes are small at 1440 px (two scenes side by side); scene labels are legible only as shapes. Hover/tap tooltips and the text summary carry the figures.
 - The timeline lane of decision-moment markers is dense across a full week; markers touch but do not overlap text.
 - On the phone, the stage and the rail are long; the scoreboard is reached by scrolling past the controls. No overlap or clipping was seen after the fix.
+
+
+## 13. M4 closure (task 5.7)
+
+What exists at the M4 checkpoint:
+
+- **Interpolation:** `web/features/world-view/scene/interpolate.ts` holds the easing, `pointOnPath`, `tweenProgress` and the `travelEnabled` gate (off under reduced motion, when `animate` is false, or when frames arrive less than 120 ms apart). `WorldScene` uses it for trucks, vans, boxes and tickets. It moves positions only. `interpolate.test.ts` builds the scene model, labels, tooltips and summary text at t = 0, 0.25, 0.5 and 1 and asserts every number equals the displayed Tick_Frame value (and that no in-between or previous-frame value appears).
+- **Timeline input markers by provenance:** `features/timeline/markerStyle.tsx`. Each provenance has its own glyph, border style and label: Your move ●, Rule-based AI ▲, LLM AI ■, LLM fallback △ (dashed), Surprise you added +. The "?" popover next to the playback controls carries the legend. Tests in `Timeline.test.tsx` and `PlaybackControls.test.tsx`.
+- **Scoreboard on phones:** difference and value cells no longer wrap (`whitespace-nowrap` inside the existing horizontal-scroll wrapper).
+- **Discoverability:** at an open decision moment a dismissible one-line tip ("Want to try a different decision? Explore another future — rewind to any moment and branch") with a "Show me" button that does what the F key does. It sits above the playback strip on desktop and above the warehouse on phones. Dismissal is remembered in localStorage. The briefing shows Start Black Friday demo (primary), Challenge the AI manager (secondary) and Customize the business (tertiary link).
+- **Disclaimers:** `features/disclaimers.test.tsx` covers intro, briefing, setup and the diff panel (also while loading or failed). Studio, duel, ledger and assumptions are asserted in their own tests. The diff panel now shows the disclaimer in every state.
+- **Plain language:** `features/studio/plainLanguage.test.tsx` and a duel test scan crisis cards, the decision panel and the duel page for engine words in normal mode. No hits.
+- **Controls:** `studio-flow.test.tsx` ("every playback control does something") clicks play/pause, the three paces, the auto-pause choice, previous/next moment, skip to next move, skip to next surprise, and the keyboard shortcuts, and asserts the requests and displayed hours.
+- **CSP and PixiJS:** the production CSP forbids `unsafe-eval`, which stopped PixiJS from creating its canvas. `WorldView.tsx` now imports `pixi.js/unsafe-eval`.
+
+Not done or still open: the comparison view has no dedicated disclaimer test (it renders the disclaimer, and the studio footer is always present). At 1440x900 the briefing's "Challenge the AI manager" button sits just below the fold; "Start Black Friday demo" is visible.

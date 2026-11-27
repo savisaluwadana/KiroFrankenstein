@@ -15,3 +15,4 @@ test-results/
 .DS_Store
 
 # Important: DO NOT ignore .kiro/; it is required for the hackathon.
+web/e2e/.artifacts/
