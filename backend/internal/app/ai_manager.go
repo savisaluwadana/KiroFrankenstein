@@ -148,42 +148,202 @@ func (s *BranchService) decider(c branchCtx) (d AIDecider, fallback bool) {
 	return d, fallback
 }
 
-// decideLocked runs the AI manager of c's Branch at the open Decision_Window at
-// its head and ends the window. It is a no-op when the head is not an open
-// window or the window already has a record, so a retry after a failure never
-// decides twice. Proposals go through submitLocked, the same gate as a Human's
+// ErrDecisionStale: the AI's answer for a window arrived after the Branch
+// changed (it was advanced, a Command was submitted, the window was ended, a
+// Disruption was injected). The answer is discarded and nothing is recorded;
+// retrying the call asks again. It is mapped to 409.
+var ErrDecisionStale = errors.New("app: the ai decision arrived after the branch changed")
+
+// externalDecider is an AIDecider whose answer needs a slow request (the LLM).
+// The BranchService never calls Decide on it; it calls Prepare under its lock
+// and runs the returned function with the lock released.
+type externalDecider interface {
+	AIDecider
+	// Prepare returns either a finished Decision or a function that makes the
+	// request. Called with the BranchService lock held; the reservation of the
+	// per-World budget happens here.
+	Prepare(ctx context.Context, b Branch, obs sim.Observation, budget int) (*Decision, func(context.Context) (Decision, error), error)
+	// Forget drops anything cached for the window at tick (a stale answer).
+	Forget(ctx context.Context, b Branch, tick sim.Tick)
+}
+
+// flightKey identifies one in-flight provider request: one per Branch window.
+type flightKey struct {
+	branch BranchID
+	tick   sim.Tick
+}
+
+// flight is the single in-flight external decision of a window. Every caller
+// that needs the window's decision waits on done; err is final once it is
+// closed. The goroutine that runs the request also commits the result, so a
+// caller that disconnects does not lose the decision.
+type flight struct {
+	done chan struct{}
+	err  error
+
+	// What the decision depends on, captured under the lock.
+	key      flightKey
+	version  uint64 // branch version at capture
+	used     int64  // Commands already stored for the window
+	engine   string // World engine version
+	remained int64
+}
+
+// bump marks a state change of the Branch. An in-flight decision captured
+// before it is stale. Caller holds s.mu.
+func (s *BranchService) bump(id BranchID) { s.ver[id]++ }
+
+// beginDecisionLocked runs the AI manager of c's Branch at the open
+// Decision_Window at its head, when the answer needs no slow request, and ends
+// the window. It is a no-op when the head is not an open window or the window
+// already has a record, so a retry after a failure never decides twice.
+// Proposals go through submitLocked, the same gate as a Human's
 // SubmitCommands, so the AI cannot bypass validation, the budget or the cash
-// rules (INV-14). A record is written even with zero Commands. Caller holds s.mu.
-func (s *BranchService) decideLocked(ctx context.Context, c branchCtx) error {
+// rules (INV-14). A record is written even with zero Commands.
+//
+// When the decider is external (LLM) it returns a flight instead: the
+// reservation is taken and the request is started with the lock released
+// (goroutine), and the caller must wait for the flight without the lock and
+// call again. A second caller for the same window joins the same flight.
+// Caller holds s.mu.
+func (s *BranchService) beginDecisionLocked(ctx context.Context, c branchCtx) (*flight, error) {
 	st := c.head.state
 	tick := st.Tick()
 	if int64(tick) >= c.sc.HorizonTicks {
-		return nil
+		return nil, nil
 	}
 	if open, _ := windowAt(c.sc, c.b, st); !open {
-		return nil
+		return nil, nil
 	}
 	prior, err := s.ai.dec.DecisionsForBranch(ctx, c.b.ID)
 	if err != nil {
-		return fmt.Errorf("decision records of branch %s: %w", c.b.ID, err)
+		return nil, fmt.Errorf("decision records of branch %s: %w", c.b.ID, err)
 	}
 	for _, r := range prior {
 		if r.WindowTick == tick {
 			s.ended[c.b.ID] = tick
-			return nil
+			return nil, nil
 		}
+	}
+	key := flightKey{c.b.ID, tick}
+	if fl := s.inflight[key]; fl != nil {
+		return fl, nil // join: exactly one provider request per window
 	}
 
 	used, err := s.budgetUsed(ctx, c.b.ID, tick)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	remaining := max(c.sc.CommandBudget-used, 0)
 	d, fellBack := s.decider(c)
-	dec, err := d.Decide(ctx, c.b, observeWindow(c.sc, c.b, st), int(remaining))
-	if err != nil {
-		return fmt.Errorf("ai manager of branch %s at tick %d: %w", c.b.ID, tick, err)
+	obs := observeWindow(c.sc, c.b, st)
+	ext, isExt := d.(externalDecider)
+	if !isExt || fellBack {
+		dec, err := d.Decide(ctx, c.b, obs, int(remaining))
+		if err != nil {
+			return nil, fmt.Errorf("ai manager of branch %s at tick %d: %w", c.b.ID, tick, err)
+		}
+		return nil, s.commitDecisionLocked(ctx, c, dec, remaining, fellBack)
 	}
+	imm, run, err := ext.Prepare(ctx, c.b, obs, int(remaining))
+	if err != nil {
+		return nil, fmt.Errorf("ai manager of branch %s at tick %d: %w", c.b.ID, tick, err)
+	}
+	if imm != nil {
+		return nil, s.commitDecisionLocked(ctx, c, s.withStaleUsage(key, *imm), remaining, false)
+	}
+	fl := &flight{
+		done: make(chan struct{}), key: key, version: s.ver[c.b.ID], used: used,
+		engine: c.w.EngineVersion, remained: remaining,
+	}
+	s.inflight[key] = fl
+	// Detached from the caller: the answer is still committed if the caller
+	// disconnects. The client applies the configured request timeout itself.
+	rctx := context.WithoutCancel(ctx)
+	go func() {
+		dec, rerr := run(rctx)
+		fl.err = s.finishFlight(rctx, fl, ext, c.b, dec, rerr)
+		close(fl.done)
+	}()
+	return fl, nil
+}
+
+// finishFlight revalidates what the decision depended on and, when nothing
+// changed, commits it through the same gate as a Human's Commands. A changed
+// Branch discards the answer (ErrDecisionStale); the call it cost stays
+// counted in the World's usage.
+func (s *BranchService) finishFlight(ctx context.Context, fl *flight, ext externalDecider, b Branch, dec Decision, runErr error) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.inflight, fl.key)
+	if runErr != nil {
+		return fmt.Errorf("ai manager of branch %s at tick %d: %w", fl.key.branch, fl.key.tick, runErr)
+	}
+	stale := func(why string) error {
+		s.staleDecisions.Add(1)
+		slog.Warn("ai-decision-stale", "branch", string(fl.key.branch), "tick", int64(fl.key.tick), "why", why)
+		ext.Forget(ctx, b, fl.key.tick)
+		// The discarded call stays charged: carry it into the retry's record.
+		u := s.staleUsage[fl.key]
+		u.calls += dec.LLMCallsCharged
+		u.prompt += dec.PromptTokens
+		u.completion += dec.CompletionTokens
+		s.staleUsage[fl.key] = u
+		return ErrDecisionStale
+	}
+	if s.ver[fl.key.branch] != fl.version {
+		return stale("branch version changed")
+	}
+	c, err := s.loadMutable(ctx, fl.key.branch)
+	if err != nil {
+		return stale("branch not loadable: " + err.Error())
+	}
+	if c.head.state.Tick() != fl.key.tick {
+		return stale("head moved")
+	}
+	if open, _ := windowAt(c.sc, c.b, c.head.state); !open || s.endedAt(fl.key.branch, fl.key.tick) {
+		return stale("window closed")
+	}
+	if c.w.EngineVersion != fl.engine {
+		return stale("engine version changed")
+	}
+	prior, err := s.ai.dec.DecisionsForBranch(ctx, fl.key.branch)
+	if err != nil {
+		return fmt.Errorf("decision records of branch %s: %w", fl.key.branch, err)
+	}
+	for _, r := range prior {
+		if r.WindowTick == fl.key.tick {
+			return stale("window already decided")
+		}
+	}
+	used, err := s.budgetUsed(ctx, fl.key.branch, fl.key.tick)
+	if err != nil {
+		return err
+	}
+	if used != fl.used {
+		return stale("command count changed")
+	}
+	return s.commitDecisionLocked(ctx, c, s.withStaleUsage(fl.key, dec), fl.remained, false)
+}
+
+// withStaleUsage adds the usage of discarded answers of the same window to dec.
+func (s *BranchService) withStaleUsage(k flightKey, dec Decision) Decision {
+	if u, ok := s.staleUsage[k]; ok {
+		dec.LLMCallsCharged += u.calls
+		dec.PromptTokens += u.prompt
+		dec.CompletionTokens += u.completion
+		delete(s.staleUsage, k)
+	}
+	return dec
+}
+
+// staleCharge is usage of discarded answers waiting to be recorded.
+type staleCharge struct{ calls, prompt, completion int }
+
+// commitDecisionLocked validates and stores dec for the window at c's head and
+// writes the decision record, then ends the window. Caller holds s.mu.
+func (s *BranchService) commitDecisionLocked(ctx context.Context, c branchCtx, dec Decision, remaining int64, fellBack bool) error {
+	tick := c.head.state.Tick()
 	if dec.Provenance == "" {
 		dec.Provenance = ProvAIRuleBased
 	}
@@ -224,18 +384,51 @@ func (s *BranchService) decideLocked(ctx context.Context, c branchCtx) error {
 		return fmt.Errorf("record decision of branch %s at tick %d: %w", c.b.ID, tick, err)
 	}
 	s.ended[c.b.ID] = tick
+	s.bump(c.b.ID)
 	return nil
+}
+
+// ensureDecided makes the AI Branch decide at an open window at its head and
+// returns once the decision is recorded. Caller must NOT hold s.mu: it waits
+// for a slow provider request without the lock. A stale answer is discarded
+// and the request is made once more; a second stale answer is ErrDecisionStale.
+func (s *BranchService) ensureDecided(ctx context.Context, id BranchID) error {
+	for attempt := 0; attempt < 2; attempt++ {
+		s.mu.Lock()
+		c, err := s.loadMutable(ctx, id)
+		var fl *flight
+		if err == nil && isAIManager(c.b.ManagerKind) {
+			fl, err = s.beginDecisionLocked(ctx, c)
+		}
+		s.mu.Unlock()
+		if err != nil || fl == nil {
+			return err
+		}
+		if err := waitFlight(ctx, fl); err == nil {
+			return nil
+		} else if !errors.Is(err, ErrDecisionStale) {
+			return err
+		}
+	}
+	return ErrDecisionStale
+}
+
+// waitFlight waits for fl or for the caller to give up. The flight itself
+// continues and is committed either way.
+func waitFlight(ctx context.Context, fl *flight) error {
+	select {
+	case <-fl.done:
+		return fl.err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // decideAtHead runs the AI manager at the head window of a freshly created
 // Branch (World root or fork). A failure is logged and left for the lazy
-// decision at the start of the next Advance. Caller holds s.mu.
+// decision at the start of the next Advance. Caller must not hold s.mu.
 func (s *BranchService) decideAtHead(ctx context.Context, id BranchID) {
-	c, err := s.loadMutable(ctx, id)
-	if err == nil {
-		err = s.decideLocked(ctx, c)
-	}
-	if err != nil {
+	if err := s.ensureDecided(ctx, id); err != nil {
 		slog.Warn("ai-window-decision", "branch", string(id), "err", err)
 	}
 }

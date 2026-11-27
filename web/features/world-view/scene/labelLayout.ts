@@ -58,6 +58,21 @@ export type Measure = (text: string, fontSize: number) => Size;
 
 export const DEFAULT_FONT = 12;
 export const LABEL_GAP = 3;
+/** Smallest effective label text size on screen, in CSS pixels. */
+export const MIN_LABEL_PX = 11;
+/** Largest enlargement of scene labels; beyond it the layout would hide most of them. */
+export const MAX_LABEL_SCALE = 2.4;
+
+/**
+ * Factor applied to label font sizes (and banner chrome) so text stays at least
+ * MIN_LABEL_PX on screen when the scene is scaled down to fit a small canvas.
+ * `sceneScale` is the scene-to-screen scale. 1 when the scene is large enough.
+ */
+export function labelScaleFor(sceneScale: number): number {
+  if (!(sceneScale > 0)) return 1;
+  const k = MIN_LABEL_PX / (DEFAULT_FONT * sceneScale);
+  return Math.min(MAX_LABEL_SCALE, Math.max(1, Math.ceil(k * 20) / 20));
+}
 
 /** Width and height estimate used when no real text measurement is available (tests). */
 export const estimateMeasure: Measure = (text, fontSize) => ({
@@ -80,14 +95,14 @@ function inside(r: Rect, bounds: Rect): boolean {
   return r.x >= bounds.x && r.y >= bounds.y && r.x + r.w <= bounds.x + bounds.w && r.y + r.h <= bounds.y + bounds.h;
 }
 
-export function layoutLabels(specs: readonly LabelSpec[], measure: Measure, bounds: Rect, obstacles: readonly Rect[] = []): LayoutResult {
+export function layoutLabels(specs: readonly LabelSpec[], measure: Measure, bounds: Rect, obstacles: readonly Rect[] = [], labelScale = 1): LayoutResult {
   const order = specs.map((s, i) => ({ s, i })).sort((a, b) => b.s.priority - a.s.priority || a.i - b.i);
   const taken: Rect[] = [...obstacles];
   const placedById = new Map<string, PlacedLabel>();
   const hiddenIds = new Set<string>();
 
   for (const { s } of order) {
-    const size = s.fontSize ?? DEFAULT_FONT;
+    const size = Math.round((s.fontSize ?? DEFAULT_FONT) * labelScale);
     let done = false;
     for (let v = 0; v < s.variants.length && !done; v++) {
       const text = s.variants[v] ?? "";
@@ -142,16 +157,16 @@ export interface PlacedBanner {
 export const BANNER_ICON_W = 22;
 
 /** Stack banners as a column along the top-left edge, top first. */
-export function layoutBanners(banners: readonly BannerSpec[], measure: Measure, fontSize = DEFAULT_FONT, margin = 8): PlacedBanner[] {
+export function layoutBanners(banners: readonly BannerSpec[], measure: Measure, fontSize = DEFAULT_FONT, margin = 8, iconW = BANNER_ICON_W): PlacedBanner[] {
   let y = margin;
   return banners.map((b) => {
     const { w, h } = measure(b.text, fontSize);
     const placed: PlacedBanner = {
       id: b.id,
       text: b.text,
-      rect: { x: margin, y, w: BANNER_ICON_W + w, h },
-      textX: margin + BANNER_ICON_W,
-      iconCenter: { x: margin + BANNER_ICON_W / 2, y: y + h / 2 },
+      rect: { x: margin, y, w: iconW + w, h },
+      textX: margin + iconW,
+      iconCenter: { x: margin + iconW / 2, y: y + h / 2 },
     };
     y += h + 4;
     return placed;

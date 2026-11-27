@@ -56,6 +56,7 @@ func (m *Manager) Propose(ctx context.Context, obs sim.Observation, budget int) 
 	}
 	user, err := UserPrompt(obs, budget)
 	if err != nil {
+		m.tracker.Record(Usage{}) // settle the reservation: no request was made
 		return policy.Proposal{}, fmt.Errorf("%w: encode observation", ErrHTTP)
 	}
 	content, usage, err := m.client.Complete(ctx, SystemPrompt(budget), user)

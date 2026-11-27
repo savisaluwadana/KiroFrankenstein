@@ -92,6 +92,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/worlds/{worldId}/assumptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the Assumptions of a World, optionally with the surprises that have already happened.
+         * @description Returns every effective Assumption (value, unit, default, bounds,
+         *     rationale, overridden flag). The Disruption_Script is hidden unless
+         *     `revealScript=true`. Then the server returns only the entries whose
+         *     onset Tick is at or before the Head_Tick of the Branch (the root
+         *     Branch by default; for a Duel Branch, the lower of the two duel heads),
+         *     and the whole script once that head has reached the horizon. The
+         *     client cannot ask for more. A Branch of another World is refused
+         *     with 403.
+         */
+        get: operations["getAssumptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/worlds/{worldId}/branches": {
         parameters: {
             query?: never;
@@ -739,6 +766,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/diffs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Compare two Branches of one World.
+         * @description Read-only. Reports the observed differences of two Branches at one
+         *     Comparison_Tick: the first Tick at which their State_Hashes differ, the
+         *     State components that differ there, the Inputs present on one side only,
+         *     the metrics and per-product stock of both sides, and `delta` = B minus A.
+         *     `comparisonTick` defaults to the lower of the two head Ticks; a Tick above
+         *     either head is `not-yet-simulated` (409). Branches of different Worlds, or
+         *     of Worlds with another Scenario or engine version, are `incomparable-branches`
+         *     (422). Branches that belong to a Duel can be compared. The `statement` says
+         *     that observed differences do not establish cause; clients show it verbatim.
+         *     Results are synthetic.
+         */
+        post: operations["createDiff"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -828,13 +884,13 @@ export interface components {
         /**
          * @description URI that identifies the problem type. Status codes: history-immutable 409,
          *     not-yet-simulated 409, stale-head 409, window-not-open 409, branch-limit 409,
-         *     horizon-reached 409, duel-branch 409, duel-window-open 409, duel-diverged 409, engine-version-mismatch 409, budget-exceeded 422, validation 422, invalid-tick 422,
-         *     invalid-scenario 400, invalid-name 400, bad-request 400, not-found 404,
+         *     horizon-reached 409, duel-branch 409, duel-window-open 409, duel-diverged 409, decision-stale 409, engine-version-mismatch 409, budget-exceeded 422, incomparable-branches 422, validation 422, invalid-tick 422,
+         *     invalid-scenario 400, invalid-name 400, bad-request 400, forbidden 403, not-found 404,
          *     payload-too-large 413, rate-limited 429, unavailable 503, internal 500.
          *     An unknown route gives not-found 404. A wrong method gives bad-request with status 405.
          * @enum {string}
          */
-        ProblemType: "urn:parallel:problem:history-immutable" | "urn:parallel:problem:not-yet-simulated" | "urn:parallel:problem:stale-head" | "urn:parallel:problem:window-not-open" | "urn:parallel:problem:budget-exceeded" | "urn:parallel:problem:validation" | "urn:parallel:problem:branch-limit" | "urn:parallel:problem:horizon-reached" | "urn:parallel:problem:engine-version-mismatch" | "urn:parallel:problem:duel-branch" | "urn:parallel:problem:duel-window-open" | "urn:parallel:problem:duel-diverged" | "urn:parallel:problem:invalid-tick" | "urn:parallel:problem:invalid-scenario" | "urn:parallel:problem:invalid-name" | "urn:parallel:problem:bad-request" | "urn:parallel:problem:not-found" | "urn:parallel:problem:payload-too-large" | "urn:parallel:problem:rate-limited" | "urn:parallel:problem:unavailable" | "urn:parallel:problem:internal";
+        ProblemType: "urn:parallel:problem:history-immutable" | "urn:parallel:problem:not-yet-simulated" | "urn:parallel:problem:stale-head" | "urn:parallel:problem:window-not-open" | "urn:parallel:problem:budget-exceeded" | "urn:parallel:problem:incomparable-branches" | "urn:parallel:problem:validation" | "urn:parallel:problem:branch-limit" | "urn:parallel:problem:horizon-reached" | "urn:parallel:problem:engine-version-mismatch" | "urn:parallel:problem:duel-branch" | "urn:parallel:problem:duel-window-open" | "urn:parallel:problem:duel-diverged" | "urn:parallel:problem:decision-stale" | "urn:parallel:problem:invalid-tick" | "urn:parallel:problem:invalid-scenario" | "urn:parallel:problem:invalid-name" | "urn:parallel:problem:bad-request" | "urn:parallel:problem:not-found" | "urn:parallel:problem:forbidden" | "urn:parallel:problem:payload-too-large" | "urn:parallel:problem:rate-limited" | "urn:parallel:problem:unavailable" | "urn:parallel:problem:internal";
         Warning: {
             /** @description Machine-readable code, for example `engine-version-mismatch`. */
             code: string;
@@ -859,6 +915,99 @@ export interface components {
             issues?: components["schemas"]["ProblemIssue"][];
             expectedHeadTick?: components["schemas"]["Tick"];
             actualHeadTick?: components["schemas"]["Tick"];
+        };
+        CreateDiffRequest: {
+            branchA: components["schemas"]["Uuid"];
+            branchB: components["schemas"]["Uuid"];
+            comparisonTick?: components["schemas"]["Tick"];
+        };
+        DiffComponent: {
+            /** @description State component, for example `inventory`, `orders`, `ledger`, `workforce`, `prices`, `purchase_orders`, `disruptions`, `clock`, `streams`, `pending_events`. */
+            name: string;
+            /** @description SKU indexes of the per-product entries that differ; empty when the component has none. */
+            skus: number[];
+        };
+        DiffDivergence: {
+            tick: components["schemas"]["Tick"];
+            stateHashA: components["schemas"]["StateHash"];
+            stateHashB: components["schemas"]["StateHash"];
+            components: components["schemas"]["DiffComponent"][];
+            firstEventA?: components["schemas"]["JournalEntry"];
+            firstEventB?: components["schemas"]["JournalEntry"];
+        };
+        DiffDisruption: {
+            kind: components["schemas"]["DisruptionKind"];
+            /**
+             * Format: int64
+             * @description SKU index, or -1 for every SKU.
+             */
+            target: number;
+            role?: components["schemas"]["SupplierRole"];
+            /** Format: int64 */
+            durationTicks: number;
+            magnitudeBps: components["schemas"]["Bps"];
+        };
+        /** @description An Input present on one side only. At most one of `command` and `disruption` is present, matching `kind`. */
+        DiffInput: {
+            /** @enum {string} */
+            side: "A" | "B";
+            branchId: components["schemas"]["Uuid"];
+            /**
+             * Format: int64
+             * @description Sequence number in the Branch's resolved Input list, as the export numbers it.
+             */
+            seq: number;
+            effectiveTick: components["schemas"]["Tick"];
+            /** @enum {string} */
+            kind: "command" | "disruption";
+            command?: components["schemas"]["Command"];
+            disruption?: components["schemas"]["DiffDisruption"];
+            provenance: components["schemas"]["Provenance"];
+        };
+        DiffMetric: {
+            /** @description One of `net_profit`, `cash` (cents), `service_level`, `fill_rate` (basis points), `backlog_orders`, `backlog_units`, `late_backlog_orders`, `cancelled_orders` (counts). */
+            key: string;
+            /** Format: int64 */
+            a: number;
+            /** Format: int64 */
+            b: number;
+            /**
+             * Format: int64
+             * @description B minus A.
+             */
+            delta: number;
+        };
+        DiffSkuStock: {
+            /** Format: int64 */
+            sku: number;
+            /**
+             * Format: int64
+             * @description Units on hand in Branch A.
+             */
+            a: number;
+            /** Format: int64 */
+            b: number;
+            /** Format: int64 */
+            delta: number;
+            valueCentsA: components["schemas"]["Cents"];
+            valueCentsB: components["schemas"]["Cents"];
+            valueCentsDelta: components["schemas"]["Cents"];
+        };
+        DiffResult: {
+            branchA: components["schemas"]["Uuid"];
+            branchB: components["schemas"]["Uuid"];
+            worldId: components["schemas"]["Uuid"];
+            comparisonTick: components["schemas"]["Tick"];
+            /** @description Null when the State_Hashes are equal at every Tick up to `comparisonTick`. */
+            divergence: components["schemas"]["DiffDivergence"] | null;
+            differingInputs: components["schemas"]["DiffInput"][];
+            metrics: components["schemas"]["DiffMetric"][];
+            skuStock: components["schemas"]["DiffSkuStock"][];
+            /** @description Fixed text. Observed differences do not establish cause. Show it verbatim. */
+            statement: string;
+            disclaimer: components["schemas"]["Disclaimer"];
+            currency: components["schemas"]["Currency"];
+            warnings?: components["schemas"]["Warnings"];
         };
         ProblemIssue: {
             /** @description Assumption path such as `workforce.tempOnboardingTicks`, or a request field name. */
@@ -1025,6 +1174,31 @@ export interface components {
             rationale: string;
             /** @description True when `value` differs from `default`. */
             overridden: boolean;
+        };
+        RevealedDisruption: {
+            kind: components["schemas"]["DisruptionKind"];
+            onsetTick: components["schemas"]["Tick"];
+            /** Format: int64 */
+            durationTicks: number;
+            magnitudeBps?: components["schemas"]["Bps"];
+            /** @description SKU id the entry targets, when it has one. */
+            target?: string;
+        };
+        AssumptionsResponse: {
+            worldId: components["schemas"]["Uuid"];
+            branchId: components["schemas"]["Uuid"];
+            /** @description The Head_Tick that bounds the reveal (the lower duel head for a Duel Branch). */
+            headTick: components["schemas"]["Tick"];
+            /** Format: int64 */
+            horizonTicks: number;
+            assumptions: components["schemas"]["Assumption"][];
+            /** @description True when `revealScript=true` was honoured and `disruptionScript` is present. */
+            scriptRevealed: boolean;
+            /** @description True when the whole script is shown (the head reached the horizon). */
+            scriptComplete: boolean;
+            /** @description Only entries whose onset is at or before the head, or all of them at the horizon. Absent unless revealed. */
+            disruptionScript?: components["schemas"]["RevealedDisruption"][];
+            disclaimer: components["schemas"]["Disclaimer"];
         };
         Branch: {
             id: components["schemas"]["Uuid"];
@@ -2015,7 +2189,7 @@ export interface components {
         /**
          * @description The request conflicts with the Branch state. Types: `history-immutable`,
          *     `not-yet-simulated`, `stale-head`, `window-not-open`, `branch-limit`,
-         *     `horizon-reached`, `duel-branch` (a direct mutation of a Branch that belongs to a Duel; use the duel endpoints), `duel-window-open`, `duel-diverged`, `engine-version-mismatch` (a mutation of a World recorded
+         *     `horizon-reached`, `duel-branch` (a direct mutation of a Branch that belongs to a Duel; use the duel endpoints), `duel-window-open`, `duel-diverged`, `decision-stale` (an AI answer arrived after the branch changed and was discarded; retry), `engine-version-mismatch` (a mutation of a World recorded
          *     under another engine version; its reads still work and carry a warning).
          */
         Conflict: {
@@ -2035,7 +2209,7 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
-        /** @description The request is well-formed but invalid. Types `validation`, `invalid-tick`, `budget-exceeded`. */
+        /** @description The request is well-formed but invalid. Types `validation`, `invalid-tick`, `budget-exceeded`, `incomparable-branches` (two Branches of different Worlds, or of Worlds with another Scenario or engine version). */
         Unprocessable: {
             headers: {
                 [name: string]: unknown;
@@ -2167,6 +2341,42 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+        };
+    };
+    getAssumptions: {
+        parameters: {
+            query?: {
+                revealScript?: boolean;
+                branchId?: components["schemas"]["Uuid"];
+            };
+            header?: never;
+            path: {
+                worldId: components["parameters"]["WorldId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Assumptions and, when asked, the revealed part of the script. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssumptionsResponse"];
+                };
+            };
+            /** @description The Branch belongs to another World (type `forbidden`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["Unprocessable"];
         };
     };
     listBranches: {
@@ -2920,6 +3130,36 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+        };
+    };
+    createDiff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDiffRequest"];
+            };
+        };
+        responses: {
+            /** @description The observed differences. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiffResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            422: components["responses"]["Unprocessable"];
+            429: components["responses"]["RateLimited"];
         };
     };
 }

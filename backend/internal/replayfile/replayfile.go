@@ -43,10 +43,11 @@ func LoadScenario(path string) (*sim.Scenario, string, error) {
 	return sc, ScenarioHash(sc), nil
 }
 
-// LoadInputs reads an Inputs_File and checks it against the Scenario hash,
-// the Seed and the engine version. A different engine version wraps
-// ErrEngineVersion.
-func LoadInputs(path, scenarioHash string, seed sim.Seed) (inputsfile.File, error) {
+// LoadInputsAnySeed reads an Inputs_File and checks it against the Scenario
+// hash and the engine version only. The ensemble runner replays one file under
+// many Seeds, so the recorded Seed is not compared. A different engine version
+// wraps ErrEngineVersion.
+func LoadInputsAnySeed(path, scenarioHash string) (inputsfile.File, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return inputsfile.File{}, err
@@ -60,6 +61,17 @@ func LoadInputs(path, scenarioHash string, seed sim.Seed) (inputsfile.File, erro
 	}
 	if f.ScenarioHash != scenarioHash {
 		return f, fmt.Errorf("scenario mismatch: inputs file scenarioHash %s, scenario file hashes to %s", f.ScenarioHash, scenarioHash)
+	}
+	return f, nil
+}
+
+// LoadInputs reads an Inputs_File and checks it against the Scenario hash,
+// the Seed and the engine version. A different engine version wraps
+// ErrEngineVersion.
+func LoadInputs(path, scenarioHash string, seed sim.Seed) (inputsfile.File, error) {
+	f, err := LoadInputsAnySeed(path, scenarioHash)
+	if err != nil {
+		return f, err
 	}
 	if f.Seed != seed {
 		return f, fmt.Errorf("seed mismatch: inputs file seed %d, --seed %d", uint64(f.Seed), uint64(seed))

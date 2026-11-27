@@ -8,6 +8,7 @@ import { create } from "zustand";
 import * as api from "@/lib/api/client";
 import { ApiError } from "@/lib/api/client";
 import type { AdvanceRequest, AdvanceResult, TickFrame } from "@/lib/api/client";
+import { requestFailureMessage } from "@/lib/glossary";
 import { openProgress, type ProgressHandle, type ProgressStatus } from "@/lib/api/progress";
 import { useStudioStore, type StudioStore } from "./studio";
 
@@ -90,6 +91,7 @@ function hasMarker(frame: TickFrame | undefined, kind: "decision_window" | "disr
 }
 
 function message(e: unknown): string {
+  if (e instanceof ApiError && e.type === "decision-stale") return requestFailureMessage(e.type);
   return e instanceof Error ? e.message : "Request failed";
 }
 

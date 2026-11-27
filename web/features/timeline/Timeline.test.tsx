@@ -40,6 +40,19 @@ describe("Timeline", () => {
     expect(screen.getByTestId("timeline-readout").textContent).toContain("Same history until Thursday, 8:00 AM");
   });
 
+  it("marks where the compared futures first differ, as a labelled marker that selects that hour", async () => {
+    const onSelectTick = vi.fn();
+    const { rerender } = render(<Timeline {...props({ sharedUpTo: 8, onSelectTick })} />);
+    expect(document.querySelector('[data-marker="divergence"]')).toBeNull();
+    rerender(<Timeline {...props({ sharedUpTo: 8, divergenceTick: 9, onSelectTick })} />);
+    const marker = screen.getByRole("button", { name: "The two futures first look different at Thursday, 9:00 AM" });
+    expect(marker.textContent).toContain("≠");
+    expect(screen.getByTestId("shared-history")).toBeTruthy();
+    expect(screen.getByTestId("timeline-readout").textContent).toContain("first look different at Thursday, 9:00 AM");
+    await userEvent.click(marker);
+    expect(onSelectTick).toHaveBeenCalledWith(9);
+  });
+
   it("renders markers in plain language", () => {
     render(<Timeline {...props()} />);
     expect(screen.getAllByRole("button", { name: "Decision moment at Thursday, 8:00 AM" })).toHaveLength(1);

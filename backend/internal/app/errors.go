@@ -29,4 +29,8 @@ var (
 	ErrBranchLimit = errors.New("app: branch limit reached")
 	// ErrUnsupportedInput: a stored input kind the engine cannot apply yet.
 	ErrUnsupportedInput = errors.New("app: unsupported input kind")
+	// ErrIncomparableBranches: two Branches that cannot be compared because
+	// they belong to different Worlds or to Worlds whose Scenario hash or
+	// engine version differ (Req 22.3, 23.1).
+	ErrIncomparableBranches = errors.New("app: branches are not comparable")
 )

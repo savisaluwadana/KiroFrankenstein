@@ -32,6 +32,8 @@ export type LedgerSummaryResponse = Schemas["LedgerSummaryResponse"];
 export type LedgerAccountTotal = Schemas["LedgerAccountTotal"];
 export type LedgerFigure = Schemas["LedgerFigure"];
 export type Assumption = Schemas["Assumption"];
+export type AssumptionsResponse = Schemas["AssumptionsResponse"];
+export type RevealedDisruption = Schemas["RevealedDisruption"];
 export type ScenarioSummary = Schemas["ScenarioSummary"];
 export type DemoResponse = Schemas["DemoResponse"];
 export type DemoPlan = Schemas["DemoPlan"];
@@ -67,6 +69,13 @@ export type DuelScore = Schemas["DuelScore"];
 export type DuelBranchScore = Schemas["DuelBranchScore"];
 export type DuelDecision = Schemas["DuelDecision"];
 export type DuelDecisionsResponse = Schemas["DuelDecisionsResponse"];
+export type CreateDiffRequest = Schemas["CreateDiffRequest"];
+export type DiffResult = Schemas["DiffResult"];
+export type DiffInput = Schemas["DiffInput"];
+export type DiffMetric = Schemas["DiffMetric"];
+export type DiffSkuStock = Schemas["DiffSkuStock"];
+export type DiffComponent = Schemas["DiffComponent"];
+export type DiffDivergence = Schemas["DiffDivergence"];
 
 const PROBLEM_PREFIX = "urn:parallel:problem:";
 
@@ -216,6 +225,27 @@ export function createWorld(body: CreateWorldRequest, opts: CallOptions = {}): P
 
 export function getWorld(worldId: string, opts: CallOptions = {}): Promise<World> {
   return requestJson<World>({ method: "GET", path: `/worlds/${id(worldId)}`, signal: opts.signal });
+}
+
+export interface AssumptionsQuery {
+  /** Ask the server for the part of the disruption script that has already happened. */
+  revealScript?: boolean;
+  /** The branch whose head bounds the reveal; the root branch when omitted. */
+  branchId?: string;
+}
+
+// operationId: getAssumptions. The server decides how much of the script is returned.
+export function getAssumptions(
+  worldId: string,
+  query: AssumptionsQuery = {},
+  opts: CallOptions = {},
+): Promise<AssumptionsResponse> {
+  return requestJson<AssumptionsResponse>({
+    method: "GET",
+    path: `/worlds/${id(worldId)}/assumptions`,
+    query: { revealScript: query.revealScript === true ? "true" : undefined, branchId: query.branchId },
+    signal: opts.signal,
+  });
 }
 
 export function listBranches(worldId: string, opts: CallOptions = {}): Promise<BranchList> {
@@ -437,4 +467,11 @@ export function getDuelScore(duelId: string, opts: CallOptions = {}): Promise<Du
 
 export function getDuelDecisions(duelId: string, opts: CallOptions = {}): Promise<DuelDecisionsResponse> {
   return requestJson<DuelDecisionsResponse>({ method: "GET", path: `/duels/${id(duelId)}/decisions`, signal: opts.signal });
+}
+
+// ---- Diffs ----
+
+/** Observed differences of two branches of one world. Read-only; nothing advances. */
+export function createDiff(body: CreateDiffRequest, opts: CallOptions = {}): Promise<DiffResult> {
+  return requestJson<DiffResult>({ method: "POST", path: "/diffs", body, signal: opts.signal });
 }

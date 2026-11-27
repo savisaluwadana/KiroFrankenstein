@@ -72,6 +72,26 @@
     "6.8 Property test: duel parity and exogenous fairness (required)": {
       "status": "passed",
       "lastRunTimestamp": 1795760060748
+    },
+    "7.2 Property test: diff identity": {
+      "status": "passed",
+      "lastRunTimestamp": 1795775679030
+    },
+    "7.4 Property test: diff input determinism": {
+      "status": "passed",
+      "lastRunTimestamp": 1795775723125
+    },
+    "7.12 Property test: win/tie count conservation": {
+      "status": "passed",
+      "lastRunTimestamp": 1795785883573
+    },
+    "7.8 Property test: fixed-replay round trip under the original Seed (required)": {
+      "status": "passed",
+      "lastRunTimestamp": 1795785947781
+    },
+    "7.9 Property test: ensemble parity (required)": {
+      "status": "passed",
+      "lastRunTimestamp": 1795786411386
     }
   },
   "executionHistory": {
@@ -1301,6 +1321,193 @@
         "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
         "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
         "timestamp": 1795766742552
+      },
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795767207477
+      }
+    ],
+    "6. M5 — LLM manager and human-versus-AI arena (~400 credits)": [
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795767207481
+      }
+    ],
+    "7.1 Implement the Branch_Diff_Service": [
+      {
+        "executionId": "a2df0eaa-c076-43b1-a05b-5eb286d51c22",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795775017510
+      },
+      {
+        "executionId": "a2df0eaa-c076-43b1-a05b-5eb286d51c22",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795775420151
+      }
+    ],
+    "7.7 Implement the Ensemble_Runner arms and Seed handling": [
+      {
+        "executionId": "a2df0eaa-c076-43b1-a05b-5eb286d51c22",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795775017519
+      },
+      {
+        "executionId": "a2df0eaa-c076-43b1-a05b-5eb286d51c22",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795775420629
+      }
+    ],
+    "5.4 Build the Assumptions endpoint, Assumptions_Editor and Assumptions_Panel": [
+      {
+        "executionId": "a2df0eaa-c076-43b1-a05b-5eb286d51c22",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795775017526
+      },
+      {
+        "executionId": "a2df0eaa-c076-43b1-a05b-5eb286d51c22",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795775420137
+      }
+    ],
+    "7.10 Implement Ensemble_Report statistics and JSON/CSV output": [
+      {
+        "executionId": "a2df0eaa-c076-43b1-a05b-5eb286d51c22",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795775421730
+      },
+      {
+        "executionId": "a2df0eaa-c076-43b1-a05b-5eb286d51c22",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795776336588
+      }
+    ],
+    "7.6 Add the diff endpoint, the Diff_Panel and the divergence marker": [
+      {
+        "executionId": "a2df0eaa-c076-43b1-a05b-5eb286d51c22",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795775422827
+      },
+      {
+        "executionId": "a2df0eaa-c076-43b1-a05b-5eb286d51c22",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795776336599
+      }
+    ],
+    "7.2 Property test: diff identity": [
+      {
+        "executionId": "a2df0eaa-c076-43b1-a05b-5eb286d51c22",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795775423625
+      },
+      {
+        "executionId": "a2df0eaa-c076-43b1-a05b-5eb286d51c22",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795776336345
+      }
+    ],
+    "7.4 Property test: diff input determinism": [
+      {
+        "executionId": "a2df0eaa-c076-43b1-a05b-5eb286d51c22",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795775424315
+      },
+      {
+        "executionId": "a2df0eaa-c076-43b1-a05b-5eb286d51c22",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795776336575
+      }
+    ],
+    "7.16 Calibrate the Flagship_Scenario and write `docs/calibration.md`": [
+      {
+        "executionId": "a2df0eaa-c076-43b1-a05b-5eb286d51c22",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795776336823
+      },
+      {
+        "executionId": "a2df0eaa-c076-43b1-a05b-5eb286d51c22",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795785801293
+      }
+    ],
+    "7.9 Property test: ensemble parity (required)": [
+      {
+        "executionId": "a2df0eaa-c076-43b1-a05b-5eb286d51c22",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795785801313
+      },
+      {
+        "executionId": "a2df0eaa-c076-43b1-a05b-5eb286d51c22",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795786456207
+      }
+    ],
+    "7.11 Property test: ensemble determinism under any execution order (required)": [
+      {
+        "executionId": "a2df0eaa-c076-43b1-a05b-5eb286d51c22",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795785802635
+      },
+      {
+        "executionId": "a2df0eaa-c076-43b1-a05b-5eb286d51c22",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795786456497
+      }
+    ],
+    "7.12 Property test: win/tie count conservation": [
+      {
+        "executionId": "a2df0eaa-c076-43b1-a05b-5eb286d51c22",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795785803723
+      },
+      {
+        "executionId": "a2df0eaa-c076-43b1-a05b-5eb286d51c22",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795786457295
+      }
+    ],
+    "7.17 Commit the golden 20-Seed Ensemble_Report": [
+      {
+        "executionId": "a2df0eaa-c076-43b1-a05b-5eb286d51c22",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795785804577
+      },
+      {
+        "executionId": "a2df0eaa-c076-43b1-a05b-5eb286d51c22",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795786458394
+      }
+    ],
+    "7.8 Property test: fixed-replay round trip under the original Seed (required)": [
+      {
+        "executionId": "a2df0eaa-c076-43b1-a05b-5eb286d51c22",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795785826804
+      },
+      {
+        "executionId": "a2df0eaa-c076-43b1-a05b-5eb286d51c22",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795786456190
+      }
+    ],
+    "7.15 Measure the 50-Seed paired ensemble benchmark": [
+      {
+        "executionId": "a2df0eaa-c076-43b1-a05b-5eb286d51c22",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795786459189
+      },
+      {
+        "executionId": "a2df0eaa-c076-43b1-a05b-5eb286d51c22",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795786912466
+      }
+    ],
+    "7.18 Checkpoint — M6 complete": [
+      {
+        "executionId": "a2df0eaa-c076-43b1-a05b-5eb286d51c22",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795786912482
       }
     ]
   }

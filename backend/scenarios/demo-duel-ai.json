@@ -1,551 +1,281 @@
 {
-  "scenarioHash": "cfe8373209240221e76d87cfb559d8fc7314784f22ba98eb63af5a28fe87afe8",
+  "scenarioHash": "1a56aa3aee635ea8164f0379f3e184474d37949a2f67c6a6f8784416e0e7a337",
   "seed": 2026,
   "engineVersion": "2",
   "inputs": [
     {
-      "effectiveTick": 21,
+      "effectiveTick": 41,
       "seq": 1,
       "kind": "command",
       "command": {
         "kind": "place_purchase_order",
         "sku": 2,
         "role": 0,
-        "qty": 330,
+        "qty": 378,
         "amountCents": 0,
         "poRef": 0
       },
       "provenance": "ai_rule_based",
-      "rationale": "speaker: 0 on hand, 78 backlog, 0 inbound; demand about 7/tick, reorder point 196, ordering 330 from the primary supplier (lead 24 ticks, 4800 cents/unit)."
+      "rationale": "Speakers: 0 in stock and 126 orders waiting, so I ordered 378 more from the normal supplier (about 24 hours away, $48.00 each)."
     },
     {
-      "effectiveTick": 25,
+      "effectiveTick": 45,
       "seq": 2,
       "kind": "command",
       "command": {
         "kind": "place_purchase_order",
         "sku": 2,
         "role": 0,
-        "qty": 131,
+        "qty": 135,
         "amountCents": 0,
         "poRef": 0
       },
       "provenance": "ai_rule_based",
-      "rationale": "speaker: 0 on hand, 209 backlog, 330 inbound; demand about 7/tick, reorder point 196, ordering 131 from the primary supplier (lead 24 ticks, 4800 cents/unit). headphones: 93 on hand, 0 backlog, 0 inbound; demand about 7/tick, reorder point 196, ordering 159 from the primary supplier (lead 24 ticks, 3000 cents/unit). watchband: 193 on hand, 0 backlog, 0 inbound; demand about 7/tick, reorder point 196, ordering 59 from the primary supplier (lead 24 ticks, 500 cents/unit)."
+      "rationale": "Speakers: 0 in stock and 261 orders waiting (378 already on the way), so I ordered 135 more from the normal supplier (about 24 hours away, $48.00 each)."
     },
     {
-      "effectiveTick": 25,
+      "effectiveTick": 49,
       "seq": 3,
       "kind": "command",
       "command": {
         "kind": "place_purchase_order",
-        "sku": 0,
+        "sku": 2,
         "role": 0,
-        "qty": 159,
+        "qty": 822,
         "amountCents": 0,
         "poRef": 0
       },
       "provenance": "ai_rule_based",
-      "rationale": "speaker: 0 on hand, 209 backlog, 330 inbound; demand about 7/tick, reorder point 196, ordering 131 from the primary supplier (lead 24 ticks, 4800 cents/unit). headphones: 93 on hand, 0 backlog, 0 inbound; demand about 7/tick, reorder point 196, ordering 159 from the primary supplier (lead 24 ticks, 3000 cents/unit). watchband: 193 on hand, 0 backlog, 0 inbound; demand about 7/tick, reorder point 196, ordering 59 from the primary supplier (lead 24 ticks, 500 cents/unit)."
+      "rationale": "Speakers: 0 in stock and 435 orders waiting (513 already on the way), so I ordered 822 more from the normal supplier (about 24 hours away, $48.00 each). Headphones: 133 in stock, so I ordered 515 more from the normal supplier (about 24 hours away, $30.00 each). Watch bands: 382 in stock and 52 orders waiting, so I ordered 318 more from the normal supplier (about 24 hours away, $5.00 each)."
     },
     {
-      "effectiveTick": 25,
+      "effectiveTick": 49,
       "seq": 4,
       "kind": "command",
       "command": {
         "kind": "place_purchase_order",
-        "sku": 3,
+        "sku": 0,
         "role": 0,
-        "qty": 59,
+        "qty": 515,
         "amountCents": 0,
         "poRef": 0
       },
       "provenance": "ai_rule_based",
-      "rationale": "speaker: 0 on hand, 209 backlog, 330 inbound; demand about 7/tick, reorder point 196, ordering 131 from the primary supplier (lead 24 ticks, 4800 cents/unit). headphones: 93 on hand, 0 backlog, 0 inbound; demand about 7/tick, reorder point 196, ordering 159 from the primary supplier (lead 24 ticks, 3000 cents/unit). watchband: 193 on hand, 0 backlog, 0 inbound; demand about 7/tick, reorder point 196, ordering 59 from the primary supplier (lead 24 ticks, 500 cents/unit)."
+      "rationale": "Speakers: 0 in stock and 435 orders waiting (513 already on the way), so I ordered 822 more from the normal supplier (about 24 hours away, $48.00 each). Headphones: 133 in stock, so I ordered 515 more from the normal supplier (about 24 hours away, $30.00 each). Watch bands: 382 in stock and 52 orders waiting, so I ordered 318 more from the normal supplier (about 24 hours away, $5.00 each)."
     },
     {
-      "effectiveTick": 33,
+      "effectiveTick": 49,
       "seq": 5,
       "kind": "command",
       "command": {
         "kind": "place_purchase_order",
-        "sku": 2,
+        "sku": 3,
         "role": 0,
-        "qty": 76,
+        "qty": 318,
         "amountCents": 0,
         "poRef": 0
       },
       "provenance": "ai_rule_based",
-      "rationale": "speaker: 0 on hand, 285 backlog, 461 inbound; demand about 7/tick, reorder point 196, ordering 76 from the primary supplier (lead 24 ticks, 4800 cents/unit). headphones: 12 on hand, 0 backlog, 159 inbound; demand about 7/tick, reorder point 196, ordering 81 from the primary supplier (lead 24 ticks, 3000 cents/unit). watchband: 113 on hand, 0 backlog, 59 inbound; demand about 7/tick, reorder point 196, ordering 80 from the primary supplier (lead 24 ticks, 500 cents/unit)."
+      "rationale": "Speakers: 0 in stock and 435 orders waiting (513 already on the way), so I ordered 822 more from the normal supplier (about 24 hours away, $48.00 each). Headphones: 133 in stock, so I ordered 515 more from the normal supplier (about 24 hours away, $30.00 each). Watch bands: 382 in stock and 52 orders waiting, so I ordered 318 more from the normal supplier (about 24 hours away, $5.00 each)."
     },
     {
-      "effectiveTick": 33,
+      "effectiveTick": 55,
       "seq": 6,
-      "kind": "command",
-      "command": {
-        "kind": "place_purchase_order",
-        "sku": 0,
-        "role": 0,
-        "qty": 81,
-        "amountCents": 0,
-        "poRef": 0
-      },
-      "provenance": "ai_rule_based",
-      "rationale": "speaker: 0 on hand, 285 backlog, 461 inbound; demand about 7/tick, reorder point 196, ordering 76 from the primary supplier (lead 24 ticks, 4800 cents/unit). headphones: 12 on hand, 0 backlog, 159 inbound; demand about 7/tick, reorder point 196, ordering 81 from the primary supplier (lead 24 ticks, 3000 cents/unit). watchband: 113 on hand, 0 backlog, 59 inbound; demand about 7/tick, reorder point 196, ordering 80 from the primary supplier (lead 24 ticks, 500 cents/unit)."
-    },
-    {
-      "effectiveTick": 33,
-      "seq": 7,
-      "kind": "command",
-      "command": {
-        "kind": "place_purchase_order",
-        "sku": 3,
-        "role": 0,
-        "qty": 80,
-        "amountCents": 0,
-        "poRef": 0
-      },
-      "provenance": "ai_rule_based",
-      "rationale": "speaker: 0 on hand, 285 backlog, 461 inbound; demand about 7/tick, reorder point 196, ordering 76 from the primary supplier (lead 24 ticks, 4800 cents/unit). headphones: 12 on hand, 0 backlog, 159 inbound; demand about 7/tick, reorder point 196, ordering 81 from the primary supplier (lead 24 ticks, 3000 cents/unit). watchband: 113 on hand, 0 backlog, 59 inbound; demand about 7/tick, reorder point 196, ordering 80 from the primary supplier (lead 24 ticks, 500 cents/unit)."
-    },
-    {
-      "effectiveTick": 37,
-      "seq": 8,
-      "kind": "command",
-      "command": {
-        "kind": "place_purchase_order",
-        "sku": 0,
-        "role": 0,
-        "qty": 131,
-        "amountCents": 0,
-        "poRef": 0
-      },
-      "provenance": "ai_rule_based",
-      "rationale": "headphones: 0 on hand, 119 backlog, 240 inbound; demand about 7/tick, reorder point 196, ordering 131 from the primary supplier (lead 24 ticks, 3000 cents/unit). speaker: 0 on hand, 406 backlog, 537 inbound; demand about 9/tick, reorder point 252, ordering 193 from the primary supplier (lead 24 ticks, 4800 cents/unit). watchband: 0 on hand, 12 backlog, 139 inbound; demand about 7/tick, reorder point 196, ordering 125 from the primary supplier (lead 24 ticks, 500 cents/unit). charger: 104 on hand, 0 backlog, 0 inbound; demand about 7/tick, reorder point 196, ordering 148 from the primary supplier (lead 24 ticks, 800 cents/unit)."
-    },
-    {
-      "effectiveTick": 37,
-      "seq": 9,
-      "kind": "command",
-      "command": {
-        "kind": "place_purchase_order",
-        "sku": 2,
-        "role": 0,
-        "qty": 193,
-        "amountCents": 0,
-        "poRef": 0
-      },
-      "provenance": "ai_rule_based",
-      "rationale": "headphones: 0 on hand, 119 backlog, 240 inbound; demand about 7/tick, reorder point 196, ordering 131 from the primary supplier (lead 24 ticks, 3000 cents/unit). speaker: 0 on hand, 406 backlog, 537 inbound; demand about 9/tick, reorder point 252, ordering 193 from the primary supplier (lead 24 ticks, 4800 cents/unit). watchband: 0 on hand, 12 backlog, 139 inbound; demand about 7/tick, reorder point 196, ordering 125 from the primary supplier (lead 24 ticks, 500 cents/unit). charger: 104 on hand, 0 backlog, 0 inbound; demand about 7/tick, reorder point 196, ordering 148 from the primary supplier (lead 24 ticks, 800 cents/unit)."
-    },
-    {
-      "effectiveTick": 37,
-      "seq": 10,
-      "kind": "command",
-      "command": {
-        "kind": "place_purchase_order",
-        "sku": 3,
-        "role": 0,
-        "qty": 125,
-        "amountCents": 0,
-        "poRef": 0
-      },
-      "provenance": "ai_rule_based",
-      "rationale": "headphones: 0 on hand, 119 backlog, 240 inbound; demand about 7/tick, reorder point 196, ordering 131 from the primary supplier (lead 24 ticks, 3000 cents/unit). speaker: 0 on hand, 406 backlog, 537 inbound; demand about 9/tick, reorder point 252, ordering 193 from the primary supplier (lead 24 ticks, 4800 cents/unit). watchband: 0 on hand, 12 backlog, 139 inbound; demand about 7/tick, reorder point 196, ordering 125 from the primary supplier (lead 24 ticks, 500 cents/unit). charger: 104 on hand, 0 backlog, 0 inbound; demand about 7/tick, reorder point 196, ordering 148 from the primary supplier (lead 24 ticks, 800 cents/unit)."
-    },
-    {
-      "effectiveTick": 37,
-      "seq": 11,
       "kind": "command",
       "command": {
         "kind": "place_purchase_order",
         "sku": 1,
         "role": 0,
-        "qty": 148,
+        "qty": 155,
         "amountCents": 0,
         "poRef": 0
       },
       "provenance": "ai_rule_based",
-      "rationale": "headphones: 0 on hand, 119 backlog, 240 inbound; demand about 7/tick, reorder point 196, ordering 131 from the primary supplier (lead 24 ticks, 3000 cents/unit). speaker: 0 on hand, 406 backlog, 537 inbound; demand about 9/tick, reorder point 252, ordering 193 from the primary supplier (lead 24 ticks, 4800 cents/unit). watchband: 0 on hand, 12 backlog, 139 inbound; demand about 7/tick, reorder point 196, ordering 125 from the primary supplier (lead 24 ticks, 500 cents/unit). charger: 104 on hand, 0 backlog, 0 inbound; demand about 7/tick, reorder point 196, ordering 148 from the primary supplier (lead 24 ticks, 800 cents/unit)."
+      "rationale": "Chargers: 496 in stock and 3 orders waiting, so I ordered 155 more from the normal supplier (about 24 hours away, $8.00 each)."
     },
     {
-      "effectiveTick": 41,
+      "effectiveTick": 57,
+      "seq": 7,
+      "kind": "command",
+      "command": {
+        "kind": "place_purchase_order",
+        "sku": 0,
+        "role": 0,
+        "qty": 215,
+        "amountCents": 0,
+        "poRef": 0
+      },
+      "provenance": "ai_rule_based",
+      "rationale": "Headphones: 0 in stock and 82 orders waiting (515 already on the way), so I ordered 215 more from the normal supplier (about 24 hours away, $30.00 each). Speakers: 0 in stock and 625 orders waiting (1335 already on the way), so I ordered 550 more from the normal supplier (about 24 hours away, $48.00 each). Watch bands: 186 in stock and 56 orders waiting (318 already on the way), so I ordered 200 more from the normal supplier (about 24 hours away, $5.00 each). Orders are piling up faster than the team can pack (119 items ready to ship, room to pack 80 an hour), so I scheduled 1 hour of overtime per worker."
+    },
+    {
+      "effectiveTick": 57,
+      "seq": 8,
+      "kind": "command",
+      "command": {
+        "kind": "place_purchase_order",
+        "sku": 2,
+        "role": 0,
+        "qty": 550,
+        "amountCents": 0,
+        "poRef": 0
+      },
+      "provenance": "ai_rule_based",
+      "rationale": "Headphones: 0 in stock and 82 orders waiting (515 already on the way), so I ordered 215 more from the normal supplier (about 24 hours away, $30.00 each). Speakers: 0 in stock and 625 orders waiting (1335 already on the way), so I ordered 550 more from the normal supplier (about 24 hours away, $48.00 each). Watch bands: 186 in stock and 56 orders waiting (318 already on the way), so I ordered 200 more from the normal supplier (about 24 hours away, $5.00 each). Orders are piling up faster than the team can pack (119 items ready to ship, room to pack 80 an hour), so I scheduled 1 hour of overtime per worker."
+    },
+    {
+      "effectiveTick": 57,
+      "seq": 9,
+      "kind": "command",
+      "command": {
+        "kind": "place_purchase_order",
+        "sku": 3,
+        "role": 0,
+        "qty": 200,
+        "amountCents": 0,
+        "poRef": 0
+      },
+      "provenance": "ai_rule_based",
+      "rationale": "Headphones: 0 in stock and 82 orders waiting (515 already on the way), so I ordered 215 more from the normal supplier (about 24 hours away, $30.00 each). Speakers: 0 in stock and 625 orders waiting (1335 already on the way), so I ordered 550 more from the normal supplier (about 24 hours away, $48.00 each). Watch bands: 186 in stock and 56 orders waiting (318 already on the way), so I ordered 200 more from the normal supplier (about 24 hours away, $5.00 each). Orders are piling up faster than the team can pack (119 items ready to ship, room to pack 80 an hour), so I scheduled 1 hour of overtime per worker."
+    },
+    {
+      "effectiveTick": 57,
+      "seq": 10,
+      "kind": "command",
+      "command": {
+        "kind": "schedule_overtime",
+        "sku": 0,
+        "role": 0,
+        "qty": 1,
+        "amountCents": 0,
+        "poRef": 0
+      },
+      "provenance": "ai_rule_based",
+      "rationale": "Headphones: 0 in stock and 82 orders waiting (515 already on the way), so I ordered 215 more from the normal supplier (about 24 hours away, $30.00 each). Speakers: 0 in stock and 625 orders waiting (1335 already on the way), so I ordered 550 more from the normal supplier (about 24 hours away, $48.00 each). Watch bands: 186 in stock and 56 orders waiting (318 already on the way), so I ordered 200 more from the normal supplier (about 24 hours away, $5.00 each). Orders are piling up faster than the team can pack (119 items ready to ship, room to pack 80 an hour), so I scheduled 1 hour of overtime per worker."
+    },
+    {
+      "effectiveTick": 61,
+      "seq": 11,
+      "kind": "command",
+      "command": {
+        "kind": "place_purchase_order",
+        "sku": 0,
+        "role": 1,
+        "qty": 434,
+        "amountCents": 0,
+        "poRef": 0
+      },
+      "provenance": "ai_rule_based",
+      "rationale": "Headphones: 0 in stock and 364 orders waiting (730 already on the way), and the normal supplier is down, so I ordered 434 more from the backup supplier (about 8 hours away, $36.00 each)."
+    },
+    {
+      "effectiveTick": 65,
       "seq": 12,
       "kind": "command",
       "command": {
         "kind": "place_purchase_order",
         "sku": 0,
-        "role": 0,
-        "qty": 228,
+        "role": 1,
+        "qty": 838,
         "amountCents": 0,
         "poRef": 0
       },
       "provenance": "ai_rule_based",
-      "rationale": "headphones: 0 on hand, 239 backlog, 371 inbound; demand about 10/tick, reorder point 280, ordering 228 from the primary supplier (lead 24 ticks, 3000 cents/unit). charger: 0 on hand, 8 backlog, 148 inbound; demand about 7/tick, reorder point 196, ordering 112 from the primary supplier (lead 24 ticks, 800 cents/unit). speaker: 0 on hand, 526 backlog, 730 inbound; demand about 11/tick, reorder point 308, ordering 192 from the primary supplier (lead 24 ticks, 4800 cents/unit). watchband: 0 on hand, 136 backlog, 264 inbound; demand about 7/tick, reorder point 196, ordering 124 from the primary supplier (lead 24 ticks, 500 cents/unit)."
+      "rationale": "Headphones: 0 in stock and 642 orders waiting (1164 already on the way), and the normal supplier is down, so I ordered 838 more from the backup supplier (about 8 hours away, $36.00 each). Chargers: 0 in stock and 191 orders waiting (155 already on the way), and the normal supplier is down, so I ordered 436 more from the backup supplier (about 8 hours away, $10.50 each). Speakers: 0 in stock and 1240 orders waiting (1885 already on the way), and the normal supplier is down, so I ordered 655 more from the backup supplier (about 8 hours away, $57.00 each). Watch bands: 0 in stock and 487 orders waiting (518 already on the way), and the normal supplier is down, so I ordered 1029 more from the backup supplier (about 8 hours away, $7.00 each)."
     },
     {
-      "effectiveTick": 41,
+      "effectiveTick": 65,
       "seq": 13,
       "kind": "command",
       "command": {
         "kind": "place_purchase_order",
         "sku": 1,
-        "role": 0,
-        "qty": 112,
+        "role": 1,
+        "qty": 436,
         "amountCents": 0,
         "poRef": 0
       },
       "provenance": "ai_rule_based",
-      "rationale": "headphones: 0 on hand, 239 backlog, 371 inbound; demand about 10/tick, reorder point 280, ordering 228 from the primary supplier (lead 24 ticks, 3000 cents/unit). charger: 0 on hand, 8 backlog, 148 inbound; demand about 7/tick, reorder point 196, ordering 112 from the primary supplier (lead 24 ticks, 800 cents/unit). speaker: 0 on hand, 526 backlog, 730 inbound; demand about 11/tick, reorder point 308, ordering 192 from the primary supplier (lead 24 ticks, 4800 cents/unit). watchband: 0 on hand, 136 backlog, 264 inbound; demand about 7/tick, reorder point 196, ordering 124 from the primary supplier (lead 24 ticks, 500 cents/unit)."
+      "rationale": "Headphones: 0 in stock and 642 orders waiting (1164 already on the way), and the normal supplier is down, so I ordered 838 more from the backup supplier (about 8 hours away, $36.00 each). Chargers: 0 in stock and 191 orders waiting (155 already on the way), and the normal supplier is down, so I ordered 436 more from the backup supplier (about 8 hours away, $10.50 each). Speakers: 0 in stock and 1240 orders waiting (1885 already on the way), and the normal supplier is down, so I ordered 655 more from the backup supplier (about 8 hours away, $57.00 each). Watch bands: 0 in stock and 487 orders waiting (518 already on the way), and the normal supplier is down, so I ordered 1029 more from the backup supplier (about 8 hours away, $7.00 each)."
     },
     {
-      "effectiveTick": 41,
+      "effectiveTick": 65,
       "seq": 14,
       "kind": "command",
       "command": {
         "kind": "place_purchase_order",
         "sku": 2,
-        "role": 0,
-        "qty": 192,
+        "role": 1,
+        "qty": 655,
         "amountCents": 0,
         "poRef": 0
       },
       "provenance": "ai_rule_based",
-      "rationale": "headphones: 0 on hand, 239 backlog, 371 inbound; demand about 10/tick, reorder point 280, ordering 228 from the primary supplier (lead 24 ticks, 3000 cents/unit). charger: 0 on hand, 8 backlog, 148 inbound; demand about 7/tick, reorder point 196, ordering 112 from the primary supplier (lead 24 ticks, 800 cents/unit). speaker: 0 on hand, 526 backlog, 730 inbound; demand about 11/tick, reorder point 308, ordering 192 from the primary supplier (lead 24 ticks, 4800 cents/unit). watchband: 0 on hand, 136 backlog, 264 inbound; demand about 7/tick, reorder point 196, ordering 124 from the primary supplier (lead 24 ticks, 500 cents/unit)."
+      "rationale": "Headphones: 0 in stock and 642 orders waiting (1164 already on the way), and the normal supplier is down, so I ordered 838 more from the backup supplier (about 8 hours away, $36.00 each). Chargers: 0 in stock and 191 orders waiting (155 already on the way), and the normal supplier is down, so I ordered 436 more from the backup supplier (about 8 hours away, $10.50 each). Speakers: 0 in stock and 1240 orders waiting (1885 already on the way), and the normal supplier is down, so I ordered 655 more from the backup supplier (about 8 hours away, $57.00 each). Watch bands: 0 in stock and 487 orders waiting (518 already on the way), and the normal supplier is down, so I ordered 1029 more from the backup supplier (about 8 hours away, $7.00 each)."
     },
     {
-      "effectiveTick": 41,
+      "effectiveTick": 65,
       "seq": 15,
       "kind": "command",
       "command": {
         "kind": "place_purchase_order",
         "sku": 3,
-        "role": 0,
-        "qty": 124,
+        "role": 1,
+        "qty": 1029,
         "amountCents": 0,
         "poRef": 0
       },
       "provenance": "ai_rule_based",
-      "rationale": "headphones: 0 on hand, 239 backlog, 371 inbound; demand about 10/tick, reorder point 280, ordering 228 from the primary supplier (lead 24 ticks, 3000 cents/unit). charger: 0 on hand, 8 backlog, 148 inbound; demand about 7/tick, reorder point 196, ordering 112 from the primary supplier (lead 24 ticks, 800 cents/unit). speaker: 0 on hand, 526 backlog, 730 inbound; demand about 11/tick, reorder point 308, ordering 192 from the primary supplier (lead 24 ticks, 4800 cents/unit). watchband: 0 on hand, 136 backlog, 264 inbound; demand about 7/tick, reorder point 196, ordering 124 from the primary supplier (lead 24 ticks, 500 cents/unit)."
+      "rationale": "Headphones: 0 in stock and 642 orders waiting (1164 already on the way), and the normal supplier is down, so I ordered 838 more from the backup supplier (about 8 hours away, $36.00 each). Chargers: 0 in stock and 191 orders waiting (155 already on the way), and the normal supplier is down, so I ordered 436 more from the backup supplier (about 8 hours away, $10.50 each). Speakers: 0 in stock and 1240 orders waiting (1885 already on the way), and the normal supplier is down, so I ordered 655 more from the backup supplier (about 8 hours away, $57.00 each). Watch bands: 0 in stock and 487 orders waiting (518 already on the way), and the normal supplier is down, so I ordered 1029 more from the backup supplier (about 8 hours away, $7.00 each)."
     },
     {
-      "effectiveTick": 45,
+      "effectiveTick": 69,
       "seq": 16,
       "kind": "command",
       "command": {
         "kind": "place_purchase_order",
         "sku": 0,
-        "role": 0,
-        "qty": 413,
+        "role": 1,
+        "qty": 987,
         "amountCents": 0,
         "poRef": 0
       },
       "provenance": "ai_rule_based",
-      "rationale": "headphones: 0 on hand, 400 backlog, 599 inbound; demand about 17/tick, reorder point 476, ordering 413 from the primary supplier (lead 24 ticks, 3000 cents/unit). charger: 0 on hand, 162 backlog, 260 inbound; demand about 7/tick, reorder point 196, ordering 154 from the primary supplier (lead 24 ticks, 800 cents/unit). speaker: 0 on hand, 661 backlog, 922 inbound; demand about 14/tick, reorder point 392, ordering 243 from the primary supplier (lead 24 ticks, 4800 cents/unit). watchband: 0 on hand, 297 backlog, 388 inbound; demand about 13/tick, reorder point 364, ordering 377 from the primary supplier (lead 24 ticks, 500 cents/unit)."
+      "rationale": "Headphones: 0 in stock and 1041 orders waiting (2002 already on the way), and the normal supplier is down, so I ordered 1239 more from the backup supplier (about 8 hours away, $36.00 each). I scaled that down to 987 to stay within cash. Chargers: 0 in stock and 531 orders waiting (591 already on the way), and the normal supplier is down, so I ordered 1100 more from the backup supplier (about 8 hours away, $10.50 each). I skipped that because there is not enough cash. Speakers: 0 in stock and 1639 orders waiting (2540 already on the way), and the normal supplier is down, so I ordered 839 more from the backup supplier (about 8 hours away, $57.00 each). I skipped that because there is not enough cash. Watch bands: 0 in stock and 872 orders waiting (1547 already on the way), and the normal supplier is down, so I ordered 1165 more from the backup supplier (about 8 hours away, $7.00 each). I skipped that because there is not enough cash."
     },
     {
-      "effectiveTick": 45,
+      "effectiveTick": 73,
       "seq": 17,
       "kind": "command",
       "command": {
         "kind": "place_purchase_order",
         "sku": 1,
-        "role": 0,
-        "qty": 154,
+        "role": 1,
+        "qty": 946,
         "amountCents": 0,
         "poRef": 0
       },
       "provenance": "ai_rule_based",
-      "rationale": "headphones: 0 on hand, 400 backlog, 599 inbound; demand about 17/tick, reorder point 476, ordering 413 from the primary supplier (lead 24 ticks, 3000 cents/unit). charger: 0 on hand, 162 backlog, 260 inbound; demand about 7/tick, reorder point 196, ordering 154 from the primary supplier (lead 24 ticks, 800 cents/unit). speaker: 0 on hand, 661 backlog, 922 inbound; demand about 14/tick, reorder point 392, ordering 243 from the primary supplier (lead 24 ticks, 4800 cents/unit). watchband: 0 on hand, 297 backlog, 388 inbound; demand about 13/tick, reorder point 364, ordering 377 from the primary supplier (lead 24 ticks, 500 cents/unit)."
+      "rationale": "Chargers: 0 in stock and 837 orders waiting (591 already on the way), and the normal supplier is down, so I ordered 946 more from the backup supplier (about 8 hours away, $10.50 each). Watch bands: 0 in stock and 1176 orders waiting (1547 already on the way), and the normal supplier is down, so I ordered 609 more from the backup supplier (about 8 hours away, $7.00 each)."
     },
     {
-      "effectiveTick": 45,
+      "effectiveTick": 73,
       "seq": 18,
       "kind": "command",
       "command": {
         "kind": "place_purchase_order",
-        "sku": 2,
-        "role": 0,
-        "qty": 243,
+        "sku": 3,
+        "role": 1,
+        "qty": 609,
         "amountCents": 0,
         "poRef": 0
       },
       "provenance": "ai_rule_based",
-      "rationale": "headphones: 0 on hand, 400 backlog, 599 inbound; demand about 17/tick, reorder point 476, ordering 413 from the primary supplier (lead 24 ticks, 3000 cents/unit). charger: 0 on hand, 162 backlog, 260 inbound; demand about 7/tick, reorder point 196, ordering 154 from the primary supplier (lead 24 ticks, 800 cents/unit). speaker: 0 on hand, 661 backlog, 922 inbound; demand about 14/tick, reorder point 392, ordering 243 from the primary supplier (lead 24 ticks, 4800 cents/unit). watchband: 0 on hand, 297 backlog, 388 inbound; demand about 13/tick, reorder point 364, ordering 377 from the primary supplier (lead 24 ticks, 500 cents/unit)."
+      "rationale": "Chargers: 0 in stock and 837 orders waiting (591 already on the way), and the normal supplier is down, so I ordered 946 more from the backup supplier (about 8 hours away, $10.50 each). Watch bands: 0 in stock and 1176 orders waiting (1547 already on the way), and the normal supplier is down, so I ordered 609 more from the backup supplier (about 8 hours away, $7.00 each)."
     },
     {
-      "effectiveTick": 45,
+      "effectiveTick": 77,
       "seq": 19,
-      "kind": "command",
-      "command": {
-        "kind": "place_purchase_order",
-        "sku": 3,
-        "role": 0,
-        "qty": 377,
-        "amountCents": 0,
-        "poRef": 0
-      },
-      "provenance": "ai_rule_based",
-      "rationale": "headphones: 0 on hand, 400 backlog, 599 inbound; demand about 17/tick, reorder point 476, ordering 413 from the primary supplier (lead 24 ticks, 3000 cents/unit). charger: 0 on hand, 162 backlog, 260 inbound; demand about 7/tick, reorder point 196, ordering 154 from the primary supplier (lead 24 ticks, 800 cents/unit). speaker: 0 on hand, 661 backlog, 922 inbound; demand about 14/tick, reorder point 392, ordering 243 from the primary supplier (lead 24 ticks, 4800 cents/unit). watchband: 0 on hand, 297 backlog, 388 inbound; demand about 13/tick, reorder point 364, ordering 377 from the primary supplier (lead 24 ticks, 500 cents/unit)."
-    },
-    {
-      "effectiveTick": 49,
-      "seq": 20,
-      "kind": "command",
-      "command": {
-        "kind": "place_purchase_order",
-        "sku": 0,
-        "role": 0,
-        "qty": 1715,
-        "amountCents": 0,
-        "poRef": 0
-      },
-      "provenance": "ai_rule_based",
-      "rationale": "headphones: 0 on hand, 567 backlog, 1012 inbound; demand about 60/tick, reorder point 1680, ordering 1715 from the primary supplier (lead 24 ticks, 3000 cents/unit). charger: 0 on hand, 307 backlog, 414 inbound; demand about 33/tick, reorder point 924, ordering 1081 from the primary supplier (lead 24 ticks, 800 cents/unit). speaker: 0 on hand, 505 backlog, 835 inbound; demand about 28/tick, reorder point 784, ordering 678 from the primary supplier (lead 24 ticks, 4800 cents/unit). watchband: 0 on hand, 470 backlog, 765 inbound; demand about 50/tick, reorder point 1400, ordering 1505 from the primary supplier (lead 24 ticks, 500 cents/unit). Reduced to 713 to fit cash."
-    },
-    {
-      "effectiveTick": 49,
-      "seq": 21,
-      "kind": "command",
-      "command": {
-        "kind": "place_purchase_order",
-        "sku": 1,
-        "role": 0,
-        "qty": 1081,
-        "amountCents": 0,
-        "poRef": 0
-      },
-      "provenance": "ai_rule_based",
-      "rationale": "headphones: 0 on hand, 567 backlog, 1012 inbound; demand about 60/tick, reorder point 1680, ordering 1715 from the primary supplier (lead 24 ticks, 3000 cents/unit). charger: 0 on hand, 307 backlog, 414 inbound; demand about 33/tick, reorder point 924, ordering 1081 from the primary supplier (lead 24 ticks, 800 cents/unit). speaker: 0 on hand, 505 backlog, 835 inbound; demand about 28/tick, reorder point 784, ordering 678 from the primary supplier (lead 24 ticks, 4800 cents/unit). watchband: 0 on hand, 470 backlog, 765 inbound; demand about 50/tick, reorder point 1400, ordering 1505 from the primary supplier (lead 24 ticks, 500 cents/unit). Reduced to 713 to fit cash."
-    },
-    {
-      "effectiveTick": 49,
-      "seq": 22,
-      "kind": "command",
-      "command": {
-        "kind": "place_purchase_order",
-        "sku": 2,
-        "role": 0,
-        "qty": 678,
-        "amountCents": 0,
-        "poRef": 0
-      },
-      "provenance": "ai_rule_based",
-      "rationale": "headphones: 0 on hand, 567 backlog, 1012 inbound; demand about 60/tick, reorder point 1680, ordering 1715 from the primary supplier (lead 24 ticks, 3000 cents/unit). charger: 0 on hand, 307 backlog, 414 inbound; demand about 33/tick, reorder point 924, ordering 1081 from the primary supplier (lead 24 ticks, 800 cents/unit). speaker: 0 on hand, 505 backlog, 835 inbound; demand about 28/tick, reorder point 784, ordering 678 from the primary supplier (lead 24 ticks, 4800 cents/unit). watchband: 0 on hand, 470 backlog, 765 inbound; demand about 50/tick, reorder point 1400, ordering 1505 from the primary supplier (lead 24 ticks, 500 cents/unit). Reduced to 713 to fit cash."
-    },
-    {
-      "effectiveTick": 49,
-      "seq": 23,
-      "kind": "command",
-      "command": {
-        "kind": "place_purchase_order",
-        "sku": 3,
-        "role": 0,
-        "qty": 713,
-        "amountCents": 0,
-        "poRef": 0
-      },
-      "provenance": "ai_rule_based",
-      "rationale": "headphones: 0 on hand, 567 backlog, 1012 inbound; demand about 60/tick, reorder point 1680, ordering 1715 from the primary supplier (lead 24 ticks, 3000 cents/unit). charger: 0 on hand, 307 backlog, 414 inbound; demand about 33/tick, reorder point 924, ordering 1081 from the primary supplier (lead 24 ticks, 800 cents/unit). speaker: 0 on hand, 505 backlog, 835 inbound; demand about 28/tick, reorder point 784, ordering 678 from the primary supplier (lead 24 ticks, 4800 cents/unit). watchband: 0 on hand, 470 backlog, 765 inbound; demand about 50/tick, reorder point 1400, ordering 1505 from the primary supplier (lead 24 ticks, 500 cents/unit). Reduced to 713 to fit cash."
-    },
-    {
-      "effectiveTick": 53,
-      "seq": 24,
-      "kind": "command",
-      "command": {
-        "kind": "place_purchase_order",
-        "sku": 3,
-        "role": 0,
-        "qty": 843,
-        "amountCents": 0,
-        "poRef": 0
-      },
-      "provenance": "ai_rule_based",
-      "rationale": "watchband: 0 on hand, 462 backlog, 1419 inbound; demand about 50/tick, reorder point 1400, ordering 843 from the primary supplier (lead 24 ticks, 500 cents/unit)."
-    },
-    {
-      "effectiveTick": 55,
-      "seq": 25,
-      "kind": "command",
-      "command": {
-        "kind": "place_purchase_order",
-        "sku": 1,
-        "role": 0,
-        "qty": 460,
-        "amountCents": 0,
-        "poRef": 0
-      },
-      "provenance": "ai_rule_based",
-      "rationale": "charger: 0 on hand, 407 backlog, 1495 inbound; demand about 43/tick, reorder point 1204, ordering 460 from the primary supplier (lead 24 ticks, 800 cents/unit)."
-    },
-    {
-      "effectiveTick": 57,
-      "seq": 26,
-      "kind": "command",
-      "command": {
-        "kind": "place_purchase_order",
-        "sku": 1,
-        "role": 0,
-        "qty": 546,
-        "amountCents": 0,
-        "poRef": 0
-      },
-      "provenance": "ai_rule_based",
-      "rationale": "charger: 0 on hand, 521 backlog, 1955 inbound; demand about 55/tick, reorder point 1540, ordering 546 from the primary supplier (lead 24 ticks, 800 cents/unit). speaker: 0 on hand, 564 backlog, 1382 inbound; demand about 30/tick, reorder point 840, ordering 262 from the primary supplier (lead 24 ticks, 4800 cents/unit). Reduced to 54 to fit cash. watchband: 0 on hand, 611 backlog, 2262 inbound; demand about 65/tick, reorder point 1820, ordering 689 from the primary supplier (lead 24 ticks, 500 cents/unit). Reduced to 9 to fit cash."
-    },
-    {
-      "effectiveTick": 57,
-      "seq": 27,
-      "kind": "command",
-      "command": {
-        "kind": "place_purchase_order",
-        "sku": 2,
-        "role": 0,
-        "qty": 54,
-        "amountCents": 0,
-        "poRef": 0
-      },
-      "provenance": "ai_rule_based",
-      "rationale": "charger: 0 on hand, 521 backlog, 1955 inbound; demand about 55/tick, reorder point 1540, ordering 546 from the primary supplier (lead 24 ticks, 800 cents/unit). speaker: 0 on hand, 564 backlog, 1382 inbound; demand about 30/tick, reorder point 840, ordering 262 from the primary supplier (lead 24 ticks, 4800 cents/unit). Reduced to 54 to fit cash. watchband: 0 on hand, 611 backlog, 2262 inbound; demand about 65/tick, reorder point 1820, ordering 689 from the primary supplier (lead 24 ticks, 500 cents/unit). Reduced to 9 to fit cash."
-    },
-    {
-      "effectiveTick": 57,
-      "seq": 28,
-      "kind": "command",
-      "command": {
-        "kind": "place_purchase_order",
-        "sku": 3,
-        "role": 0,
-        "qty": 9,
-        "amountCents": 0,
-        "poRef": 0
-      },
-      "provenance": "ai_rule_based",
-      "rationale": "charger: 0 on hand, 521 backlog, 1955 inbound; demand about 55/tick, reorder point 1540, ordering 546 from the primary supplier (lead 24 ticks, 800 cents/unit). speaker: 0 on hand, 564 backlog, 1382 inbound; demand about 30/tick, reorder point 840, ordering 262 from the primary supplier (lead 24 ticks, 4800 cents/unit). Reduced to 54 to fit cash. watchband: 0 on hand, 611 backlog, 2262 inbound; demand about 65/tick, reorder point 1820, ordering 689 from the primary supplier (lead 24 ticks, 500 cents/unit). Reduced to 9 to fit cash."
-    },
-    {
-      "effectiveTick": 61,
-      "seq": 29,
-      "kind": "command",
-      "command": {
-        "kind": "place_purchase_order",
-        "sku": 2,
-        "role": 1,
-        "qty": 157,
-        "amountCents": 0,
-        "poRef": 0
-      },
-      "provenance": "ai_rule_based",
-      "rationale": "speaker: 0 on hand, 822 backlog, 1360 inbound; demand about 45/tick, reorder point 540, ordering 362 from the backup (primary supplier is in an outage) supplier (lead 8 ticks, 5700 cents/unit). Reduced to 157 to fit cash."
-    },
-    {
-      "effectiveTick": 73,
-      "seq": 30,
-      "kind": "command",
-      "command": {
-        "kind": "place_purchase_order",
-        "sku": 0,
-        "role": 1,
-        "qty": 129,
-        "amountCents": 0,
-        "poRef": 0
-      },
-      "provenance": "ai_rule_based",
-      "rationale": "headphones: 0 on hand, 1776 backlog, 2487 inbound; demand about 74/tick, reorder point 888, ordering 769 from the backup (primary supplier is in an outage) supplier (lead 8 ticks, 3600 cents/unit). Reduced to 129 to fit cash. charger: 0 on hand, 1737 backlog, 2501 inbound; demand about 73/tick, reorder point 876, ordering 696 from the backup (primary supplier is in an outage) supplier (lead 8 ticks, 1050 cents/unit). Reduced to 1 to fit cash. speaker: 0 on hand, 1637 backlog, 1360 inbound; demand about 35/tick, reorder point 420, ordering 977 from the backup (primary supplier is in an outage) supplier (lead 8 ticks, 5700 cents/unit). Skipped: not enough cash. watchband: 0 on hand, 1837 backlog, 2191 inbound; demand about 77/tick, reorder point 924, ordering 1186 from the backup (primary supplier is in an outage) supplier (lead 8 ticks, 700 cents/unit). Skipped: not enough cash."
-    },
-    {
-      "effectiveTick": 73,
-      "seq": 31,
-      "kind": "command",
-      "command": {
-        "kind": "place_purchase_order",
-        "sku": 1,
-        "role": 1,
-        "qty": 1,
-        "amountCents": 0,
-        "poRef": 0
-      },
-      "provenance": "ai_rule_based",
-      "rationale": "headphones: 0 on hand, 1776 backlog, 2487 inbound; demand about 74/tick, reorder point 888, ordering 769 from the backup (primary supplier is in an outage) supplier (lead 8 ticks, 3600 cents/unit). Reduced to 129 to fit cash. charger: 0 on hand, 1737 backlog, 2501 inbound; demand about 73/tick, reorder point 876, ordering 696 from the backup (primary supplier is in an outage) supplier (lead 8 ticks, 1050 cents/unit). Reduced to 1 to fit cash. speaker: 0 on hand, 1637 backlog, 1360 inbound; demand about 35/tick, reorder point 420, ordering 977 from the backup (primary supplier is in an outage) supplier (lead 8 ticks, 5700 cents/unit). Skipped: not enough cash. watchband: 0 on hand, 1837 backlog, 2191 inbound; demand about 77/tick, reorder point 924, ordering 1186 from the backup (primary supplier is in an outage) supplier (lead 8 ticks, 700 cents/unit). Skipped: not enough cash."
-    },
-    {
-      "effectiveTick": 85,
-      "seq": 32,
-      "kind": "command",
-      "command": {
-        "kind": "place_purchase_order",
-        "sku": 0,
-        "role": 0,
-        "qty": 228,
-        "amountCents": 0,
-        "poRef": 0
-      },
-      "provenance": "ai_rule_based",
-      "rationale": "headphones: 0 on hand, 1855 backlog, 2487 inbound; demand about 78/tick, reorder point 2184, ordering 2176 from the primary supplier (lead 24 ticks, 3000 cents/unit). Reduced to 228 to fit cash. watchband: 0 on hand, 2036 backlog, 2182 inbound; demand about 85/tick, reorder point 2380, ordering 2914 from the primary supplier (lead 24 ticks, 500 cents/unit). Reduced to 3 to fit cash. speaker: 54 on hand, 1836 backlog, 1306 inbound; demand about 39/tick, reorder point 1092, ordering 1880 from the primary supplier (lead 24 ticks, 4800 cents/unit). Skipped: not enough cash. charger: 185 on hand, 1112 backlog, 1495 inbound; demand about 47/tick, reorder point 1316, ordering 1124 from the primary supplier (lead 24 ticks, 800 cents/unit). Skipped: not enough cash. Capacity gap: 239 shippable units waiting vs 160 units/tick of capacity. Scheduling 1 overtime hours per worker (limit 4). Skipped: not enough cash."
-    },
-    {
-      "effectiveTick": 85,
-      "seq": 33,
-      "kind": "command",
-      "command": {
-        "kind": "place_purchase_order",
-        "sku": 3,
-        "role": 0,
-        "qty": 3,
-        "amountCents": 0,
-        "poRef": 0
-      },
-      "provenance": "ai_rule_based",
-      "rationale": "headphones: 0 on hand, 1855 backlog, 2487 inbound; demand about 78/tick, reorder point 2184, ordering 2176 from the primary supplier (lead 24 ticks, 3000 cents/unit). Reduced to 228 to fit cash. watchband: 0 on hand, 2036 backlog, 2182 inbound; demand about 85/tick, reorder point 2380, ordering 2914 from the primary supplier (lead 24 ticks, 500 cents/unit). Reduced to 3 to fit cash. speaker: 54 on hand, 1836 backlog, 1306 inbound; demand about 39/tick, reorder point 1092, ordering 1880 from the primary supplier (lead 24 ticks, 4800 cents/unit). Skipped: not enough cash. charger: 185 on hand, 1112 backlog, 1495 inbound; demand about 47/tick, reorder point 1316, ordering 1124 from the primary supplier (lead 24 ticks, 800 cents/unit). Skipped: not enough cash. Capacity gap: 239 shippable units waiting vs 160 units/tick of capacity. Scheduling 1 overtime hours per worker (limit 4). Skipped: not enough cash."
-    },
-    {
-      "effectiveTick": 89,
-      "seq": 34,
-      "kind": "command",
-      "command": {
-        "kind": "place_purchase_order",
-        "sku": 0,
-        "role": 0,
-        "qty": 143,
-        "amountCents": 0,
-        "poRef": 0
-      },
-      "provenance": "ai_rule_based",
-      "rationale": "headphones: 0 on hand, 1969 backlog, 2715 inbound; demand about 83/tick, reorder point 2324, ordering 2242 from the primary supplier (lead 24 ticks, 3000 cents/unit). Reduced to 143 to fit cash. charger: 0 on hand, 1046 backlog, 1495 inbound; demand about 44/tick, reorder point 1232, ordering 1135 from the primary supplier (lead 24 ticks, 800 cents/unit). Reduced to 1 to fit cash. speaker: 0 on hand, 1908 backlog, 1306 inbound; demand about 40/tick, reorder point 1120, ordering 2042 from the primary supplier (lead 24 ticks, 4800 cents/unit). Skipped: not enough cash. watchband: 0 on hand, 2148 backlog, 2185 inbound; demand about 90/tick, reorder point 2520, ordering 3203 from the primary supplier (lead 24 ticks, 500 cents/unit). Reduced to 1 to fit cash."
-    },
-    {
-      "effectiveTick": 89,
-      "seq": 35,
-      "kind": "command",
-      "command": {
-        "kind": "place_purchase_order",
-        "sku": 1,
-        "role": 0,
-        "qty": 1,
-        "amountCents": 0,
-        "poRef": 0
-      },
-      "provenance": "ai_rule_based",
-      "rationale": "headphones: 0 on hand, 1969 backlog, 2715 inbound; demand about 83/tick, reorder point 2324, ordering 2242 from the primary supplier (lead 24 ticks, 3000 cents/unit). Reduced to 143 to fit cash. charger: 0 on hand, 1046 backlog, 1495 inbound; demand about 44/tick, reorder point 1232, ordering 1135 from the primary supplier (lead 24 ticks, 800 cents/unit). Reduced to 1 to fit cash. speaker: 0 on hand, 1908 backlog, 1306 inbound; demand about 40/tick, reorder point 1120, ordering 2042 from the primary supplier (lead 24 ticks, 4800 cents/unit). Skipped: not enough cash. watchband: 0 on hand, 2148 backlog, 2185 inbound; demand about 90/tick, reorder point 2520, ordering 3203 from the primary supplier (lead 24 ticks, 500 cents/unit). Reduced to 1 to fit cash."
-    },
-    {
-      "effectiveTick": 89,
-      "seq": 36,
-      "kind": "command",
-      "command": {
-        "kind": "place_purchase_order",
-        "sku": 3,
-        "role": 0,
-        "qty": 1,
-        "amountCents": 0,
-        "poRef": 0
-      },
-      "provenance": "ai_rule_based",
-      "rationale": "headphones: 0 on hand, 1969 backlog, 2715 inbound; demand about 83/tick, reorder point 2324, ordering 2242 from the primary supplier (lead 24 ticks, 3000 cents/unit). Reduced to 143 to fit cash. charger: 0 on hand, 1046 backlog, 1495 inbound; demand about 44/tick, reorder point 1232, ordering 1135 from the primary supplier (lead 24 ticks, 800 cents/unit). Reduced to 1 to fit cash. speaker: 0 on hand, 1908 backlog, 1306 inbound; demand about 40/tick, reorder point 1120, ordering 2042 from the primary supplier (lead 24 ticks, 4800 cents/unit). Skipped: not enough cash. watchband: 0 on hand, 2148 backlog, 2185 inbound; demand about 90/tick, reorder point 2520, ordering 3203 from the primary supplier (lead 24 ticks, 500 cents/unit). Reduced to 1 to fit cash."
-    },
-    {
-      "effectiveTick": 105,
-      "seq": 37,
       "kind": "command",
       "command": {
         "kind": "schedule_overtime",
@@ -556,127 +286,187 @@
         "poRef": 0
       },
       "provenance": "ai_rule_based",
-      "rationale": "Capacity gap: 6419 shippable units waiting vs 160 units/tick of capacity. Scheduling 4 overtime hours per worker (limit 4). Overtime alone is not enough. Hiring 30 temporary workers (limit 30, 0 on shift or onboarding). Reduced to 11 to fit cash. watchband: 1966 on hand, 1901 backlog, 4 inbound; demand about 80/tick, reorder point 2240, ordering 2811 from the primary supplier (lead 24 ticks, 500 cents/unit). Skipped: not enough cash. charger: 1495 on hand, 1419 backlog, 1 inbound; demand about 60/tick, reorder point 1680, ordering 2083 from the primary supplier (lead 24 ticks, 800 cents/unit). Skipped: not enough cash. headphones: 2223 on hand, 1793 backlog, 371 inbound; demand about 75/tick, reorder point 2100, ordering 1899 from the primary supplier (lead 24 ticks, 3000 cents/unit). Skipped: not enough cash. speaker: 1306 on hand, 1981 backlog, 0 inbound; demand about 42/tick, reorder point 1176, ordering 2187 from the primary supplier (lead 24 ticks, 4800 cents/unit). Skipped: not enough cash."
+      "rationale": "Orders are piling up faster than the team can pack (2062 items ready to ship, room to pack 224 an hour), so I scheduled 4 hours of overtime per worker. Overtime alone is not enough, so I hired 30 temporary workers."
     },
     {
-      "effectiveTick": 105,
-      "seq": 38,
+      "effectiveTick": 77,
+      "seq": 20,
       "kind": "command",
       "command": {
         "kind": "hire_temp_workers",
         "sku": 0,
         "role": 0,
-        "qty": 11,
+        "qty": 30,
         "amountCents": 0,
         "poRef": 0
       },
       "provenance": "ai_rule_based",
-      "rationale": "Capacity gap: 6419 shippable units waiting vs 160 units/tick of capacity. Scheduling 4 overtime hours per worker (limit 4). Overtime alone is not enough. Hiring 30 temporary workers (limit 30, 0 on shift or onboarding). Reduced to 11 to fit cash. watchband: 1966 on hand, 1901 backlog, 4 inbound; demand about 80/tick, reorder point 2240, ordering 2811 from the primary supplier (lead 24 ticks, 500 cents/unit). Skipped: not enough cash. charger: 1495 on hand, 1419 backlog, 1 inbound; demand about 60/tick, reorder point 1680, ordering 2083 from the primary supplier (lead 24 ticks, 800 cents/unit). Skipped: not enough cash. headphones: 2223 on hand, 1793 backlog, 371 inbound; demand about 75/tick, reorder point 2100, ordering 1899 from the primary supplier (lead 24 ticks, 3000 cents/unit). Skipped: not enough cash. speaker: 1306 on hand, 1981 backlog, 0 inbound; demand about 42/tick, reorder point 1176, ordering 2187 from the primary supplier (lead 24 ticks, 4800 cents/unit). Skipped: not enough cash."
+      "rationale": "Orders are piling up faster than the team can pack (2062 items ready to ship, room to pack 224 an hour), so I scheduled 4 hours of overtime per worker. Overtime alone is not enough, so I hired 30 temporary workers."
     },
     {
-      "effectiveTick": 109,
-      "seq": 39,
+      "effectiveTick": 81,
+      "seq": 21,
       "kind": "command",
       "command": {
         "kind": "place_purchase_order",
-        "sku": 3,
+        "sku": 2,
         "role": 0,
-        "qty": 1209,
+        "qty": 545,
         "amountCents": 0,
         "poRef": 0
       },
       "provenance": "ai_rule_based",
-      "rationale": "watchband: 700 on hand, 761 backlog, 4 inbound; demand about 32/tick, reorder point 896, ordering 1209 from the primary supplier (lead 24 ticks, 500 cents/unit). charger: 724 on hand, 764 backlog, 1 inbound; demand about 32/tick, reorder point 896, ordering 1191 from the primary supplier (lead 24 ticks, 800 cents/unit). Capacity gap: 3491 shippable units waiting vs 888 units/tick of capacity. Hiring 19 temporary workers (limit 30, 11 on shift or onboarding). headphones: 1060 on hand, 761 backlog, 371 inbound; demand about 32/tick, reorder point 896, ordering 482 from the primary supplier (lead 24 ticks, 3000 cents/unit). speaker: 1306 on hand, 1779 backlog, 0 inbound; demand about 38/tick, reorder point 1064, ordering 1841 from the primary supplier (lead 24 ticks, 4800 cents/unit). Reduced to 690 to fit cash."
+      "rationale": "Speakers: 79 in stock and 1429 orders waiting (1885 already on the way), so I ordered 545 more from the normal supplier (about 24 hours away, $48.00 each)."
     },
     {
-      "effectiveTick": 109,
-      "seq": 40,
+      "effectiveTick": 93,
+      "seq": 22,
+      "kind": "command",
+      "command": {
+        "kind": "place_purchase_order",
+        "sku": 2,
+        "role": 0,
+        "qty": 216,
+        "amountCents": 0,
+        "poRef": 0
+      },
+      "provenance": "ai_rule_based",
+      "rationale": "Speakers: 0 in stock and 1196 orders waiting (1880 already on the way), so I ordered 216 more from the normal supplier (about 24 hours away, $48.00 each)."
+    },
+    {
+      "effectiveTick": 97,
+      "seq": 23,
+      "kind": "command",
+      "command": {
+        "kind": "place_purchase_order",
+        "sku": 2,
+        "role": 0,
+        "qty": 224,
+        "amountCents": 0,
+        "poRef": 0
+      },
+      "provenance": "ai_rule_based",
+      "rationale": "Speakers: 0 in stock and 1312 orders waiting (2096 already on the way), so I ordered 224 more from the normal supplier (about 24 hours away, $48.00 each). Chargers: 98 in stock, so I ordered 154 more from the normal supplier (about 24 hours away, $8.00 each)."
+    },
+    {
+      "effectiveTick": 97,
+      "seq": 24,
       "kind": "command",
       "command": {
         "kind": "place_purchase_order",
         "sku": 1,
         "role": 0,
-        "qty": 1191,
+        "qty": 154,
         "amountCents": 0,
         "poRef": 0
       },
       "provenance": "ai_rule_based",
-      "rationale": "watchband: 700 on hand, 761 backlog, 4 inbound; demand about 32/tick, reorder point 896, ordering 1209 from the primary supplier (lead 24 ticks, 500 cents/unit). charger: 724 on hand, 764 backlog, 1 inbound; demand about 32/tick, reorder point 896, ordering 1191 from the primary supplier (lead 24 ticks, 800 cents/unit). Capacity gap: 3491 shippable units waiting vs 888 units/tick of capacity. Hiring 19 temporary workers (limit 30, 11 on shift or onboarding). headphones: 1060 on hand, 761 backlog, 371 inbound; demand about 32/tick, reorder point 896, ordering 482 from the primary supplier (lead 24 ticks, 3000 cents/unit). speaker: 1306 on hand, 1779 backlog, 0 inbound; demand about 38/tick, reorder point 1064, ordering 1841 from the primary supplier (lead 24 ticks, 4800 cents/unit). Reduced to 690 to fit cash."
+      "rationale": "Speakers: 0 in stock and 1312 orders waiting (2096 already on the way), so I ordered 224 more from the normal supplier (about 24 hours away, $48.00 each). Chargers: 98 in stock, so I ordered 154 more from the normal supplier (about 24 hours away, $8.00 each)."
     },
     {
-      "effectiveTick": 109,
-      "seq": 41,
-      "kind": "command",
-      "command": {
-        "kind": "hire_temp_workers",
-        "sku": 0,
-        "role": 0,
-        "qty": 19,
-        "amountCents": 0,
-        "poRef": 0
-      },
-      "provenance": "ai_rule_based",
-      "rationale": "watchband: 700 on hand, 761 backlog, 4 inbound; demand about 32/tick, reorder point 896, ordering 1209 from the primary supplier (lead 24 ticks, 500 cents/unit). charger: 724 on hand, 764 backlog, 1 inbound; demand about 32/tick, reorder point 896, ordering 1191 from the primary supplier (lead 24 ticks, 800 cents/unit). Capacity gap: 3491 shippable units waiting vs 888 units/tick of capacity. Hiring 19 temporary workers (limit 30, 11 on shift or onboarding). headphones: 1060 on hand, 761 backlog, 371 inbound; demand about 32/tick, reorder point 896, ordering 482 from the primary supplier (lead 24 ticks, 3000 cents/unit). speaker: 1306 on hand, 1779 backlog, 0 inbound; demand about 38/tick, reorder point 1064, ordering 1841 from the primary supplier (lead 24 ticks, 4800 cents/unit). Reduced to 690 to fit cash."
-    },
-    {
-      "effectiveTick": 109,
-      "seq": 42,
+      "effectiveTick": 105,
+      "seq": 25,
       "kind": "command",
       "command": {
         "kind": "place_purchase_order",
-        "sku": 0,
+        "sku": 1,
         "role": 0,
-        "qty": 482,
+        "qty": 87,
         "amountCents": 0,
         "poRef": 0
       },
       "provenance": "ai_rule_based",
-      "rationale": "watchband: 700 on hand, 761 backlog, 4 inbound; demand about 32/tick, reorder point 896, ordering 1209 from the primary supplier (lead 24 ticks, 500 cents/unit). charger: 724 on hand, 764 backlog, 1 inbound; demand about 32/tick, reorder point 896, ordering 1191 from the primary supplier (lead 24 ticks, 800 cents/unit). Capacity gap: 3491 shippable units waiting vs 888 units/tick of capacity. Hiring 19 temporary workers (limit 30, 11 on shift or onboarding). headphones: 1060 on hand, 761 backlog, 371 inbound; demand about 32/tick, reorder point 896, ordering 482 from the primary supplier (lead 24 ticks, 3000 cents/unit). speaker: 1306 on hand, 1779 backlog, 0 inbound; demand about 38/tick, reorder point 1064, ordering 1841 from the primary supplier (lead 24 ticks, 4800 cents/unit). Reduced to 690 to fit cash."
+      "rationale": "Chargers: 11 in stock (154 already on the way), so I ordered 87 more from the normal supplier (about 24 hours away, $8.00 each)."
     },
     {
       "effectiveTick": 109,
-      "seq": 43,
+      "seq": 26,
       "kind": "command",
       "command": {
         "kind": "place_purchase_order",
-        "sku": 2,
+        "sku": 1,
         "role": 0,
-        "qty": 690,
+        "qty": 116,
         "amountCents": 0,
         "poRef": 0
       },
       "provenance": "ai_rule_based",
-      "rationale": "watchband: 700 on hand, 761 backlog, 4 inbound; demand about 32/tick, reorder point 896, ordering 1209 from the primary supplier (lead 24 ticks, 500 cents/unit). charger: 724 on hand, 764 backlog, 1 inbound; demand about 32/tick, reorder point 896, ordering 1191 from the primary supplier (lead 24 ticks, 800 cents/unit). Capacity gap: 3491 shippable units waiting vs 888 units/tick of capacity. Hiring 19 temporary workers (limit 30, 11 on shift or onboarding). headphones: 1060 on hand, 761 backlog, 371 inbound; demand about 32/tick, reorder point 896, ordering 482 from the primary supplier (lead 24 ticks, 3000 cents/unit). speaker: 1306 on hand, 1779 backlog, 0 inbound; demand about 38/tick, reorder point 1064, ordering 1841 from the primary supplier (lead 24 ticks, 4800 cents/unit). Reduced to 690 to fit cash."
+      "rationale": "Chargers: 0 in stock and 105 orders waiting (241 already on the way), so I ordered 116 more from the normal supplier (about 24 hours away, $8.00 each). Watch bands: 177 in stock, so I ordered 75 more from the normal supplier (about 24 hours away, $5.00 each)."
+    },
+    {
+      "effectiveTick": 109,
+      "seq": 27,
+      "kind": "command",
+      "command": {
+        "kind": "place_purchase_order",
+        "sku": 3,
+        "role": 0,
+        "qty": 75,
+        "amountCents": 0,
+        "poRef": 0
+      },
+      "provenance": "ai_rule_based",
+      "rationale": "Chargers: 0 in stock and 105 orders waiting (241 already on the way), so I ordered 116 more from the normal supplier (about 24 hours away, $8.00 each). Watch bands: 177 in stock, so I ordered 75 more from the normal supplier (about 24 hours away, $5.00 each)."
     },
     {
       "effectiveTick": 113,
-      "seq": 44,
+      "seq": 28,
       "kind": "command",
       "command": {
         "kind": "place_purchase_order",
-        "sku": 2,
+        "sku": 1,
         "role": 0,
-        "qty": 429,
+        "qty": 178,
         "amountCents": 0,
         "poRef": 0
       },
       "provenance": "ai_rule_based",
-      "rationale": "speaker: 118 on hand, 697 backlog, 690 inbound; demand about 15/tick, reorder point 420, ordering 429 from the primary supplier (lead 24 ticks, 4800 cents/unit)."
+      "rationale": "Chargers: 0 in stock and 211 orders waiting (357 already on the way), so I ordered 178 more from the normal supplier (about 24 hours away, $8.00 each). Watch bands: 68 in stock (75 already on the way), so I ordered 109 more from the normal supplier (about 24 hours away, $5.00 each)."
+    },
+    {
+      "effectiveTick": 113,
+      "seq": 29,
+      "kind": "command",
+      "command": {
+        "kind": "place_purchase_order",
+        "sku": 3,
+        "role": 0,
+        "qty": 109,
+        "amountCents": 0,
+        "poRef": 0
+      },
+      "provenance": "ai_rule_based",
+      "rationale": "Chargers: 0 in stock and 211 orders waiting (357 already on the way), so I ordered 178 more from the normal supplier (about 24 hours away, $8.00 each). Watch bands: 68 in stock (75 already on the way), so I ordered 109 more from the normal supplier (about 24 hours away, $5.00 each)."
     },
     {
       "effectiveTick": 117,
-      "seq": 45,
+      "seq": 30,
       "kind": "command",
       "command": {
         "kind": "place_purchase_order",
-        "sku": 2,
+        "sku": 1,
         "role": 0,
-        "qty": 199,
+        "qty": 362,
         "amountCents": 0,
         "poRef": 0
       },
       "provenance": "ai_rule_based",
-      "rationale": "speaker: 0 on hand, 742 backlog, 1119 inbound; demand about 16/tick, reorder point 448, ordering 199 from the primary supplier (lead 24 ticks, 4800 cents/unit)."
+      "rationale": "Chargers: 0 in stock and 357 orders waiting (535 already on the way), so I ordered 362 more from the normal supplier (about 24 hours away, $8.00 each). Watch bands: 0 in stock and 82 orders waiting (184 already on the way), so I ordered 150 more from the normal supplier (about 24 hours away, $5.00 each)."
+    },
+    {
+      "effectiveTick": 117,
+      "seq": 31,
+      "kind": "command",
+      "command": {
+        "kind": "place_purchase_order",
+        "sku": 3,
+        "role": 0,
+        "qty": 150,
+        "amountCents": 0,
+        "poRef": 0
+      },
+      "provenance": "ai_rule_based",
+      "rationale": "Chargers: 0 in stock and 357 orders waiting (535 already on the way), so I ordered 362 more from the normal supplier (about 24 hours away, $8.00 each). Watch bands: 0 in stock and 82 orders waiting (184 already on the way), so I ordered 150 more from the normal supplier (about 24 hours away, $5.00 each)."
     }
   ]
 }

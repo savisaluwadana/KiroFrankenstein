@@ -103,15 +103,33 @@ func (r *memDuels) GetDuel(_ context.Context, id DuelID) (Duel, error) {
 }
 
 // DuelService runs Duels over a BranchService. Duel operations that move time
-// or append to both Branches are serialised by one mutex; each Branch call
-// below it takes the BranchService mutex on its own, so nothing here holds
-// the BranchService lock across calls.
+// or append to both Branches are serialised per Duel (not globally), so a slow
+// LLM request in one Duel delays only that Duel's own advance and injection.
+// Each Branch call below takes the BranchService mutex on its own and never
+// holds it across a provider request; reads and the Human's submit and
+// end-window calls do not take the Duel lock at all.
 type DuelService struct {
 	bs    *BranchService
 	repo  DuelRepo
 	newID func() string
 	now   func() time.Time
-	mu    sync.Mutex
+
+	mu    sync.Mutex // guards locks only
+	locks map[DuelID]*sync.Mutex
+}
+
+// lock serialises the time-moving operations of one Duel and returns the
+// unlock function.
+func (d *DuelService) lock(id DuelID) func() {
+	d.mu.Lock()
+	l := d.locks[id]
+	if l == nil {
+		l = &sync.Mutex{}
+		d.locks[id] = l
+	}
+	d.mu.Unlock()
+	l.Lock()
+	return l.Unlock
 }
 
 // NewDuelService returns a DuelService. A nil repo uses the BranchService's
@@ -124,7 +142,7 @@ func NewDuelService(bs *BranchService, repo DuelRepo) *DuelService {
 			repo = &memDuels{m: map[DuelID]Duel{}}
 		}
 	}
-	return &DuelService{bs: bs, repo: repo, newID: bs.newID, now: bs.now}
+	return &DuelService{bs: bs, repo: repo, newID: bs.newID, now: bs.now, locks: map[DuelID]*sync.Mutex{}}
 }
 
 // CreateDuelRequest names the parent Branch, the fork Tick and the AI kind.
@@ -148,8 +166,6 @@ func (d *DuelService) CreateDuel(ctx context.Context, req CreateDuelRequest) (Du
 	if kind != ManagerAIRuleBased && kind != ManagerAILLM {
 		return Duel{}, fmt.Errorf("manager %q: %w", kind, ErrInvalidAIKind)
 	}
-	d.mu.Lock()
-	defer d.mu.Unlock()
 	parent, err := d.bs.GetBranch(ctx, req.Parent)
 	if err != nil {
 		return Duel{}, err
@@ -220,21 +236,6 @@ func (s *BranchService) windowStatus(ctx context.Context, id BranchID) (branchWi
 		w.ended = s.endedAt(id, head)
 	}
 	return w, nil
-}
-
-// ensureDecided lets an AI Branch decide at an open window at its head. It is
-// a no-op when the window already has a record.
-func (s *BranchService) ensureDecided(ctx context.Context, id BranchID) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	c, err := s.loadMutable(ctx, id)
-	if err != nil {
-		return err
-	}
-	if !isAIManager(c.b.ManagerKind) {
-		return nil
-	}
-	return s.decideLocked(ctx, c)
 }
 
 // DuelStatus is the lockstep state of a Duel.
@@ -320,8 +321,7 @@ type AdvanceDuelResult struct {
 // advanced the Human Branch but failed on the AI Branch, the next call only
 // brings the AI Branch up to the Human Branch's tick.
 func (d *DuelService) AdvanceDuel(ctx context.Context, id DuelID, runTo *sim.Tick) (AdvanceDuelResult, error) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
+	defer d.lock(id)()
 	du, err := d.GetDuel(ctx, id)
 	if err != nil {
 		return AdvanceDuelResult{}, err
@@ -392,8 +392,7 @@ type DuelInjectResult struct {
 // both Branches. Both Branches are at the same head, so both accept or both
 // reject. A retry with the same IdempotencyKey completes a half-applied call.
 func (d *DuelService) InjectDisruption(ctx context.Context, id DuelID, req DuelInjectRequest) (DuelInjectResult, error) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
+	defer d.lock(id)()
 	du, err := d.GetDuel(ctx, id)
 	if err != nil {
 		return DuelInjectResult{}, err

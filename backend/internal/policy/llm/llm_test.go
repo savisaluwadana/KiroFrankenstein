@@ -271,6 +271,7 @@ func TestBudgetExhaustion(t *testing.T) {
 		if err := tr.Reserve(); err != nil {
 			t.Fatal(err)
 		}
+		tr.Record(Usage{}) // every Reserve is settled by one Record
 	}
 	if err := tr.Reserve(); !errors.Is(err, ErrBudgetExhausted) || tr.Usage().Calls != 5 {
 		t.Fatalf("call cap: %v %+v", err, tr.Usage())
@@ -313,5 +314,25 @@ func TestNewClientNotConfigured(t *testing.T) {
 	}
 	if _, err := NewManager(nil, testConfig("x"), nil); !errors.Is(err, ErrNotConfigured) {
 		t.Fatal(err)
+	}
+}
+
+// Reservations that are not yet recorded count against the token limit, so
+// concurrent windows cannot all pass a limit only the first ones fit.
+func TestTrackerCountsInflightTokens(t *testing.T) {
+	cfg := testConfig("x")
+	cfg.MaxTokensPerCall, cfg.MaxTotalTokensPerWorld = 100, 300
+	tr := NewTracker(cfg)
+	for i := 0; i < 3; i++ {
+		if err := tr.Reserve(); err != nil {
+			t.Fatalf("reserve %d: %v", i, err)
+		}
+	}
+	if err := tr.Reserve(); !errors.Is(err, ErrBudgetExhausted) {
+		t.Fatalf("fourth reserve = %v, want exhausted", err)
+	}
+	tr.Record(Usage{PromptTokens: 10, CompletionTokens: 10, TotalTokens: 20})
+	if err := tr.Reserve(); err != nil {
+		t.Fatalf("a settled reservation must free its share: %v", err)
 	}
 }

@@ -136,6 +136,49 @@ paths:
                 $ref: '#/components/schemas/World'
         '404':
           $ref: '#/components/responses/NotFound'
+  /worlds/{worldId}/assumptions:
+    get:
+      operationId: getAssumptions
+      tags: [Worlds]
+      summary: Read the Assumptions of a World, optionally with the surprises that have already happened.
+      description: |
+        Returns every effective Assumption (value, unit, default, bounds,
+        rationale, overridden flag). The Disruption_Script is hidden unless
+        `revealScript=true`. Then the server returns only the entries whose
+        onset Tick is at or before the Head_Tick of the Branch (the root
+        Branch by default; for a Duel Branch, the lower of the two duel heads),
+        and the whole script once that head has reached the horizon. The
+        client cannot ask for more. A Branch of another World is refused
+        with 403.
+      parameters:
+        - $ref: '#/components/parameters/WorldId'
+        - name: revealScript
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: branchId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: The Assumptions and, when asked, the revealed part of the script.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssumptionsResponse'
+        '403':
+          description: The Branch belongs to another World (type `forbidden`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
   /worlds/{worldId}/branches:
     get:
       operationId: listBranches
@@ -1065,6 +1108,47 @@ paths:
                 $ref: '#/components/schemas/DuelDecisionsResponse'
         '404':
           $ref: '#/components/responses/NotFound'
+  /diffs:
+    post:
+      operationId: createDiff
+      tags: [Reads]
+      summary: Compare two Branches of one World.
+      description: |
+        Read-only. Reports the observed differences of two Branches at one
+        Comparison_Tick: the first Tick at which their State_Hashes differ, the
+        State components that differ there, the Inputs present on one side only,
+        the metrics and per-product stock of both sides, and `delta` = B minus A.
+        `comparisonTick` defaults to the lower of the two head Ticks; a Tick above
+        either head is `not-yet-simulated` (409). Branches of different Worlds, or
+        of Worlds with another Scenario or engine version, are `incomparable-branches`
+        (422). Branches that belong to a Duel can be compared. The `statement` says
+        that observed differences do not establish cause; clients show it verbatim.
+        Results are synthetic.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDiffRequest'
+      responses:
+        '200':
+          description: The observed differences.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiffResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 components:
   parameters:
     WorldId:
@@ -1109,7 +1193,7 @@ components:
       description: |
         The request conflicts with the Branch state. Types: `history-immutable`,
         `not-yet-simulated`, `stale-head`, `window-not-open`, `branch-limit`,
-        `horizon-reached`, `duel-branch` (a direct mutation of a Branch that belongs to a Duel; use the duel endpoints), `duel-window-open`, `duel-diverged`, `engine-version-mismatch` (a mutation of a World recorded
+        `horizon-reached`, `duel-branch` (a direct mutation of a Branch that belongs to a Duel; use the duel endpoints), `duel-window-open`, `duel-diverged`, `decision-stale` (an AI answer arrived after the branch changed and was discarded; retry), `engine-version-mismatch` (a mutation of a World recorded
         under another engine version; its reads still work and carry a warning).
       content:
         application/problem+json:
@@ -1122,7 +1206,7 @@ components:
           schema:
             $ref: '#/components/schemas/Problem'
     Unprocessable:
-      description: The request is well-formed but invalid. Types `validation`, `invalid-tick`, `budget-exceeded`.
+      description: The request is well-formed but invalid. Types `validation`, `invalid-tick`, `budget-exceeded`, `incomparable-branches` (two Branches of different Worlds, or of Worlds with another Scenario or engine version).
       content:
         application/problem+json:
           schema:
@@ -1252,8 +1336,8 @@ components:
       description: |
         URI that identifies the problem type. Status codes: history-immutable 409,
         not-yet-simulated 409, stale-head 409, window-not-open 409, branch-limit 409,
-        horizon-reached 409, duel-branch 409, duel-window-open 409, duel-diverged 409, engine-version-mismatch 409, budget-exceeded 422, validation 422, invalid-tick 422,
-        invalid-scenario 400, invalid-name 400, bad-request 400, not-found 404,
+        horizon-reached 409, duel-branch 409, duel-window-open 409, duel-diverged 409, decision-stale 409, engine-version-mismatch 409, budget-exceeded 422, incomparable-branches 422, validation 422, invalid-tick 422,
+        invalid-scenario 400, invalid-name 400, bad-request 400, forbidden 403, not-found 404,
         payload-too-large 413, rate-limited 429, unavailable 503, internal 500.
         An unknown route gives not-found 404. A wrong method gives bad-request with status 405.
       enum:
@@ -1262,6 +1346,7 @@ components:
         - urn:parallel:problem:stale-head
         - urn:parallel:problem:window-not-open
         - urn:parallel:problem:budget-exceeded
+        - urn:parallel:problem:incomparable-branches
         - urn:parallel:problem:validation
         - urn:parallel:problem:branch-limit
         - urn:parallel:problem:horizon-reached
@@ -1269,11 +1354,13 @@ components:
         - urn:parallel:problem:duel-branch
         - urn:parallel:problem:duel-window-open
         - urn:parallel:problem:duel-diverged
+        - urn:parallel:problem:decision-stale
         - urn:parallel:problem:invalid-tick
         - urn:parallel:problem:invalid-scenario
         - urn:parallel:problem:invalid-name
         - urn:parallel:problem:bad-request
         - urn:parallel:problem:not-found
+        - urn:parallel:problem:forbidden
         - urn:parallel:problem:payload-too-large
         - urn:parallel:problem:rate-limited
         - urn:parallel:problem:unavailable
@@ -1324,6 +1411,176 @@ components:
           $ref: '#/components/schemas/Tick'
         actualHeadTick:
           $ref: '#/components/schemas/Tick'
+    CreateDiffRequest:
+      type: object
+      additionalProperties: false
+      required: [branchA, branchB]
+      properties:
+        branchA:
+          $ref: '#/components/schemas/Uuid'
+        branchB:
+          $ref: '#/components/schemas/Uuid'
+        comparisonTick:
+          $ref: '#/components/schemas/Tick'
+    DiffComponent:
+      type: object
+      additionalProperties: false
+      required: [name, skus]
+      properties:
+        name:
+          type: string
+          description: State component, for example `inventory`, `orders`, `ledger`, `workforce`, `prices`, `purchase_orders`, `disruptions`, `clock`, `streams`, `pending_events`.
+        skus:
+          type: array
+          description: SKU indexes of the per-product entries that differ; empty when the component has none.
+          items:
+            type: integer
+            format: int64
+    DiffDivergence:
+      type: object
+      additionalProperties: false
+      required: [tick, stateHashA, stateHashB, components]
+      properties:
+        tick:
+          $ref: '#/components/schemas/Tick'
+        stateHashA:
+          $ref: '#/components/schemas/StateHash'
+        stateHashB:
+          $ref: '#/components/schemas/StateHash'
+        components:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiffComponent'
+        firstEventA:
+          $ref: '#/components/schemas/JournalEntry'
+        firstEventB:
+          $ref: '#/components/schemas/JournalEntry'
+    DiffDisruption:
+      type: object
+      additionalProperties: false
+      required: [kind, target, durationTicks, magnitudeBps]
+      properties:
+        kind:
+          $ref: '#/components/schemas/DisruptionKind'
+        target:
+          type: integer
+          format: int64
+          description: SKU index, or -1 for every SKU.
+        role:
+          $ref: '#/components/schemas/SupplierRole'
+        durationTicks:
+          type: integer
+          format: int64
+        magnitudeBps:
+          $ref: '#/components/schemas/Bps'
+    DiffInput:
+      type: object
+      description: An Input present on one side only. At most one of `command` and `disruption` is present, matching `kind`.
+      additionalProperties: false
+      required: [side, branchId, seq, effectiveTick, kind, provenance]
+      properties:
+        side:
+          type: string
+          enum: ['A', 'B']
+        branchId:
+          $ref: '#/components/schemas/Uuid'
+        seq:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Sequence number in the Branch's resolved Input list, as the export numbers it.
+        effectiveTick:
+          $ref: '#/components/schemas/Tick'
+        kind:
+          type: string
+          enum: [command, disruption]
+        command:
+          $ref: '#/components/schemas/Command'
+        disruption:
+          $ref: '#/components/schemas/DiffDisruption'
+        provenance:
+          $ref: '#/components/schemas/Provenance'
+    DiffMetric:
+      type: object
+      additionalProperties: false
+      required: [key, a, b, delta]
+      properties:
+        key:
+          type: string
+          description: One of `net_profit`, `cash` (cents), `service_level`, `fill_rate` (basis points), `backlog_orders`, `backlog_units`, `late_backlog_orders`, `cancelled_orders` (counts).
+        a:
+          type: integer
+          format: int64
+        b:
+          type: integer
+          format: int64
+        delta:
+          type: integer
+          format: int64
+          description: B minus A.
+    DiffSkuStock:
+      type: object
+      additionalProperties: false
+      required: [sku, a, b, delta, valueCentsA, valueCentsB, valueCentsDelta]
+      properties:
+        sku:
+          type: integer
+          format: int64
+        a:
+          type: integer
+          format: int64
+          description: Units on hand in Branch A.
+        b:
+          type: integer
+          format: int64
+        delta:
+          type: integer
+          format: int64
+        valueCentsA:
+          $ref: '#/components/schemas/Cents'
+        valueCentsB:
+          $ref: '#/components/schemas/Cents'
+        valueCentsDelta:
+          $ref: '#/components/schemas/Cents'
+    DiffResult:
+      type: object
+      additionalProperties: false
+      required: [branchA, branchB, worldId, comparisonTick, divergence, differingInputs, metrics, skuStock, statement, disclaimer, currency]
+      properties:
+        branchA:
+          $ref: '#/components/schemas/Uuid'
+        branchB:
+          $ref: '#/components/schemas/Uuid'
+        worldId:
+          $ref: '#/components/schemas/Uuid'
+        comparisonTick:
+          $ref: '#/components/schemas/Tick'
+        divergence:
+          description: Null when the State_Hashes are equal at every Tick up to `comparisonTick`.
+          oneOf:
+            - $ref: '#/components/schemas/DiffDivergence'
+            - type: 'null'
+        differingInputs:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiffInput'
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiffMetric'
+        skuStock:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiffSkuStock'
+        statement:
+          type: string
+          description: Fixed text. Observed differences do not establish cause. Show it verbatim.
+        disclaimer:
+          $ref: '#/components/schemas/Disclaimer'
+        currency:
+          $ref: '#/components/schemas/Currency'
+        warnings:
+          $ref: '#/components/schemas/Warnings'
     ProblemIssue:
       type: object
       additionalProperties: false
@@ -1613,6 +1870,55 @@ components:
         overridden:
           type: boolean
           description: True when `value` differs from `default`.
+    RevealedDisruption:
+      type: object
+      additionalProperties: false
+      required: [kind, onsetTick, durationTicks]
+      properties:
+        kind:
+          $ref: '#/components/schemas/DisruptionKind'
+        onsetTick:
+          $ref: '#/components/schemas/Tick'
+        durationTicks:
+          type: integer
+          format: int64
+        magnitudeBps:
+          $ref: '#/components/schemas/Bps'
+        target:
+          type: string
+          description: SKU id the entry targets, when it has one.
+    AssumptionsResponse:
+      type: object
+      additionalProperties: false
+      required: [worldId, branchId, headTick, horizonTicks, assumptions, scriptRevealed, scriptComplete, disclaimer]
+      properties:
+        worldId:
+          $ref: '#/components/schemas/Uuid'
+        branchId:
+          $ref: '#/components/schemas/Uuid'
+        headTick:
+          $ref: '#/components/schemas/Tick'
+          description: The Head_Tick that bounds the reveal (the lower duel head for a Duel Branch).
+        horizonTicks:
+          type: integer
+          format: int64
+        assumptions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Assumption'
+        scriptRevealed:
+          type: boolean
+          description: True when `revealScript=true` was honoured and `disruptionScript` is present.
+        scriptComplete:
+          type: boolean
+          description: True when the whole script is shown (the head reached the horizon).
+        disruptionScript:
+          type: array
+          description: Only entries whose onset is at or before the head, or all of them at the horizon. Absent unless revealed.
+          items:
+            $ref: '#/components/schemas/RevealedDisruption'
+        disclaimer:
+          $ref: '#/components/schemas/Disclaimer'
     Branch:
       type: object
       additionalProperties: false

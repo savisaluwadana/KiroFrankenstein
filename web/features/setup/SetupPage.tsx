@@ -2,133 +2,26 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { Minus, Plus } from "lucide-react";
-import { ApiError, createWorld, type CreateWorldResponse, type World } from "@/lib/api/client";
-import { DISCLAIMER_FULL, formatMoney } from "@/lib/glossary";
-import {
-  buildControls,
-  buildOverrides,
-  clamp,
-  isValid,
-  parseDollarsToCents,
-  type ControlGroup,
-  type SetupControl,
-} from "./controls";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ApiError, createWorld, type CreateWorldResponse, type ProblemIssue, type World } from "@/lib/api/client";
+import { DISCLAIMER_FULL } from "@/lib/glossary";
+import { AssumptionsEditor } from "@/features/assumptions/AssumptionsEditor";
+import { buildControls, buildOverrides, type SetupControl } from "./controls";
 
 const WORLD_NAME = "Black Friday Meltdown";
 const SEED = 2026;
-const GROUPS: ControlGroup[] = ["Money", "People", "Suppliers", "Prices"];
 
 function friendlyError(e: unknown): string {
   if (e instanceof ApiError) {
     if (e.status === 429) return "Too many requests right now. Please wait a moment and try again.";
-    if (e.status === 400) return "Those settings were not accepted. Please adjust them and try again.";
+    if (e.status === 400) {
+      const first = e.issues[0]?.message;
+      return first !== undefined && first !== ""
+        ? `Those settings were not accepted: ${first}`
+        : "Those settings were not accepted. Please adjust them and try again.";
+    }
   }
   return "Could not reach the game server. Please try again.";
-}
-
-/** Capital first letter and a closing full stop, so the hint reads as sentences. */
-function sentence(s: string): string {
-  const t = s.trim();
-  if (t === "") return t;
-  const cap = t.charAt(0).toUpperCase() + t.slice(1);
-  return /[.!?]$/.test(cap) ? cap : `${cap}.`;
-}
-
-function toText(c: SetupControl, v: number): string {
-  return c.kind === "money" ? formatMoney(v).slice(1).replace(/,/g, "") : String(v);
-}
-
-function parseText(c: SetupControl, text: string): number | null {
-  if (c.kind === "money") return parseDollarsToCents(text);
-  return /^\d{1,12}$/.test(text.trim()) ? Number(text.trim()) : null;
-}
-
-interface RowProps {
-  control: SetupControl;
-  value: number;
-  onChange: (v: number) => void;
-  onValidity: (id: string, ok: boolean) => void;
-}
-
-function ControlRow({ control: c, value, onChange, onValidity }: RowProps) {
-  const uid = useId();
-  // `draft` is what the user is typing; null means show the formatted value.
-  const [draft, setDraft] = useState<string | null>(null);
-  const isDefault = value === c.default;
-  const parsedDraft = draft === null ? null : parseText(c, draft);
-  const bad = draft !== null && (parsedDraft === null || !isValid(c, parsedDraft));
-  const text = draft !== null && (bad || parsedDraft === value) ? draft : toText(c, value);
-
-  function commit(v: number) {
-    setDraft(null);
-    onValidity(c.id, true);
-    onChange(v);
-  }
-
-  function onText(next: string) {
-    setDraft(next);
-    const parsed = parseText(c, next);
-    const ok = parsed !== null && isValid(c, parsed);
-    onValidity(c.id, ok);
-    if (ok && parsed !== null) onChange(parsed);
-  }
-
-  const hint = `Allowed: ${c.format(c.min)} to ${c.format(c.max)}`;
-  return (
-    <div className="grid gap-2 py-4 sm:grid-cols-[14rem_minmax(0,1fr)_11rem] sm:items-center">
-      <label htmlFor={uid} className="font-medium">
-        {c.label}
-      </label>
-      <div className="flex min-w-0 items-center gap-3">
-        {c.slider ? (
-          <input
-            type="range"
-            aria-label={`${c.label} slider`}
-            min={c.min}
-            max={c.max}
-            step={c.step}
-            value={clamp(c, value)}
-            onChange={(e) => commit(Number(e.target.value))}
-            className="h-11 min-w-0 flex-1 accent-[#E8A33D]"
-          />
-        ) : null}
-        <button
-          type="button"
-          aria-label={`Decrease ${c.label}`}
-          onClick={() => commit(clamp(c, value - c.step))}
-          className="inline-flex size-11 shrink-0 items-center justify-center rounded-[4px] border border-edge hover:border-amber"
-        >
-          <Minus aria-hidden size={16} />
-        </button>
-        <input
-          id={uid}
-          inputMode={c.kind === "money" ? "decimal" : "numeric"}
-          value={text}
-          onChange={(e) => onText(e.target.value)}
-          aria-invalid={bad}
-          aria-describedby={`${uid}-hint`}
-          className="h-11 w-28 rounded-[4px] border border-edge bg-ink px-3 text-right"
-        />
-        <button
-          type="button"
-          aria-label={`Increase ${c.label}`}
-          onClick={() => commit(clamp(c, value + c.step))}
-          className="inline-flex size-11 shrink-0 items-center justify-center rounded-[4px] border border-edge hover:border-amber"
-        >
-          <Plus aria-hidden size={16} />
-        </button>
-      </div>
-      <div className="text-sm text-ivory-dim sm:text-right">
-        <span>{c.format(value)}</span>
-        {isDefault ? <span> (default)</span> : null}
-      </div>
-      <p id={`${uid}-hint`} className={`text-sm sm:col-span-3 ${bad ? "text-clay" : "text-ivory-dim"}`}>
-        {bad ? `Please enter a whole value. ${hint}.` : `${sentence(c.rationale)} ${hint}.`}
-      </p>
-    </div>
-  );
 }
 
 export function SetupPage() {
@@ -139,6 +32,7 @@ export function SetupPage() {
   const [invalid, setInvalid] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+  const [issues, setIssues] = useState<ProblemIssue[]>([]);
   const [attempt, setAttempt] = useState(0);
   const [resetKey, setResetKey] = useState(0);
   const requested = useRef<number | null>(null);
@@ -185,11 +79,13 @@ export function SetupPage() {
     if (!draft || busy || anyInvalid) return;
     setBusy(true);
     setStartError(null);
+    setIssues([]);
     try {
       const run = changed ? await createWorld({ name: WORLD_NAME, seed: SEED, overrides }) : draft;
       router.push(`/worlds/${encodeURIComponent(run.world.id)}?branch=${encodeURIComponent(run.rootBranch.id)}`);
     } catch (e) {
       setStartError(friendlyError(e));
+      if (e instanceof ApiError) setIssues(e.issues);
       setBusy(false);
     }
   }
@@ -232,30 +128,20 @@ export function SetupPage() {
         ) : null}
         {loadError === null && draft === null ? <p className="mt-6 text-ivory-dim">Loading your business…</p> : null}
 
-        {draft !== null
-          ? GROUPS.map((g) => {
-              const rows = controls.filter((c) => c.group === g);
-              if (rows.length === 0) return null;
-              return (
-                <fieldset key={g} className="mt-6 border-t border-hairline pt-4">
-                  <legend className="pr-3 text-sm uppercase tracking-wide text-ivory-dim">{g}</legend>
-                  {rows.map((c) => (
-                    <ControlRow
-                      key={`${c.id}-${resetKey}`}
-                      control={c}
-                      value={valueOf(c)}
-                      onChange={(v) => setValues((prev) => ({ ...prev, [c.id]: v }))}
-                      onValidity={setValidity}
-                    />
-                  ))}
-                </fieldset>
-              );
-            })
-          : null}
+        {draft !== null ? (
+          <AssumptionsEditor
+            controls={controls}
+            valueOf={valueOf}
+            onChange={(id, v) => setValues((prev) => ({ ...prev, [id]: v }))}
+            onValidity={setValidity}
+            resetKey={resetKey}
+            issues={issues}
+          />
+        ) : null}
 
         {draft !== null ? (
           <div className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-hairline pt-6">
-            <p className="text-sm text-ivory-dim">Changes apply to this run only.</p>
+            <p className="text-sm text-ivory-dim">Changing assumptions starts a new business.</p>
             <div className="flex items-center gap-4">
               <Link href="/briefing" className="inline-flex min-h-12 items-center px-2 text-ivory-dim hover:text-ivory">
                 Back

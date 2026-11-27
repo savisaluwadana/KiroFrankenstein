@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/json"
 	"net/http"
+	"sort"
 
 	"github.com/savisaluwadana/KiroFrankenstein/backend/internal/app"
 	"github.com/savisaluwadana/KiroFrankenstein/backend/internal/app/demoplan"
@@ -226,4 +227,132 @@ func (s *Server) createDemo(w http.ResponseWriter, r *http.Request) {
 		pd.Commands = append(pd.Commands, demoCommandDTO(c))
 	}
 	writeJSON(w, http.StatusCreated, demoResponse{World: dto, RootBranch: branchToDTO(root), Plan: pd})
+}
+
+// ---- GET /worlds/{id}/assumptions ----
+
+// revealedDisruptionDTO is one Disruption_Script entry that the reveal rules
+// let a manager see.
+type revealedDisruptionDTO struct {
+	Kind          string  `json:"kind"`
+	OnsetTick     int64   `json:"onsetTick"`
+	DurationTicks int64   `json:"durationTicks"`
+	MagnitudeBps  *int64  `json:"magnitudeBps,omitempty"`
+	Target        *string `json:"target,omitempty"`
+}
+
+type assumptionsResponse struct {
+	WorldID      string          `json:"worldId"`
+	BranchID     string          `json:"branchId"`
+	HeadTick     int64           `json:"headTick"`
+	HorizonTicks int64           `json:"horizonTicks"`
+	Assumptions  []assumptionDTO `json:"assumptions"`
+	// ScriptRevealed is true when the caller asked for the script and the
+	// server honoured it; DisruptionScript is then present. ScriptComplete
+	// is true when the whole script is shown (the Head_Tick reached the
+	// horizon).
+	ScriptRevealed   bool                    `json:"scriptRevealed"`
+	ScriptComplete   bool                    `json:"scriptComplete"`
+	DisruptionScript []revealedDisruptionDTO `json:"disruptionScript,omitempty"`
+	Disclaimer       string                  `json:"disclaimer"`
+}
+
+// revealHead is the tick that bounds what may be revealed on branch b: its own
+// Head_Tick, or the lower of the two heads when b belongs to a Duel, so a
+// side that is ahead never shows the other side's future.
+func (s *Server) revealHead(r *http.Request, b app.Branch) (sim.Tick, error) {
+	head := b.HeadTick
+	du, ok, err := s.duels.DuelOfBranch(r.Context(), b.ID)
+	if err != nil {
+		return 0, err
+	}
+	if !ok {
+		return head, nil
+	}
+	for _, id := range []app.BranchID{du.HumanBranchID, du.AIBranchID} {
+		other, err := s.svc.GetBranch(r.Context(), id)
+		if err != nil {
+			return 0, err
+		}
+		head = min(head, other.HeadTick)
+	}
+	return head, nil
+}
+
+func (s *Server) getAssumptions(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r, "worldId")
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	q := r.URL.Query()
+	reveal := false
+	switch v := q.Get("revealScript"); v {
+	case "", "false":
+	case "true":
+		reveal = true
+	default:
+		s.fail(w, r, validation("revealScript is malformed", issue("revealScript", "must be true or false")))
+		return
+	}
+	world, sc, err := s.svc.GetWorld(r.Context(), app.WorldID(id))
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	var branch app.Branch
+	if raw := q.Get("branchId"); raw != "" {
+		if !isUUID(raw) {
+			s.fail(w, r, validation("branchId is malformed", issue("branchId", "must be a branch id")))
+			return
+		}
+		if branch, err = s.svc.GetBranch(r.Context(), app.BranchID(raw)); err != nil {
+			s.fail(w, r, err)
+			return
+		}
+		if branch.WorldID != world.ID {
+			s.fail(w, r, newProblem("forbidden", "the branch belongs to another world"))
+			return
+		}
+	} else {
+		bs, err := s.svc.ListBranches(r.Context(), world.ID)
+		if err != nil {
+			s.fail(w, r, err)
+			return
+		}
+		if len(bs) == 0 {
+			s.fail(w, r, newProblem("not-found", "the world has no branch"))
+			return
+		}
+		branch = bs[0]
+	}
+	head, err := s.revealHead(r, branch)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	out := assumptionsResponse{
+		WorldID: id, BranchID: string(branch.ID), HeadTick: int64(head), HorizonTicks: sc.HorizonTicks,
+		Assumptions: worldToDTO(world, sc).Assumptions, Disclaimer: sim.Disclaimer,
+	}
+	if reveal {
+		out.ScriptRevealed = true
+		out.ScriptComplete = int64(head) >= sc.HorizonTicks
+		out.DisruptionScript = make([]revealedDisruptionDTO, 0, len(sc.DisruptionScript))
+		for _, d := range sc.DisruptionScript {
+			if !out.ScriptComplete && d.OnsetTick > int64(head) {
+				continue
+			}
+			e := revealedDisruptionDTO{Kind: d.Kind, OnsetTick: d.OnsetTick, DurationTicks: d.DurationTicks, Target: d.Target}
+			if d.MagnitudeBps != nil {
+				m := int64(*d.MagnitudeBps)
+				e.MagnitudeBps = &m
+			}
+			out.DisruptionScript = append(out.DisruptionScript, e)
+		}
+		sort.SliceStable(out.DisruptionScript, func(i, j int) bool {
+			return out.DisruptionScript[i].OnsetTick < out.DisruptionScript[j].OnsetTick
+		})
+	}
+	writeJSON(w, http.StatusOK, out)
 }

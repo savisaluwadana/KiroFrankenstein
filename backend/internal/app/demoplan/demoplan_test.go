@@ -80,13 +80,49 @@ func TestDemoPlanStructure(t *testing.T) {
 	}
 }
 
-func TestDemoPlanFlagshipHasNoStaffingCommand(t *testing.T) {
-	plan, err := Derive(loadFlagship(t), DefaultSeed)
+// After calibration (task 7.16) the flagship no-command run is capacity bound
+// after the fork Tick, so the plan holds the backup purchase order and one
+// hire_temp_workers Command, and both pass the validator at the fork window.
+func TestDemoPlanFlagshipHasPurchaseOrderAndStaffing(t *testing.T) {
+	sc := loadFlagship(t)
+	plan, err := Derive(sc, DefaultSeed)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(plan.Commands) != 1 || plan.Commands[0].Kind != "place_purchase_order" {
-		t.Fatalf("commands = %+v, want the single backup purchase order", plan.Commands)
+	if len(plan.Commands) != 2 || plan.Commands[0].Kind != "place_purchase_order" || plan.Commands[1].Kind != "hire_temp_workers" {
+		t.Fatalf("commands = %+v, want a backup purchase order then a hire_temp_workers command", plan.Commands)
+	}
+	st, err := sim.Init(sc, DefaultSeed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for int64(st.Tick()) < plan.ForkTick {
+		step, err := sim.Advance(sc, st, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		st = step.State
+	}
+	for _, v := range sim.Validate(sc, sim.Observe(sc, st), plan.SimCommands(), sc.CommandBudget) {
+		if !v.OK {
+			t.Errorf("rejected at the fork window: %s %s", v.Code, v.Message)
+		}
+	}
+}
+
+// With a regular workforce so large that packing never binds, the plan holds
+// no staffing Command and says why.
+func TestDemoPlanWithoutCapacityBoundHasNoStaffingCommand(t *testing.T) {
+	sc := loadFlagship(t)
+	sc.Workforce.RegularWorkers = 200
+	plan, err := Derive(sc, DefaultSeed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range plan.Commands {
+		if c.Kind != "place_purchase_order" {
+			t.Fatalf("commands = %+v, want only the backup purchase order", plan.Commands)
+		}
 	}
 	found := false
 	for _, r := range plan.Reasons {

@@ -54,8 +54,8 @@ func TestFlagshipScenario(t *testing.T) {
 		t.Errorf("weights = %+v", w)
 	}
 	for _, p := range []string{"profitFloorCents", "profitTargetCents"} {
-		if r := s.AssumptionMeta[p].Rationale; !strings.Contains(r, "synthetic, illustrative; uncalibrated") {
-			t.Errorf("%s rationale %q lacks the uncalibrated label", p, r)
+		if r := s.AssumptionMeta[p].Rationale; !strings.Contains(r, "synthetic, illustrative; calibrated by observation (docs/calibration.md)") {
+			t.Errorf("%s rationale %q lacks the calibrated-by-observation label", p, r)
 		}
 	}
 	for _, p := range []string{"workforce.tempOnboardingTicks", "wages.tempPerHourCents"} {

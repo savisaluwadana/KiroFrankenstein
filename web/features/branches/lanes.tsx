@@ -5,6 +5,7 @@
  */
 import type { Branch } from "@/lib/api/client";
 import { TERMS } from "@/lib/glossary";
+import { branchDisplayName, type BranchLabelContext } from "./labels";
 
 export interface Lane {
   color: string;
@@ -32,7 +33,9 @@ export function orderBranches(branches: readonly Branch[]): Branch[] {
   );
 }
 
-export function realityName(b: Branch): string {
+/** Plain name of a reality. With a context it carries the fork time and manager kind (see labels.ts). */
+export function realityName(b: Branch, ctx?: BranchLabelContext): string {
+  if (ctx !== undefined) return branchDisplayName(b, ctx);
   return b.parentBranchId === null ? TERMS.originalPath : b.label;
 }
 

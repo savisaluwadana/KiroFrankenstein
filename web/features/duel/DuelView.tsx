@@ -11,6 +11,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ApiError,
   advanceDuel,
   endDuelWindow,
   getBranchMetrics,
@@ -38,7 +39,7 @@ import { RealitySwitcher } from "@/features/branches/RealitySwitcher";
 import { DecisionPanel } from "@/features/decisions/DecisionPanel";
 import { InjectDisruption } from "@/features/decisions/InjectDisruption";
 import { EngineeringToggle } from "@/features/engineering/EngineeringToggle";
-import { AssumptionsPanel } from "@/features/studio/AssumptionsPanel";
+import { AssumptionsPanel } from "@/features/assumptions/AssumptionsPanel";
 import { EngineVersionBanner } from "@/features/studio/EngineVersionBanner";
 import { StagePane } from "@/features/studio/StagePane";
 import { ConnectedTimeline, type TimelineInput } from "@/features/timeline/Timeline";
@@ -53,6 +54,7 @@ import {
   formatPercentBps,
   formatSimTime,
   productName,
+  requestFailureMessage,
 } from "@/lib/glossary";
 import { usePlaybackStore } from "@/stores/playback";
 import { selectActiveBranch, useStudioStore } from "@/stores/studio";
@@ -67,6 +69,7 @@ const FRAME_CHUNK = 240;
 type RailTab = "move" | "happened" | "model";
 
 function messageOf(e: unknown): string {
+  if (e instanceof ApiError && e.type === "decision-stale") return requestFailureMessage(e.type);
   return e instanceof Error ? e.message : "Request failed";
 }
 
@@ -135,16 +138,16 @@ function usePaneData(ids: readonly string[], tick: number, enabled: boolean, wan
 }
 
 function PaneFigures({ m }: { m: MetricsResponse | undefined }) {
-  if (m === undefined) return <p className="text-xs text-ivory-dim">Loading figures…</p>;
+  if (m === undefined) return <p className="text-sm text-ivory-dim">Loading figures…</p>;
   const x = m.metrics;
   const item = (label: string, value: string) => (
     <div className="flex flex-col">
-      <dt className="text-xs text-ivory-dim">{label}</dt>
-      <dd className="font-semibold tabular-nums">{value}</dd>
+      <dt className="text-sm text-ivory-dim">{label}</dt>
+      <dd className="text-lg font-semibold tabular-nums">{value}</dd>
     </div>
   );
   return (
-    <dl className="grid grid-cols-2 gap-2 text-sm" data-testid="pane-metrics">
+    <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-base min-[540px]:grid-cols-4" data-testid="pane-metrics">
       {item(METRIC_LABELS.cash, formatMoney(x.cashCents))}
       {item(METRIC_LABELS.netProfit, formatMoney(x.netProfitCents))}
       {item(METRIC_LABELS.serviceLevel, formatPercentBps(x.serviceLevelBps))}
@@ -439,7 +442,7 @@ export function DuelView({ duelId }: DuelViewProps) {
       data-testid={`pane-${s.key}`}
       className="flex min-w-0 flex-col gap-2 rounded-[8px] border border-hairline bg-surface p-2"
     >
-      <h3 className="flex items-center gap-2 text-sm font-medium" data-testid={`pane-title-${s.key}`}>
+      <h3 className="flex items-center gap-2 text-base font-medium" data-testid={`pane-title-${s.key}`}>
         <LaneMark lane={laneFor(s.lane)} />
         {s.label}
       </h3>
@@ -502,8 +505,8 @@ export function DuelView({ duelId }: DuelViewProps) {
       ) : null}
       {mismatch ? <EngineVersionBanner storedVersion={world.engineVersion} engineering={engineering} /> : null}
 
-      <div className="grid flex-1 grid-cols-1 gap-3 min-[769px]:grid-cols-[minmax(0,1fr)_22.5rem]">
-        <div className="flex min-w-0 flex-col gap-3">
+      <div className="grid flex-1 grid-cols-1 gap-3 min-[1600px]:grid-cols-[minmax(0,1fr)_22.5rem]">
+        <div className="flex min-w-0 flex-col gap-3 min-[1600px]:col-start-1 min-[1600px]:row-start-1">
           {phone ? (
             <RealitySwitcher
               label="Which business to show"
@@ -513,7 +516,7 @@ export function DuelView({ duelId }: DuelViewProps) {
               items={sides.map((s) => ({ id: s.id, label: s.label, laneIndex: s.lane }))}
             />
           ) : null}
-          <div className={`grid gap-3 ${phone ? "grid-cols-1" : "grid-cols-2"}`} data-testid="duel-panes">
+          <div className="grid grid-cols-1 gap-3 min-[1360px]:grid-cols-2" data-testid="duel-panes">
             {phone ? paneFor(phoneSide === "ai" ? (sides[1] as (typeof sides)[number]) : (sides[0] as (typeof sides)[number])) : sides.map(paneFor)}
           </div>
 
@@ -522,41 +525,15 @@ export function DuelView({ duelId }: DuelViewProps) {
             <ConnectedTimeline inputs={timelineInputs} startClock={startClock} engineering={engineering} />
           </div>
 
-          {score !== null ? (
-            <Scoreboard score={score} startClock={startClock} onOpenAssumptions={() => setTab("model")} />
-          ) : (
-            <p className="text-sm text-ivory-dim" role="status">
-              Loading the scoreboard…
-            </p>
-          )}
-
-          {engineering ? (
-            <section aria-label="Engineering details" data-testid="duel-engineering" className="space-y-1 rounded-[4px] border border-hairline bg-ink p-2 font-mono text-xs">
-              <p>
-                State hash at tick {selectedTick}: you {hashHuman ?? "…"}
-              </p>
-              <p>
-                State hash at tick {selectedTick}: AI {hashAi ?? "…"}
-              </p>
-              <p data-testid="llm-usage">
-                LLM calls made {formatCount(world.llmCallsMade)}, remaining {formatCount(world.llmCallsRemaining)}; tokens
-                used {formatCount(world.llmTokensUsed)}, remaining {formatCount(world.llmTokensRemaining)}
-              </p>
-              <p>
-                Heads: you {status.humanHeadTick}, AI {status.aiHeadTick}, comparison tick {status.comparisonTick}, horizon{" "}
-                {status.horizonTick}
-              </p>
-            </section>
-          ) : null}
         </div>
 
-        <aside aria-label="Your move and what happened" className="self-start rounded-[8px] border border-hairline bg-raised min-[769px]:sticky min-[769px]:top-3">
+        <aside aria-label="Your move and what happened" className="rounded-[8px] border border-hairline bg-raised min-[1600px]:sticky min-[1600px]:top-3 min-[1600px]:col-start-2 min-[1600px]:row-span-2 min-[1600px]:row-start-1 min-[1600px]:self-start">
           <div className="flex flex-wrap items-center gap-1 p-2" role="tablist" aria-label="Rail">
             {tabBtn("move", TERMS.yourMove)}
             {tabBtn("happened", "What happened")}
             {tabBtn("model", TERMS.assumptions)}
           </div>
-          <div className="space-y-4 overflow-y-auto p-3 pt-1 min-[769px]:max-h-[40rem]">
+          <div className="space-y-4 overflow-y-auto p-3 pt-1 min-[1600px]:max-h-[40rem]">
             {tab === "move" ? (
               <div className="space-y-4" role="tabpanel" aria-label={TERMS.yourMove}>
                 <AiStatus waiting={waiting} decidedCount={shownDecisions.length} />
@@ -636,11 +613,40 @@ export function DuelView({ duelId }: DuelViewProps) {
             ) : null}
             {tab === "model" ? (
               <div role="tabpanel" aria-label={TERMS.assumptions}>
-                <AssumptionsPanel world={world} />
+                <AssumptionsPanel world={world} branchId={humanBranch.id} />
               </div>
             ) : null}
           </div>
         </aside>
+
+        <div className="flex min-w-0 flex-col gap-3 min-[1600px]:col-start-1 min-[1600px]:row-start-2">
+          {score !== null ? (
+            <Scoreboard score={score} startClock={startClock} onOpenAssumptions={() => setTab("model")} />
+          ) : (
+            <p className="text-sm text-ivory-dim" role="status">
+              Loading the scoreboard…
+            </p>
+          )}
+
+          {engineering ? (
+            <section aria-label="Engineering details" data-testid="duel-engineering" className="space-y-1 rounded-[4px] border border-hairline bg-ink p-2 font-mono text-xs">
+              <p>
+                State hash at tick {selectedTick}: you {hashHuman ?? "…"}
+              </p>
+              <p>
+                State hash at tick {selectedTick}: AI {hashAi ?? "…"}
+              </p>
+              <p data-testid="llm-usage">
+                LLM calls made {formatCount(world.llmCallsMade)}, remaining {formatCount(world.llmCallsRemaining)}; tokens
+                used {formatCount(world.llmTokensUsed)}, remaining {formatCount(world.llmTokensRemaining)}
+              </p>
+              <p>
+                Heads: you {status.humanHeadTick}, AI {status.aiHeadTick}, comparison tick {status.comparisonTick}, horizon{" "}
+                {status.horizonTick}
+              </p>
+            </section>
+          ) : null}
+        </div>
       </div>
 
       <footer className="text-xs text-ivory-dim">

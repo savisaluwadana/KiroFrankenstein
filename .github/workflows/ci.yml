@@ -48,6 +48,12 @@ jobs:
           go test ./internal/app -run TestGoldenDuelHashes -count=1
           go run ./cmd/parallel-sim verify --scenario scenarios/black-friday.json --seed 2026 --inputs scenarios/demo-duel-human.json --expect "$(awk '$1=="human" && $2=="final" {print $3}' scenarios/golden/demo-duel.hashes)"
           go run ./cmd/parallel-sim verify --scenario scenarios/black-friday.json --seed 2026 --inputs scenarios/demo-duel-ai.json --expect "$(awk '$1=="ai" && $2=="final" {print $3}' scenarios/golden/demo-duel.hashes)"
+      - name: golden flagship ensemble report (both architectures)
+        run: |
+          go test ./internal/app/ensemble -run TestGoldenEnsembleReport -count=1
+          go run ./cmd/parallel-sim ensemble --scenario scenarios/black-friday.json --seeds 1..20 --arm fixed:scenarios/demo-duel-human.json --arm rulebased --out /tmp/ens
+          cmp /tmp/ens.json scenarios/golden/ensemble-flagship-20.json
+          cmp /tmp/ens.csv scenarios/golden/ensemble-flagship-20.csv
 
   web:
     name: web

@@ -264,13 +264,19 @@ func derivePurchaseOrder(sc sim.Scenario, plan *Plan, obs sim.Observation, st si
 // deriveStaffing appends one hire_temp_workers Command only when the no-command
 // run reports capacity-bound orders after the fork Tick (Req 34.6).
 //
-//	peak  = the largest per-Tick sum, over SKUs, of capacity-bound units in the
-//	        Fulfilment_Constraint_Report for Ticks after the fork Tick
-//	count = ceil(peak / UnitsPerWorkerHour)
+//	peak   = the largest per-Tick sum, over SKUs, of capacity-bound units in the
+//	         Fulfilment_Constraint_Report for Ticks after the fork Tick
+//	window = the shortest delivery promise (Ticks) of any SKU
+//	count  = ceil(peak / (UnitsPerWorkerHour * window))
 //
-// bounded by Workforce.MaxTempWorkers (less temporary workers already
-// contracted) and by the cash left after the purchase order divided by the
-// temporary hourly wage. A count below 1 proposes nothing. Overtime is not
+// that is, enough extra packing capacity to work the largest capacity-bound
+// backlog off within one promise window, which is when its orders turn late.
+// (Calibration task 7.16 replaced the earlier "clear the backlog in one Tick"
+// sizing, which asked for ceil(peak / UnitsPerWorkerHour), a worker count
+// about 24 times larger than any promise requires; see docs/calibration.md.)
+// The count is bounded by Workforce.MaxTempWorkers (less temporary workers
+// already contracted) and by the cash left after the purchase order divided by
+// the temporary hourly wage. A count below 1 proposes nothing. Overtime is not
 // proposed: it scales only the regular workers and its hours are capped, so
 // temporary workers are the larger lever.
 func deriveStaffing(sc sim.Scenario, r run, plan *Plan, obs sim.Observation, fork, free int64) error {
@@ -295,8 +301,17 @@ func deriveStaffing(sc sim.Scenario, r run, plan *Plan, obs sim.Observation, for
 	if per < 1 {
 		return fmt.Errorf("demoplan: workforce.unitsPerWorkerHour %d is below 1", per)
 	}
-	count := (peak + per - 1) / per
-	reasons := []string{fmt.Sprintf("hire %d temporary workers = ceil(%d capacity-bound units at tick %d / %d units per worker hour)", count, peak, peakTick, per)}
+	window := int64(0)
+	for _, k := range sc.SKUs {
+		if window == 0 || k.PromiseTicks < window {
+			window = k.PromiseTicks
+		}
+	}
+	if window < 1 {
+		return fmt.Errorf("demoplan: the shortest sku promise %d is below 1", window)
+	}
+	count := (peak + per*window - 1) / (per * window)
+	reasons := []string{fmt.Sprintf("hire %d temporary workers = ceil(%d capacity-bound units at tick %d / (%d units per worker hour x %d ticks shortest promise window)): enough extra packing capacity to work the largest capacity-bound backlog off within one promise window", count, peak, peakTick, per, window)}
 	if room := sc.Workforce.MaxTempWorkers - obs.Workforce.TempsOnShift - obs.Workforce.TempsOnboarding; count > room {
 		count = room
 		reasons = append(reasons, fmt.Sprintf("bounded to %d by the temporary worker limit %d", count, sc.Workforce.MaxTempWorkers))

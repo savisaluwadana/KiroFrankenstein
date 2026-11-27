@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -79,7 +80,10 @@ type SubmitResult struct {
 
 // BranchService is the application service for Worlds, advancing and
 // rewind reads. It is the only code that turns stored Inputs into sim.Inputs.
-// All methods are safe for concurrent use; they are serialised by one mutex.
+// All methods are safe for concurrent use. State changes are serialised by one
+// mutex that is never held across a request to the LLM provider: the provider
+// call of an AI window runs unlocked, and its answer is committed only if the
+// Branch is unchanged since the call was prepared (see ai_manager.go).
 type BranchService struct {
 	store Store
 	newID func() string
@@ -97,6 +101,40 @@ type BranchService struct {
 	llm       *LLMProvider // nil unless WithLLM is applied
 	subMu     sync.Mutex   // guards subs; never held while taking mu
 	subs      map[BranchID]map[chan struct{}]struct{}
+
+	// ver is a per-Branch counter bumped on every state change (advance,
+	// accepted Commands, window end, injected Disruption, recorded decision).
+	// An external AI answer is committed only if it is still the one it was
+	// captured under. In-memory: a restart has no in-flight requests.
+	ver            map[BranchID]uint64
+	inflight       map[flightKey]*flight // one provider request per window
+	staleUsage     map[flightKey]staleCharge
+	staleDecisions atomic.Int64 // answers discarded because the Branch changed
+	advGate        map[BranchID]chan struct{}
+}
+
+// StaleDecisions counts AI answers discarded because the Branch changed while
+// the provider request was in flight (a metric; nothing is recorded for them
+// except the usage they cost).
+func (s *BranchService) StaleDecisions() int64 { return s.staleDecisions.Load() }
+
+// acquireAdvance serialises Advance calls of one Branch without holding s.mu,
+// so a second Advance waits for the first (and for its provider request)
+// without blocking any other Branch, World or read. Lock order: gate, then mu.
+func (s *BranchService) acquireAdvance(ctx context.Context, id BranchID) (func(), error) {
+	s.mu.Lock()
+	g := s.advGate[id]
+	if g == nil {
+		g = make(chan struct{}, 1)
+		s.advGate[id] = g
+	}
+	s.mu.Unlock()
+	select {
+	case g <- struct{}{}:
+		return func() { <-g }, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 // NewBranchService returns a service over store. newID and now may be nil
@@ -114,6 +152,10 @@ func NewBranchService(store Store, newID func() string, now func() time.Time, op
 		scenarios:     map[WorldID]sim.Scenario{},
 		heads:         map[BranchID]*replayed{},
 		ended:         map[BranchID]sim.Tick{},
+		ver:           map[BranchID]uint64{},
+		inflight:      map[flightKey]*flight{},
+		staleUsage:    map[flightKey]staleCharge{},
+		advGate:       map[BranchID]chan struct{}{},
 		ai: aiState{
 			factories: map[ManagerKind]AIDeciderFactory{ManagerAIRuleBased: RuleBasedDecider},
 			deciders:  map[deciderKey]AIDecider{},
@@ -185,16 +227,22 @@ func (s *BranchService) CreateWorld(ctx context.Context, req CreateWorldRequest)
 		ManagerKind: mgr, CreatedAt: s.now(),
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	if err := s.store.CreateWorld(ctx, w); err != nil {
-		return World{}, Branch{}, fmt.Errorf("create world: %w", err)
+	err = func() error {
+		if err := s.store.CreateWorld(ctx, w); err != nil {
+			return fmt.Errorf("create world: %w", err)
+		}
+		if err := s.store.CreateBranch(ctx, b); err != nil {
+			return fmt.Errorf("create root branch: %w", err)
+		}
+		s.scenarios[w.ID] = *sc
+		return nil
+	}()
+	s.mu.Unlock()
+	if err != nil {
+		return World{}, Branch{}, err
 	}
-	if err := s.store.CreateBranch(ctx, b); err != nil {
-		return World{}, Branch{}, fmt.Errorf("create root branch: %w", err)
-	}
-	s.scenarios[w.ID] = *sc
 	if isAIManager(mgr) {
-		s.decideAtHead(ctx, b.ID)
+		s.decideAtHead(ctx, b.ID) // waits for a slow provider without s.mu
 	}
 	return w, b, nil
 }
@@ -285,101 +333,200 @@ func hasReason(rs []sim.WindowReason, r sim.WindowReason) bool {
 // windows with no Commands and stops at RunToTick, the horizon, or the next
 // Disruption-onset window, whichever comes first. Advancing from an open
 // window ends that window.
+//
+// An AI Branch whose window needs a provider request is advanced in segments:
+// the Ticks computed so far are stored (the Head_Tick is the window), the lock
+// is released while the request runs, and the next segment continues from the
+// stored head. Advance calls of one Branch are serialised, so they never
+// interleave; everything else proceeds meanwhile.
 func (s *BranchService) Advance(ctx context.Context, req AdvanceRequest) (AdvanceResult, error) {
+	release, err := s.acquireAdvance(ctx, req.Branch)
+	if err != nil {
+		return AdvanceResult{}, err
+	}
+	defer release()
+	p := &advanceRun{}
+	stale := 0
+	for {
+		fl, done, err := s.advanceSegment(ctx, req, p)
+		if err != nil {
+			return AdvanceResult{}, err
+		}
+		if done {
+			return p.res, nil
+		}
+		if err := waitFlight(ctx, fl); err != nil {
+			if !errors.Is(err, ErrDecisionStale) {
+				return AdvanceResult{}, err
+			}
+			if stale++; stale > 1 {
+				return AdvanceResult{}, err
+			}
+		}
+	}
+}
+
+// advanceRun carries an Advance across its segments.
+type advanceRun struct {
+	res      AdvanceResult
+	started  bool
+	expect   sim.Tick // head the next segment must find
+	evalHead bool     // the next segment first judges the head it resumes at
+}
+
+// advanceSegment computes Ticks under s.mu until the Advance is done or an AI
+// window needs a provider request; then it returns the flight to wait for.
+func (s *BranchService) advanceSegment(ctx context.Context, req AdvanceRequest, p *advanceRun) (*flight, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	c, err := s.loadMutable(ctx, req.Branch)
 	if err != nil {
-		return AdvanceResult{}, err
+		return nil, false, err
 	}
 	head := c.head.state.Tick()
-	if err := checkExpected(req.ExpectedHeadTick, head); err != nil {
-		return AdvanceResult{}, err
+	if !p.started {
+		if err := checkExpected(req.ExpectedHeadTick, head); err != nil {
+			return nil, false, err
+		}
+	} else if head != p.expect {
+		// Something else moved the Branch while the request was in flight.
+		return nil, false, fmt.Errorf("expected head tick %d, actual %d: %w", p.expect, head, ErrStaleHead)
 	}
 	horizon := sim.Tick(c.sc.HorizonTicks)
 	if head >= horizon {
-		return AdvanceResult{}, ErrHorizonReached
+		return nil, false, ErrHorizonReached
 	}
 	target := horizon
 	runTo := req.RunToTick != nil
 	if runTo {
-		if *req.RunToTick <= head {
-			return AdvanceResult{}, fmt.Errorf("run-to tick %d is not above head %d: %w", *req.RunToTick, head, ErrInvalidTick)
+		if *req.RunToTick <= head && !p.started {
+			return nil, false, fmt.Errorf("run-to tick %d is not above head %d: %w", *req.RunToTick, head, ErrInvalidTick)
 		}
 		if *req.RunToTick < target {
 			target = *req.RunToTick
 		}
 	}
+	p.started = true
 	ai := isAIManager(c.b.ManagerKind)
-	if ai {
+	if ai && !p.evalHead {
 		// The AI never waits for a human: decide at an open window at the head.
-		if err := s.decideLocked(ctx, c); err != nil {
-			return AdvanceResult{}, err
+		fl, err := s.beginDecisionLocked(ctx, c)
+		if err != nil {
+			return nil, false, err
+		}
+		if fl != nil {
+			p.expect = head
+			return fl, false, nil
 		}
 	}
 	inputs, err := s.engineInputs(ctx, req.Branch, horizon)
 	if err != nil {
-		return AdvanceResult{}, err
+		return nil, false, err
 	}
 
 	st := c.head.state
-	res := AdvanceResult{}
+	var seg []sim.TickFrame // frames computed by this segment
 	for {
-		step, err := sim.Advance(c.sc, st, inputsAt(inputs, st.Tick()+1))
-		if err != nil {
-			if errors.Is(err, sim.ErrHorizonReached) {
-				return AdvanceResult{}, ErrHorizonReached
+		if !p.evalHead {
+			step, err := sim.Advance(c.sc, st, inputsAt(inputs, st.Tick()+1))
+			if err != nil {
+				if errors.Is(err, sim.ErrHorizonReached) {
+					return nil, false, ErrHorizonReached
+				}
+				return nil, false, fmt.Errorf("advance to tick %d: %w", st.Tick()+1, err)
 			}
-			return AdvanceResult{}, fmt.Errorf("advance to tick %d: %w", st.Tick()+1, err)
+			st = step.State
+			seg = append(seg, step.Frame)
+			p.res.Frames = append(p.res.Frames, step.Frame)
+			s.saveSnapshot(ctx, c.sc, c.b, st)
 		}
-		st = step.State
-		res.Frames = append(res.Frames, step.Frame)
+		p.evalHead = false
 		tick := st.Tick()
-		s.saveSnapshot(ctx, c.sc, c.b, st)
 		open, reasons := windowAt(c.sc, c.b, st)
 		if ai && open && tick < horizon {
-			bc := branchCtx{b: c.b, w: c.w, sc: c.sc, head: &replayed{state: st, base: tick}}
-			if err := s.decideLocked(ctx, bc); err != nil {
-				return AdvanceResult{}, err
+			if s.isExternal(c) {
+				// The decision needs the Branch stored at this window, so
+				// the provider request can run with the lock released.
+				if len(seg) > 0 {
+					if err := s.persistAdvance(ctx, c, st, seg, false); err != nil {
+						return nil, false, err
+					}
+					seg = nil
+				}
+				if c, err = s.loadMutable(ctx, req.Branch); err != nil {
+					return nil, false, err
+				}
+				fl, err := s.beginDecisionLocked(ctx, c)
+				if err != nil {
+					return nil, false, err
+				}
+				if fl != nil {
+					p.expect, p.evalHead = tick, true
+					return fl, false, nil
+				}
+			} else {
+				bc := branchCtx{b: c.b, w: c.w, sc: c.sc, head: &replayed{state: st, base: tick}}
+				if _, err := s.beginDecisionLocked(ctx, bc); err != nil {
+					return nil, false, err
+				}
 			}
 			if inputs, err = s.engineInputs(ctx, req.Branch, horizon); err != nil {
-				return AdvanceResult{}, err
+				return nil, false, err
 			}
 		}
 		switch {
 		case tick >= horizon:
-			res.Paused = PauseHorizon
+			p.res.Paused = PauseHorizon
 		case runTo && open && !ai && hasReason(reasons, sim.WindowDisruptionOnset):
-			res.Paused, res.WindowReasons = PauseWindow, reasons
+			p.res.Paused, p.res.WindowReasons = PauseWindow, reasons
 		case runTo && tick >= target:
-			res.Paused = PauseRunTo
+			p.res.Paused = PauseRunTo
 			if open {
-				res.WindowReasons = reasons
+				p.res.WindowReasons = reasons
 			}
 		case !runTo && open:
-			res.Paused, res.WindowReasons = PauseWindow, reasons
+			p.res.Paused, p.res.WindowReasons = PauseWindow, reasons
 		}
-		if res.Paused != "" {
+		if p.res.Paused != "" {
 			break
 		}
 	}
-
-	if err := s.store.SetHeadTick(ctx, req.Branch, st.Tick()); err != nil {
-		return AdvanceResult{}, fmt.Errorf("set head tick: %w", err)
+	if err := s.persistAdvance(ctx, c, st, seg, ai); err != nil {
+		return nil, false, err
 	}
-	s.writeProjections(ctx, req.Branch, res.Frames)
-	frames := append(append([]sim.TickFrame(nil), c.head.frames...), res.Frames...)
-	s.heads[req.Branch] = &replayed{state: st, base: c.head.base, frames: frames}
-	delete(s.ended, req.Branch)
-	if ai && st.Tick() < horizon {
+	p.res.HeadTick = st.Tick()
+	p.res.Hash = sim.Hash(st)
+	return nil, true, nil
+}
+
+// isExternal reports whether the AI decision of c's Branch needs a slow
+// provider request. Caller holds s.mu.
+func (s *BranchService) isExternal(c branchCtx) bool {
+	d, fellBack := s.decider(c)
+	_, ok := d.(externalDecider)
+	return ok && !fellBack
+}
+
+// persistAdvance stores the head reached by an Advance segment: the head tick,
+// the projections and the cached frames. decided says an AI window at st was
+// already decided, so the window is closed to Commands. Caller holds s.mu.
+func (s *BranchService) persistAdvance(ctx context.Context, c branchCtx, st sim.State, seg []sim.TickFrame, decided bool) error {
+	id := c.b.ID
+	if err := s.store.SetHeadTick(ctx, id, st.Tick()); err != nil {
+		return fmt.Errorf("set head tick: %w", err)
+	}
+	s.writeProjections(ctx, id, seg)
+	frames := append(append([]sim.TickFrame(nil), c.head.frames...), seg...)
+	s.heads[id] = &replayed{state: st, base: c.head.base, frames: frames}
+	delete(s.ended, id)
+	if decided && st.Tick() < sim.Tick(c.sc.HorizonTicks) {
 		if open, _ := windowAt(c.sc, c.b, st); open {
-			s.ended[req.Branch] = st.Tick() // decided on arrival
+			s.ended[id] = st.Tick() // decided on arrival
 		}
 	}
-	res.HeadTick = st.Tick()
-	res.Hash = sim.Hash(st)
-	s.notifyHead(req.Branch)
-	return res, nil
+	s.bump(id)
+	s.notifyHead(id)
+	return nil
 }
 
 // budgetUsed counts command inputs already stored for the window at tick
@@ -469,6 +616,7 @@ func (s *BranchService) submitLocked(ctx context.Context, c branchCtx, req Submi
 		out.Accepted = append(out.Accepted, rec)
 		out.BudgetRemaining--
 		n++
+		s.bump(req.Branch)
 	}
 	return out, nil
 }
@@ -525,6 +673,7 @@ func (s *BranchService) EndDecisionWindow(ctx context.Context, id BranchID, wind
 		return fmt.Errorf("tick %d: %w", head, ErrWindowNotOpen)
 	}
 	s.ended[id] = head
+	s.bump(id)
 	return nil
 }
 

@@ -240,7 +240,7 @@ export function metricExplanation(key: MetricKey, ctx: { lateBacklogOrders?: num
     case "serviceLevel":
       return "Of the orders whose ship-by time has passed, the share that shipped in time. It shows 100% until some orders come due.";
     case "fillRate":
-      return "Of the items customers were due to receive by now, the share that has shipped. It shows 100% until some items come due.";
+      return "Of the items customers were expecting by now, the share that has shipped. It shows 100% until some items come due.";
     case "backlog": {
       const late = ctx.lateBacklogOrders;
       return late === undefined
@@ -287,6 +287,8 @@ export function requestFailureMessage(type: string): string {
   switch (type) {
     case "stale-head":
       return "The situation changed while you were deciding. Look at the latest hour and try again.";
+    case "decision-stale":
+      return "The AI's answer arrived after the situation changed, so it was discarded. Press Continue to try again.";
     case "validation":
       return "That move wasn't accepted.";
     default:

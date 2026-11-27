@@ -6,7 +6,7 @@ A new project repository for the **Kiroween 2026** hackathon, **Frankenstein** c
 
 **Concept approved: Parallel.** *Reality has no undo button. We built one.* A playable, forkable simulation of an e-commerce business in a Black Friday crisis, where a human and an AI manager compete under identical conditions.
 
-**M0 to M5 are implemented and tested, except as noted below:** the vertical slice, the complete engine and ledger (engine version 2, flagship hash `4c6d0dd0...ab99e`), PostgreSQL persistence with snapshots, replay and engine-version mismatch flags, the studio with an SSE progress stream, ledger drill-down, command forms and disruption injection (M4), and the rule-based and LLM AI managers with the Human vs AI duel view (M5). Not complete: tasks 5.4 (assumptions endpoint and editor) and 5.7 (scene interpolation, provenance-distinguished timeline markers). M6 (branch diff, ensembles) and later are not started. **Live LLM provider verification: PENDING** (see below). The Go module requires Go 1.25. Steering lives in `.kiro/steering/` and the spec (requirements, design, tasks) in `.kiro/specs/parallel-simulation-mvp/`; the studio redesign is described in `docs/ux-redesign.md`.
+**M0 to M6 are implemented and tested, except as noted below:** the vertical slice, the complete engine and ledger (engine version 2, flagship hash `f6f41425...fac80` after the M6 calibration), PostgreSQL persistence with snapshots, replay and engine-version mismatch flags, the studio with an SSE progress stream, ledger drill-down, command forms and disruption injection (M4), the rule-based and LLM AI managers with the Human vs AI duel view (M5), and in M6 the branch diff ("What changed?", `POST /api/v1/diffs`), the assumptions endpoint and panel ("How this is modelled", `GET /api/v1/worlds/{id}/assumptions`, with an explicit reveal of surprises that already happened), the CLI ensemble runner (`parallel-sim ensemble`), the flagship calibration (`parallel-sim calibrate`, `docs/calibration.md`) and LLM calls made outside the service lock. Not complete: task 5.7 is partial (decorative scene interpolation `scene/interpolate.ts` is not built; label collision handling and readability are done). M7 and later are not started. The CI matrix (amd64 and arm64 runners) has not run on GitHub yet; the golden tests were run locally on arm64 and under linux/amd64 emulation in Docker (see below). **Live LLM provider verification: PENDING** (see below). The Go module requires Go 1.25. Steering lives in `.kiro/steering/` and the spec (requirements, design, tasks) in `.kiro/specs/parallel-simulation-mvp/`; the studio redesign is described in `docs/ux-redesign.md`.
 
 ## Run locally
 
@@ -24,14 +24,17 @@ Headless run:
 cd backend && go run ./cmd/parallel-sim run --scenario scenarios/black-friday.json --seed 2026
 ```
 
-Output at the time of writing: engine version 2, tick 120, state hash `4c6d0dd08cf7c1c8c27991355f734705356aced57fe060556e0d038ad03ab99e`, net profit -4342800 cents, service level 2214 bps. (Engine version 1 produced hash `96e7d8d94bc1b3d0e81598272df984b0e0afe86c8e848bc34275781b513bce08` and service level 2206 bps; version 2 adds the per-tick severity draw and the disruption role field.)
+Output at the time of writing: engine version 2, tick 120, state hash `f6f414259c1cbbc7f76dd0c0d2b129cc34d6e98e906868dfea7d68787fffac80`, net profit 1778400 cents, service level 4427 bps. (Before the flagship calibration of task 7.16 the same command printed hash `4c6d0dd08cf7c1c8c27991355f734705356aced57fe060556e0d038ad03ab99e`, net profit -4342800 cents and service level 2214 bps; the Scenario data changed, the engine version did not. Engine version 1 produced hash `96e7d8d94bc1b3d0e81598272df984b0e0afe86c8e848bc34275781b513bce08`; version 2 adds the per-tick severity draw and the disruption role field. See `docs/calibration.md` for every calibration change.)
+
+The calibration tables are reproducible with `cd backend && go run ./cmd/parallel-sim calibrate --scenario scenarios/black-friday.json --seeds 1..20`.
 
 Tests:
 
 - `cd backend && go test ./...`
+- Ensembles (CLI only, up to 50 seeds per arm, no network or LLM): `cd backend && go run ./cmd/parallel-sim ensemble --scenario scenarios/black-friday.json --seeds 1..20 --arm fixed:scenarios/demo-duel-human.json --arm rulebased --out /tmp/ens` writes `/tmp/ens.json` and `/tmp/ens.csv`; the committed 20-seed report is `backend/scenarios/golden/ensemble-flagship-20.{json,csv}` and CI compares it byte for byte. `parallel-sim calibrate --scenario scenarios/black-friday.json --seeds 1..20` prints the calibration tables.
 - `cd web && npx tsc --noEmit && npx eslint . && npx vitest --run`
 - `cd web && npm run e2e` runs the real-browser suite (Playwright, chromium, desktop 1440x900 and phone 390x844) against the real Go API and a production build of the web app. It starts both servers itself on ports 18080 and 3199 and writes screenshots to `docs/screenshots/`. One-time setup: `npx playwright install chromium`.
-  - Specs: `journey`, `metrics`, `setup-and-perf` (studio), `commands` (every management command through its card, checked against export, metrics and ledger), `ledger-sse` (ledger drill-down sums, SSE stream, polling fallback, injected surprise), `duel` (Human vs Rule-based AI to the horizon, every scoreboard number checked against `GET /duels/{id}/score` and branch metrics) and `duel-llm-stub`.
+  - Specs: `journey`, `metrics`, `setup-and-perf` (studio), `commands` (every management command through its card, checked against export, metrics and ledger), `ledger-sse` (ledger drill-down sums, SSE stream, polling fallback, injected surprise), `diff` (the demo plan in a forked future, then "What changed?" checked against `POST /diffs` and the branch export), `assumptions` (values, ranges and the surprise reveal checked against the API), `duel` (Human vs Rule-based AI to the horizon, every scoreboard number checked against `GET /duels/{id}/score` and branch metrics) and `duel-llm-stub`.
   - `duel-llm-stub.spec.ts` checks the LLM path against a **stub provider**: a local OpenAI-compatible server on `127.0.0.1` (random port) and a second API instance started by the spec with `LLM_BASE_URL=http://127.0.0.1:<port>/v1`, `LLM_API_KEY=stub-key-not-secret`, `LLM_MODEL=stub-model` (all fake). The web build is pointed at that API with a Playwright route rewrite. It covers valid proposals, the `invalid_json` and `http_error` fallbacks, escaped rationale, usage counters, that the key appears in no response, DOM or console output, and that reloading makes zero provider calls.
   - **Live LLM verification is pending:** no runtime API key is configured, so no test has called a real provider (OpenRouter or other).
 
@@ -83,7 +86,7 @@ The rule-based AI manager needs no configuration. The LLM AI manager is optional
 | `LLM_HTTP_REFERER` | Optional OpenRouter attribution header | empty |
 | `LLM_APP_TITLE` | Optional OpenRouter attribution header | empty |
 
-The API reads these from the process environment only; it does not load `.env` itself. Either export them in the shell or load an untracked `.env` (copied from `.env.example`, never committed):
+The API reads these from the process environment only; it does not load `.env` itself. Either export them in the shell or load an untracked `.env` (copied from `.env.example`, never committed). Note that `.env.example` also contains `DATABASE_URL`: once it is set the server requires that PostgreSQL (and exits with "cannot connect to PostgreSQL" if it is not running there). To run in memory, delete the `DATABASE_URL` and `MIGRATE_DATABASE_URL` lines from your `.env`, or run `unset DATABASE_URL MIGRATE_DATABASE_URL` after sourcing it. This procedure was followed with a stub provider and a fake key: `GET /api/v1/managers` listed `ai_llm` as available with the configured model, and the server log named the model but never the key or the URL.
 
 ```
 cp .env.example .env     # then edit LLM_API_KEY and LLM_MODEL
@@ -92,7 +95,7 @@ set -a; source ../.env; set +a
 go run ./cmd/parallel-api
 ```
 
-An out-of-range numeric value stops the server at start-up with an error that names the variable and never prints the key.
+**Live provider verification: PENDING** (only a local stub provider has been exercised). An out-of-range numeric value stops the server at start-up with an error that names the variable and never prints the key.
 
 Where keys live: only in the API server's environment. The key and endpoint are never sent to the web app, never returned by the API and never logged. The web app talks only to `/api/v1`.
 

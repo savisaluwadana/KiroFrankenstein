@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { TickFrame } from "@/lib/api/client";
 import { SCENE_H, SCENE_W } from "./iso";
-import { estimateMeasure, intersects, layoutBanners, layoutLabels, type Rect } from "./labelLayout";
+import { estimateMeasure, intersects, labelScaleFor, layoutBanners, layoutLabels, type Rect } from "./labelLayout";
 import { buildSceneLabels } from "./sceneLabels";
 import { buildSceneModel, describeScene } from "./sceneModel";
 import { makeFrame, sku } from "./frames.testutil";
@@ -100,5 +100,16 @@ describe("layoutLabels", () => {
       { x: 0, y: 0, w: 70, h: 40 },
     );
     expect(r.placed[0]?.variant).toBe(1);
+  });
+});
+
+describe("labelScaleFor", () => {
+  it("is 1 when the scene is big enough and grows as it shrinks, capped", () => {
+    expect(labelScaleFor(1)).toBe(1);
+    expect(labelScaleFor(0.92)).toBe(1);
+    expect(labelScaleFor(0.5)).toBeGreaterThanOrEqual(1.8);
+    expect(labelScaleFor(0.5) * 12 * 0.5).toBeGreaterThanOrEqual(11);
+    expect(labelScaleFor(0.1)).toBe(2.4);
+    expect(labelScaleFor(0)).toBe(1);
   });
 });

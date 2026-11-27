@@ -12,35 +12,35 @@
     "fulfilmentWeightBps": 3000,
     "onTimeWeightBps": 2000
   },
-  "profitFloorCents": -2000000,
-  "profitTargetCents": 6000000,
+  "profitFloorCents": 1000000,
+  "profitTargetCents": 20000000,
   "openingCashCents": 10000000,
   "skus": [
     {
       "id": "headphones",
       "referencePriceCents": 5999,
-      "openingUnits": 700,
+      "openingUnits": 1400,
       "openingUnitCostCents": 3000,
       "promiseTicks": 24
     },
     {
       "id": "charger",
       "referencePriceCents": 1999,
-      "openingUnits": 900,
+      "openingUnits": 1800,
       "openingUnitCostCents": 800,
       "promiseTicks": 24
     },
     {
       "id": "speaker",
       "referencePriceCents": 8999,
-      "openingUnits": 400,
+      "openingUnits": 800,
       "openingUnitCostCents": 4800,
       "promiseTicks": 48
     },
     {
       "id": "watchband",
       "referencePriceCents": 1499,
-      "openingUnits": 800,
+      "openingUnits": 1600,
       "openingUnitCostCents": 500,
       "promiseTicks": 24
     }
@@ -96,7 +96,7 @@
     }
   ],
   "workforce": {
-    "regularWorkers": 20,
+    "regularWorkers": 14,
     "unitsPerWorkerHour": 8,
     "maxOvertimePerWorker": 4,
     "maxTempWorkers": 30,
@@ -220,24 +220,24 @@
     },
     "profitFloorCents": {
       "unit": "cents",
-      "default": -2000000,
+      "default": 1000000,
       "min": -100000000,
       "max": 100000000,
-      "rationale": "synthetic, illustrative; uncalibrated: provisional profit floor of -$20,000 pending calibration"
+      "rationale": "synthetic, illustrative; calibrated by observation (docs/calibration.md): $10,000, the no-command profit of $17,784 rounded down to a round number, so doing nothing earns almost no financial points"
     },
     "profitTargetCents": {
       "unit": "cents",
-      "default": 6000000,
+      "default": 20000000,
       "min": -100000000,
       "max": 100000000,
-      "rationale": "synthetic, illustrative; uncalibrated: provisional profit target of $60,000 pending calibration"
+      "rationale": "synthetic, illustrative; calibrated by observation (docs/calibration.md): $200,000, a round number above the best fixed-plan profit observed over Seeds 1 to 20 ($181,905), never the profit of any manager"
     },
     "workforce.regularWorkers": {
       "unit": "workers",
-      "default": 20,
+      "default": 14,
       "min": 1,
       "max": 200,
-      "rationale": "synthetic, illustrative: 20 regular pickers give 160 units per hour, above a normal-hour load of about 100"
+      "rationale": "synthetic, illustrative: 14 regular pickers give 112 units per hour, a little above the average normal-hour load of about 100 orders and below the evening peaks, the demand surge and the absence window"
     },
     "workforce.unitsPerWorkerHour": {
       "unit": "units/hour",
@@ -328,7 +328,7 @@
       "default": 100,
       "min": 1,
       "max": 2000,
-      "rationale": "synthetic, illustrative: about 100 potential customers per hour at profile 100%"
+      "rationale": "synthetic, illustrative: about 100 potential customers per hour for each SKU at profile 100%"
     },
     "demand.baseConversionBps": {
       "unit": "bps",
@@ -409,10 +409,10 @@
     },
     "skus.headphones.openingUnits": {
       "unit": "units",
-      "default": 700,
+      "default": 1400,
       "min": 0,
       "max": 100000,
-      "rationale": "synthetic, illustrative: covers roughly a normal day, not the Black Friday surge"
+      "rationale": "synthetic, illustrative: about 56 hours of average normal-profile demand, enough to reach the Black Friday surge but not to serve it"
     },
     "skus.headphones.openingUnitCostCents": {
       "unit": "cents",
@@ -465,10 +465,10 @@
     },
     "skus.charger.openingUnits": {
       "unit": "units",
-      "default": 900,
+      "default": 1800,
       "min": 0,
       "max": 100000,
-      "rationale": "synthetic, illustrative: covers roughly a normal day, not the Black Friday surge"
+      "rationale": "synthetic, illustrative: about 56 hours of average normal-profile demand, enough to reach the Black Friday surge but not to serve it"
     },
     "skus.charger.openingUnitCostCents": {
       "unit": "cents",
@@ -521,10 +521,10 @@
     },
     "skus.speaker.openingUnits": {
       "unit": "units",
-      "default": 400,
+      "default": 800,
       "min": 0,
       "max": 100000,
-      "rationale": "synthetic, illustrative: covers roughly a normal day, not the Black Friday surge"
+      "rationale": "synthetic, illustrative: about 56 hours of average normal-profile demand, enough to reach the Black Friday surge but not to serve it"
     },
     "skus.speaker.openingUnitCostCents": {
       "unit": "cents",
@@ -577,10 +577,10 @@
     },
     "skus.watchband.openingUnits": {
       "unit": "units",
-      "default": 800,
+      "default": 1600,
       "min": 0,
       "max": 100000,
-      "rationale": "synthetic, illustrative: covers roughly a normal day, not the Black Friday surge"
+      "rationale": "synthetic, illustrative: about 56 hours of average normal-profile demand, enough to reach the Black Friday surge but not to serve it"
     },
     "skus.watchband.openingUnitCostCents": {
       "unit": "cents",

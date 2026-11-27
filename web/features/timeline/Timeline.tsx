@@ -48,6 +48,8 @@ export interface TimelineProps {
   forkPoints?: ForkPoint[];
   /** Hours up to and including this tick are history shared with another reality; drawn as a band. */
   sharedUpTo?: number;
+  /** First hour at which the displayed comparison's futures differ (from the diff endpoint); drawn as a labelled marker. */
+  divergenceTick?: number;
   /** Engineering Mode adds the tick number to the readout. */
   engineering?: boolean;
   syncing?: boolean;
@@ -162,6 +164,7 @@ export function Timeline(props: TimelineProps) {
           Showing {at(selectedTick)}
           {props.engineering ? ` · tick ${selectedTick}` : ""}
           {props.sharedUpTo !== undefined ? ` · Same history until ${at(props.sharedUpTo)}` : ""}
+          {props.divergenceTick !== undefined ? ` · The two futures first look different at ${at(props.divergenceTick)}` : ""}
         </span>
         {props.syncing ? <span>Updating…</span> : null}
       </div>
@@ -219,6 +222,21 @@ export function Timeline(props: TimelineProps) {
             </button>
           ))}
         </div>
+        {props.divergenceTick !== undefined ? (
+          <div className={lane} data-lane="divergence">
+            <button
+              type="button"
+              tabIndex={-1}
+              data-marker="divergence"
+              aria-label={`The two futures first look different at ${at(props.divergenceTick)}`}
+              onClick={() => select(props.divergenceTick as number)}
+              className={`${markerBase} border-clay bg-raised px-1 text-clay`}
+              style={{ left: pct(props.divergenceTick, horizonTicks) }}
+            >
+              ≠
+            </button>
+          </div>
+        ) : null}
         <div className={lane} data-lane="inputs">
           {inputs.map((inp, i) => (
             <button
@@ -294,8 +312,10 @@ export function ConnectedTimeline({
   startClock,
   engineering,
   sharedUpTo,
+  divergenceTick,
 }: {
   sharedUpTo?: number;
+  divergenceTick?: number;
   inputs?: TimelineInput[];
   startClock: string;
   engineering?: boolean;
@@ -328,6 +348,7 @@ export function ConnectedTimeline({
       inputs={inputs ?? []}
       forkPoints={forkPoints}
       {...(sharedUpTo !== undefined ? { sharedUpTo } : {})}
+      {...(divergenceTick !== undefined ? { divergenceTick } : {})}
       {...(engineering !== undefined ? { engineering } : {})}
       syncing={syncing}
       onSelectTick={(t) => {

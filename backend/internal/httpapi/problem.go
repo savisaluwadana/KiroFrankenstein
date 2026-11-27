@@ -51,12 +51,15 @@ var problemSpecs = map[string]problemSpec{
 	"duel-branch":             {http.StatusConflict, "Branch belongs to a duel"},
 	"duel-window-open":        {http.StatusConflict, "Duel is waiting for the human manager"},
 	"duel-diverged":           {http.StatusConflict, "Duel branches have diverged"},
+	"decision-stale":          {http.StatusConflict, "AI decision arrived too late"},
 	"budget-exceeded":         {http.StatusUnprocessableEntity, "Command budget exceeded"},
+	"incomparable-branches":   {http.StatusUnprocessableEntity, "Branches cannot be compared"},
 	"validation":              {http.StatusUnprocessableEntity, "Validation failed"},
 	"invalid-tick":            {http.StatusUnprocessableEntity, "Invalid tick"},
 	"invalid-scenario":        {http.StatusBadRequest, "Invalid scenario"},
 	"invalid-name":            {http.StatusBadRequest, "Invalid name"},
 	"bad-request":             {http.StatusBadRequest, "Bad request"},
+	"forbidden":               {http.StatusForbidden, "Forbidden"},
 	"not-found":               {http.StatusNotFound, "Not found"},
 	"payload-too-large":       {http.StatusRequestEntityTooLarge, "Payload too large"},
 	"rate-limited":            {http.StatusTooManyRequests, "Rate limit exceeded"},
@@ -104,10 +107,14 @@ func problemFor(err error) *Problem {
 				"the engine cannot guarantee identical outcomes, so the world is read-only", em.Stored, em.Running)
 		}
 		return newProblem("engine-version-mismatch", detail)
+	case errors.Is(err, app.ErrIncomparableBranches):
+		return newProblem("incomparable-branches", "the branches belong to different worlds, or to worlds with a different scenario or engine version")
 	case errors.Is(err, app.ErrDuelWindowOpen):
 		return newProblem("duel-window-open", "the duel is waiting for you to end the decision window; neither side advances until you do")
 	case errors.Is(err, app.ErrDuelDiverged):
 		return newProblem("duel-diverged", "the two duel branches are at different ticks; advance the duel to bring them back together")
+	case errors.Is(err, app.ErrDecisionStale):
+		return newProblem("decision-stale", "the branch changed while the AI was deciding, so its answer was discarded; retry the request")
 	case errors.Is(err, app.ErrInvalidAIKind):
 		return newProblem("bad-request", "the duel opponent must be ai_rule_based or ai_llm", issue("aiKind", "must be ai_rule_based or ai_llm"))
 	case errors.Is(err, app.ErrNotFound):

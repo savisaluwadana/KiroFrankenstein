@@ -27,6 +27,7 @@ import {
   type AcceptedCommand,
   type Branch,
   type DemoPlan,
+  type DiffResult,
   type MetricsResponse,
   type Observation,
   type SubmitCommandsResult,
@@ -40,6 +41,7 @@ import {
   prefersReducedMotion,
 } from "@/features/branches/forkSequenceMachine";
 import { RealityBadge, laneFor, laneIndexOf, orderBranches, realityName } from "@/features/branches/lanes";
+import { DiffPanel } from "@/features/diff/DiffPanel";
 import { RealitySwitcher } from "@/features/branches/RealitySwitcher";
 import { InjectDisruption } from "@/features/decisions/InjectDisruption";
 import { DecisionPanel, type Prefill, type Suggestion } from "@/features/decisions/DecisionPanel";
@@ -63,7 +65,7 @@ import {
 import { usePlaybackStore } from "@/stores/playback";
 import { selectActiveBranch, selectDisplayedFrame, useStudioStore } from "@/stores/studio";
 import { useUiStore } from "@/stores/ui";
-import { AssumptionsPanel } from "./AssumptionsPanel";
+import { AssumptionsPanel } from "@/features/assumptions/AssumptionsPanel";
 import { CrisisCards } from "./CrisisCards";
 import { deriveCrisisCards, type CrisisAction } from "./crisis";
 import { LedgerPanel } from "./LedgerPanel";
@@ -137,6 +139,8 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
   const [plan] = useState<DemoPlan | null>(() => (typeof window === "undefined" ? null : loadDemoPlan(worldId)));
   const [prevAlert, setPrevAlert] = useState({ window: false, cards: 0 });
   const [compareWith, setCompareWith] = useState<string | null>(null);
+  const [diffPair, setDiffPair] = useState<readonly [string, string] | null>(null);
+  const [diffResult, setDiffResult] = useState<DiffResult | null>(null);
   const [waiting, setWaiting] = useState<Record<string, number>>({});
   const [advancingId, setAdvancingId] = useState<string | null>(null);
   const [forkSeq, dispatchFork] = useReducer(forkSequenceReducer, INITIAL_FORK_SEQUENCE);
@@ -227,8 +231,11 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
   // The other reality's Metrics at the displayed hour, for forked Branches.
   const parentId = active?.parentBranchId ?? null;
   const metricsTick = metrics?.tick;
+  const parentHead = parentId === null ? undefined : branches.find((b) => b.id === parentId)?.headTick;
   useEffect(() => {
     if (parentId === null || metricsTick === undefined) return;
+    // The other reality may not have been simulated that far; asking would be a guaranteed 409.
+    if (parentHead !== undefined && metricsTick > parentHead) return;
     let cancelled = false;
     getBranchMetrics(parentId, metricsTick)
       .then((m) => {
@@ -240,7 +247,7 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
     return () => {
       cancelled = true;
     };
-  }, [parentId, metricsTick]);
+  }, [parentId, metricsTick, parentHead]);
 
   const activate = useCallback(async (id: string) => {
     const s = useStudioStore.getState();
@@ -501,13 +508,17 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
   }
 
   const parent = parentId !== null ? branches.find((b) => b.id === parentId) : undefined;
-  const parentLabel = parent === undefined ? undefined : parent.parentBranchId === null ? TERMS.originalPath : parent.label;
+  const nameOf = (b: Branch): string => realityName(b, { branches, startClock });
+  const parentLabel = parent === undefined ? undefined : nameOf(parent);
   const childCount = branches.filter((b) => b.parentBranchId !== null).length;
   const suggestionCommand = plan !== null && selectedTick >= plan.forkTick ? plan.commands[0] : undefined;
   const suggestion: Suggestion | null =
     suggestionCommand !== undefined
       ? { skuIndex: suggestionCommand.skuIndex, role: suggestionCommand.role, qty: suggestionCommand.qty }
       : null;
+  const diffA = diffPair === null ? undefined : branches.find((b) => b.id === diffPair[0]);
+  const diffB = diffPair === null ? undefined : branches.find((b) => b.id === diffPair[1]);
+  const diffDivergence = diffA !== undefined && diffB !== undefined ? diffResult?.divergence?.tick : undefined;
   const sharedUpTo =
     partner !== undefined ? (divergenceTick(active, partner, branches) ?? undefined) : active.parentBranchId !== null ? active.forkTick : undefined;
 
@@ -550,7 +561,7 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
                 label="Which future you are looking at"
                 activeId={active.id}
                 onSelect={(id) => void activate(id)}
-                items={orderBranches(branches).map((b, i) => ({ id: b.id, label: realityName(b), laneIndex: i }))}
+                items={orderBranches(branches).map((b, i) => ({ id: b.id, label: nameOf(b), laneIndex: i }))}
               />
               </div>
             ) : null}
@@ -578,7 +589,7 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
                     .filter((b) => b.id !== active.id)
                     .map((b) => (
                       <option key={b.id} value={b.id}>
-                        {realityName(b)}
+                        {nameOf(b)}
                       </option>
                     ))}
                 </select>
@@ -592,7 +603,7 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
         </div>
         <Hud
           metrics={metrics}
-          parentMetrics={parentId !== null && partner === undefined ? parentMetrics : null}
+          parentMetrics={parentId !== null && partner === undefined && parentMetrics?.tick === metricsTick ? parentMetrics : null}
           {...(parentLabel !== undefined ? { parentLabel } : {})}
           syncing={syncing}
           tick={selectedTick}
@@ -639,6 +650,7 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
                   advancingId={advancingId}
                   onAdvance={(id) => void advancePartner(id)}
                   onGoTo={goToPartnerReality}
+                  onWhatChanged={() => setDiffPair([left.id, right.id])}
                 />
               );
             })()
@@ -654,11 +666,27 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
               />
               {branches.length > 1 ? (
                 <div className="pointer-events-none absolute left-2 top-2 z-[5]">
-                  <RealityBadge name={realityName(active)} lane={laneFor(laneIndexOf(branches, active.id))} />
+                  <RealityBadge name={nameOf(active)} lane={laneFor(laneIndexOf(branches, active.id))} />
                 </div>
               ) : null}
             </>
           )}
+          {diffA !== undefined && diffB !== undefined ? (
+            <DiffPanel
+              branchA={diffA}
+              branchB={diffB}
+              branches={branches}
+              startClock={startClock}
+              productNames={productNames}
+              engineering={engineering}
+              onSelectTick={(t) => void usePlaybackStore.getState().selectTick(t)}
+              onResult={setDiffResult}
+              onClose={() => {
+                setDiffPair(null);
+                setDiffResult(null);
+              }}
+            />
+          ) : null}
           <ForkSequence state={forkSeq} onDone={onForkDone} />
         </section>
 
@@ -772,7 +800,7 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
                   )}
                 </div>
                 <div className={panelClass("model")} role="tabpanel" aria-label={TERMS.assumptions}>
-                  <AssumptionsPanel world={world} />
+                  <AssumptionsPanel world={world} branchId={active.id} />
                 </div>
               </>
             )}
@@ -787,6 +815,7 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
           startClock={startClock}
           engineering={engineering}
           {...(sharedUpTo !== undefined ? { sharedUpTo } : {})}
+          {...(diffDivergence !== undefined ? { divergenceTick: diffDivergence } : {})}
         />
       </div>
 
@@ -803,6 +832,7 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
           plan={plan}
           accepted={acceptedHere}
           onSelectBranch={(id) => void activate(id)}
+          onCompareBranches={(a, b) => setDiffPair([a, b])}
           onGoToTick={(t) => void usePlaybackStore.getState().selectTick(t)}
         />
       ) : null}

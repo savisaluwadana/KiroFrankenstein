@@ -78,5 +78,6 @@ func (s *BranchService) InjectDisruption(ctx context.Context, req InjectRequest)
 	if err != nil {
 		return InjectResult{}, fmt.Errorf("append input: %w", err)
 	}
+	s.bump(req.Branch)
 	return InjectResult{Input: rec}, nil
 }

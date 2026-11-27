@@ -385,7 +385,7 @@ describe("DuelView", () => {
     expect(screen.getByTestId("pane-title-ai").textContent).toBe("Rule-based AI (LLM fallback: timed out)");
     await user.click(await screen.findByRole("tab", { name: "What happened" }));
     expect((await screen.findByTestId("provenance-badge")).textContent).toBe("Rule-based AI (LLM fallback: timed out)");
-    expect(screen.getByTestId("fallback-reason").textContent).toContain("did not answer in time");
+    expect(screen.getByTestId("fallback-reason").textContent).toContain("took too long");
   });
 
   it("sends moves and the surprise to the duel endpoints with the exact body", async () => {

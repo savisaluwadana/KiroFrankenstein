@@ -30,7 +30,7 @@ import {
   type SpriteTexture,
 } from "./drawing";
 import { fitScale, project, SCENE_H, SCENE_W, zIndex, type Pt } from "./iso";
-import { layoutBanners, layoutLabels } from "./labelLayout";
+import { BANNER_ICON_W, DEFAULT_FONT, labelScaleFor, layoutBanners, layoutLabels } from "./labelLayout";
 import { buildSceneLabels } from "./sceneLabels";
 import {
   BENCH_D,
@@ -108,6 +108,8 @@ export class WorldScene {
   private readonly bg = new Container();
   private readonly world = new Container();
   private readonly labels = new Container();
+  /** Enlargement of label text so it stays readable when the scene is scaled down. */
+  private labelScale = 1;
   private readonly tweens = new TweenList();
   private readonly onTick = (t: Ticker): void => this.tick(t);
   private reduced = false;
@@ -184,8 +186,12 @@ export class WorldScene {
 
   resize(width: number, height: number): void {
     const s = fitScale(width, height);
+    const k = labelScaleFor(s);
+    const relabel = k !== this.labelScale;
+    this.labelScale = k;
     this.root.scale.set(s);
     this.root.position.set((width - SCENE_W * s) / 2, (height - SCENE_H * s) / 2);
+    if (relabel && this.model !== null) this.applyTags(this.model);
     this.renderNow();
   }
 
@@ -497,12 +503,14 @@ export class WorldScene {
   /** Banners in a column along the top edge, then every other label through the collision-free layout. */
   private applyTags(m: SceneModel): void {
     const specs = buildSceneLabels(m);
-    const banners = layoutBanners(specs.banners, this.measure);
+    const k = this.labelScale;
+    const bannerFont = Math.round(DEFAULT_FONT * k);
+    const banners = layoutBanners(specs.banners, this.measure, bannerFont, Math.round(8 * k), Math.round(BANNER_ICON_W * k));
     this.bannerTags.forEach((t) => (t.visible = false));
     this.bannerIcons.forEach((g) => (g.visible = false));
     banners.forEach((b, i) => {
       const tag = this.poolTag(this.bannerTags, i);
-      tag.set(b.text, "crisis");
+      tag.set(b.text, "crisis", bannerFont);
       tag.position.set(b.textX + tag.boxW / 2, b.rect.y + tag.boxH);
       tag.visible = true;
       let icon = this.bannerIcons[i];
@@ -512,6 +520,7 @@ export class WorldScene {
         this.labels.addChild(icon);
         this.bannerIcons.push(icon);
       }
+      icon.scale.set(k);
       icon.position.set(b.iconCenter.x, b.iconCenter.y);
       icon.visible = true;
     });
@@ -522,6 +531,7 @@ export class WorldScene {
       this.measure,
       bounds,
       banners.map((b) => b.rect),
+      k,
     );
     this.labelPool.forEach((t) => (t.visible = false));
     this.leaders.clear();

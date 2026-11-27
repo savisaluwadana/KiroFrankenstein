@@ -69,4 +69,29 @@ describe("SetupPage", () => {
     const last = bodies[bodies.length - 1] as { overrides: Record<string, number> };
     expect(last.overrides).toEqual({ "workforce.regularWorkers": 25 });
   });
+
+  it("shows the validator's message next to the rejected control", async () => {
+    render(<SetupPage />);
+    const staff = await screen.findByLabelText("Packing staff");
+    fireEvent.change(staff, { target: { value: "25" } });
+    const go = await screen.findByRole("button", { name: "Start with these settings" });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            type: "urn:parallel:problem:invalid-scenario",
+            title: "Invalid scenario",
+            status: 400,
+            issues: [{ field: "workforce.regularWorkers", message: "must be at most 24" }],
+          }),
+          { status: 400, headers: { "Content-Type": "application/problem+json" } },
+        ),
+      ),
+    );
+    fireEvent.click(go);
+    const msg = await screen.findByTestId("server-issue");
+    expect(msg.textContent).toBe("must be at most 24");
+    expect(push).not.toHaveBeenCalled();
+  });
 });

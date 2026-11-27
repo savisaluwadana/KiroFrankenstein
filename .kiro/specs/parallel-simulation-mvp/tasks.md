@@ -556,7 +556,7 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
     - Acceptance: a backend test asserts that the returned lines sum exactly to the reported figure; the panel shows that sum from the API, not a client recomputation.
     - Reconciliation (post-redesign): Partly satisfied. `web/features/studio/LedgerPanel.tsx` and `StudioPage.tsx` show the ledger. Remaining: account and Tick-range filters in `reads.go`/`openapi.yaml`, drill-down from a money figure to its entries, backend sum test, and moving the panel to `features/ledger/` if wanted.
     - Reconciliation (M4/M5 pass): Delivered: `GET /branches/{id}/ledger/summary` (`backend/internal/httpapi/ledger_summary.go`, `ledger_summary_test.go`), `openapi.yaml`, `web/features/ledger/LedgerPanel.tsx` (+ test; drill-down from a money figure to the entries that sum to it, figure taken from the API), e2e `ledger-sse.spec.ts` checks the sums. Remaining: confirm any account and Tick-range filter parameters on the entries list beyond what the summary provides were not added.
-  - [ ] 5.4 Build the Assumptions endpoint, Assumptions_Editor and Assumptions_Panel
+  - [x] 5.4 Build the Assumptions endpoint, Assumptions_Editor and Assumptions_Panel
     - _Requirements: 31.1, 31.2, 31.3, 31.4, 32.13, 4.4_
     - Dependencies: 5.3
     - Deliverables: `GET /worlds/{id}/assumptions` (value, unit, default, min, max, rationale, overridden flag) in `backend/internal/httpapi/worlds.go` and `openapi.yaml`; `web/features/assumptions/AssumptionsEditor.tsx` (overrides sent with World creation; Disruption_Script hidden until "Reveal disruption script"), `AssumptionsPanel.tsx` (one action from World_View, later Duel view and Diff_Panel); tests
@@ -564,6 +564,7 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
     - Acceptance: out-of-bounds overrides surface the validator's message; while Head_Tick < horizon only script entries with onset ≤ the displayed Tick are shown.
     - Reconciliation (post-redesign): Partly satisfied. `web/features/studio/AssumptionsPanel.tsx` (read view) and `web/features/setup/SetupPage.tsx` with `controls.ts` (overrides at World creation, e2e `setup-and-perf.spec.ts`). Remaining: `GET /worlds/{id}/assumptions` with default/min/max/rationale, reveal-script gating, panel in duel and diff views.
     - Reconciliation (M4/M5 pass): Delivered earlier: `web/features/studio/AssumptionsPanel.tsx` (read view), setup overrides at World creation (`features/setup`). Remaining (not ticked on purpose): `GET /worlds/{id}/assumptions` with default, min, max and rationale; `AssumptionsEditor` reveal-script gating (Disruption_Script hidden until "Reveal disruption script"); Assumptions_Panel link in the Duel view and Diff_Panel.
+    - Reconciliation (M6 pass): Delivered in M6: `GET /worlds/{id}/assumptions` (value, unit, default, min, max, rationale, overridden; `revealScript=true` returns only surprises whose onset is at or before the head, all at the horizon; a Duel Branch is bounded by the lower of the two heads) in `backend/internal/httpapi/worlds.go`, `openapi.yaml`, `assumptions_test.go`; `web/features/assumptions/AssumptionsPanel.tsx` ("How this is modelled", with the explicit "Show the surprises that have already happened" control) in the studio rail and the Duel view. The editor with overrides at World creation was delivered earlier (`features/setup`). Real-browser spec `web/e2e/assumptions.spec.ts` compares the panel with the API and checks that nothing from the future is revealed, also in a duel world.
   - [x] 5.5 Complete the Decision_Panel for all Command kinds
     - _Requirements: 32.7, 32.8, 17.1, 17.3_
     - Dependencies: 5.3
@@ -588,13 +589,14 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
     - Acceptance: a test asserts that every rendered number equals the value of the displayed Tick_Frame at all interpolation steps.
     - Reconciliation (post-redesign): Mostly satisfied by the redesign (`docs/ux-redesign.md`): `features/timeline/Timeline.tsx`, `features/world-view/Hud.tsx`, `WorldView.tsx` and `scene/*` (Warehouse view, PixiJS), `PlaybackControls.tsx`, `features/branches/BranchTree.tsx`, `ForkSequence.tsx`, `RealitySwitcher.tsx`, `features/studio/ComparisonView.tsx`, `features/engineering/EngineeringDrawer.tsx`/`EngineeringToggle.tsx` (Engineering mode), `features/intro`, `features/briefing`. Remaining: decorative interpolation `scene/interpolate.ts` with its number-equality test, provenance-distinguished Input markers. Diff view is not built (belongs to M6).
     - Reconciliation (M4/M5 pass): Delivered by the redesign and this pass: restyled studio components, Timeline, HUD, scene with `labelLayout.ts`/`sceneLabels.ts` (+ `labelLayout.test.ts`), playback controls. Remaining (not ticked on purpose): `web/features/world-view/scene/interpolate.ts` with the number-equality test, and provenance-distinguished Input markers on the Timeline. Diff view belongs to M6.
+    - Reconciliation (M6 pass): Still partial after M6: the decorative interpolation `web/features/world-view/scene/interpolate.ts` with its number-equality test is NOT built, and provenance-distinguished Input markers are only partly done. Done: label collision handling (`labelLayout.ts`) and readability fixes, the divergence marker lane on the Timeline.
   - [ ] 5.8 Checkpoint — M4 complete
     - Run `cd backend && go test ./...` and `cd web && npx tsc --noEmit && npx eslint . && npx vitest --run`. Ensure all tests pass, ask the user if questions arise.
 
     - Reconciliation (post-redesign): Superseded by 4.9 as the latest checkpoint; to be re-run with the final M4 scope.
     - Reconciliation (M4/M5 pass): Delivered: the M4 scope was re-verified in the 6.12 checkpoint (backend `go test ./...`, web tsc, eslint, vitest, build, e2e). Remaining: this checkpoint stays unticked while 5.4 and 5.7 are open.
 
-- [ ] 6. M5 — LLM manager and human-versus-AI arena (~400 credits)
+- [x] 6. M5 — LLM manager and human-versus-AI arena (~400 credits)
   - [x] 6.1 Implement the Rule_Based_Manager
     - _Requirements: 19.1, 19.2, 19.3, 19.4, 19.5_
     - Dependencies: 5.8
@@ -672,116 +674,134 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
     - Verify: `cd web && npx vitest --run features/duel features/branches && npx tsc --noEmit && npx eslint .`
     - Acceptance: a test renders a rationale containing `<script>` and markdown links as literal text; both views always show the same Tick.
     - Reconciliation (M4/M5 pass): Delivered: `web/app/duels/[duelId]`, `web/features/duel/` (`DuelView`, `Scoreboard`, `DecisionsList`, `ChallengeAi`, `duelText.ts`, tests), e2e `duel.spec.ts` and `duel-llm-stub.spec.ts`. Remaining: no AI provenance labels in the Branch_Tree (tree shows manager kind only), Assumptions_Panel link in the Duel view (depends on 5.4).
-  - [-] 6.12 Checkpoint — M5 complete
+  - [x] 6.12 Checkpoint — M5 complete
     - Run `cd backend && go test ./...` and `cd web && npx tsc --noEmit && npx vitest --run`. Ensure all tests pass, ask the user if questions arise.
     - Reconciliation (M4/M5 pass): Delivered: checkpoint run (see `docs/kiro-build-log.md`, M4/M5 implementation). Remaining: status is set by the orchestrator.
 
 - [ ] 7. M6 — Branch comparison and ensemble experiments (~350 credits)
-  - [ ] 7.1 Implement the Branch_Diff_Service
+  - [x] 7.1 Implement the Branch_Diff_Service
     - _Requirements: 23.1, 23.2, 23.3, 23.4, 23.5, 23.6, 23.7, 23.8, 22.3_
     - Dependencies: 6.12
     - Deliverables: `backend/internal/app/diff_service.go` (Comparison_Tick rule, First_Divergence_Tick by per-Tick hash comparison, differing top-level State components and per-SKU entries, first differing outcome-journal event per Branch, Inputs present in one Branch only, metric differences, causality statement, incomparable-branches error across Worlds), `diff_service_test.go`
     - Verify: `cd backend && go test ./internal/app -run TestDiff`
     - Acceptance: a demo fork versus parent diff reports the Demo_Commands as differing Inputs and a First_Divergence_Tick ≥ their effective Tick; the causality statement appears verbatim.
-  - [ ] 7.2 Property test: diff identity
+    - Reconciliation (M6 pass): Delivered in `backend/internal/app/diff_service.go` with `diff_service_test.go` (`TestDiff*`): Comparison_Tick rule, per-Tick hash First_Divergence_Tick, differing State components and per-SKU stock, Inputs present in one Branch only, metric differences, fixed causality statement, incomparable-branches error across Worlds.
+  - [x] 7.2 Property test: diff identity
     - **Property 24: Diff identity**
     - **Validates: Requirements 23.9**
     - Dependencies: 7.1
     - Deliverables: `backend/internal/app/diff_identity_prop_test.go` (`TestPropDiffIdentity`)
     - Verify: `cd backend && go test ./internal/app -run TestPropDiffIdentity`
+    - Reconciliation (M6 pass): Delivered: `backend/internal/app/diff_identity_prop_test.go` (`TestPropDiffIdentity`).
   - [ ]* 7.3 Property test: diff symmetry
     - **Property 25: Diff symmetry**
     - **Validates: Requirements 23.10**
     - Dependencies: 7.1
     - Deliverables: `backend/internal/app/diff_symmetry_prop_test.go` (`TestPropDiffSymmetry`)
     - Verify: `cd backend && go test ./internal/app -run TestPropDiffSymmetry`
-  - [ ] 7.4 Property test: diff input determinism
+    - Reconciliation (M6 pass): Optional property test skipped on purpose (`TestPropDiffSymmetry` not written).
+  - [x] 7.4 Property test: diff input determinism
     - **Property 26: Diff input determinism** (INV-1)
     - **Validates: Requirements 23.11**
     - Dependencies: 7.1
     - Deliverables: `backend/internal/app/diff_input_prop_test.go` (`TestPropDiffInputDeterminism`)
     - Verify: `cd backend && go test ./internal/app -run TestPropDiffInputDeterminism`
+    - Reconciliation (M6 pass): Delivered: `backend/internal/app/diff_input_prop_test.go` (`TestPropDiffInputDeterminism`).
   - [ ]* 7.5 Property test: diff no early divergence
     - **Property 27: Diff no early divergence**
     - **Validates: Requirements 23.12**
     - Dependencies: 7.1
     - Deliverables: `backend/internal/app/diff_early_prop_test.go` (`TestPropDiffNoEarlyDivergence`)
     - Verify: `cd backend && go test ./internal/app -run TestPropDiffNoEarlyDivergence`
-  - [ ] 7.6 Add the diff endpoint, the Diff_Panel and the divergence marker
+    - Reconciliation (M6 pass): Optional property test skipped on purpose (`TestPropDiffNoEarlyDivergence` not written). The e2e `diff.spec.ts` asserts the first divergence is not before the first differing Input's effective hour for the demo plan.
+  - [x] 7.6 Add the diff endpoint, the Diff_Panel and the divergence marker
     - _Requirements: 23.13, 32.14, 35.7, 31.2, 31.5, 26.2 (diff two Branches), 26.8_
     - Dependencies: 7.1
     - Deliverables: `POST /diffs` in `backend/internal/httpapi/diffs.go` and `openapi.yaml`; `web/features/diff/DiffPanel.tsx` (First_Divergence_Tick as a Timeline link, differing Inputs with Tick links, metric differences, causality statement, Disclaimer, Assumptions_Panel link); Branch_Tree two-Branch selection; divergence marker on the Timeline; tests
     - Verify: `cd backend && go test ./internal/httpapi -run TestDiffs && cd ../web && npm run gen:api && npx vitest --run features/diff features/timeline && npx tsc --noEmit`
     - Acceptance: the panel renders only server-reported differences.
-  - [ ] 7.7 Implement the Ensemble_Runner arms and Seed handling
+    - Reconciliation (M6 pass): Delivered: `POST /diffs` in `backend/internal/httpapi/diffs.go` (+ `diffs_test.go`, `openapi.yaml`); `web/features/diff/DiffPanel.tsx`, `diffText.ts`, the "What changed?" button in `ComparisonView.tsx`, and the divergence marker in `features/timeline/Timeline.tsx`. Real-browser spec `web/e2e/diff.spec.ts` (desktop and phone) checks every figure, the differing decisions (against the branch export), the verbatim statement, Engineering Mode references and the marker against the API. M6 pass fixes: metrics rows keep their explanation in a full-width row (it was squeezed to a few characters per line on a phone); the marker label is `≠` (it was clipped); the studio no longer requests the parent's metrics for an hour the parent has not simulated (a guaranteed 409).
+  - [x] 7.7 Implement the Ensemble_Runner arms and Seed handling
     - _Requirements: 24.1, 24.2, 24.3, 24.4, 24.5, 24.6, 24.7, 24.8, 24.9, 24.10, 24.11, 24.17, 22.5, 22.6, 22.7, 25.1, 25.4_
     - Dependencies: 6.12
     - Deliverables: `backend/internal/app/ensemble/runner.go` (explicit Seed list or base + count, 1..50, duplicates rejected before any run; Fixed_Replay with validation at the preceding window and Skipped_Commands with reason codes, parameters never altered; Adaptive_Evaluation with optional prefix Inputs_File; LLM arm rejected; Scenario hash and engine version mismatch rejected; memory store only), `backend/cmd/parallel-sim/ensemble.go` (`--scenario`, `--seeds`, `--arm fixed:<file>|rulebased[@startTick]`, `--prefix`, `--tie-tolerance`, `--out`), tests
     - Verify: `cd backend && go test ./internal/app/ensemble/... ./cmd/parallel-sim/...`
     - Acceptance: 51 Seeds and duplicate Seeds fail before simulating; an `llm` arm fails with unsupported-arm; the runner opens no database or network connection.
-  - [ ] 7.8 Property test: fixed-replay round trip under the original Seed (required)
+    - Reconciliation (M6 pass): Delivered: `backend/internal/app/ensemble/runner.go` (+ `runner_test.go`) and `backend/cmd/parallel-sim/ensemble.go` (+ `ensemble_test.go`): seed list or range 1..50, duplicates rejected, fixed replay with skipped commands and reason codes, rule-based arm with optional start tick and prefix, LLM arm rejected, memory store only.
+  - [x] 7.8 Property test: fixed-replay round trip under the original Seed (required)
     - **Property 28: Fixed-replay round trip under original seed** (INV-16)
     - **Validates: Requirements 24.15**
     - Dependencies: 7.7
     - Deliverables: `backend/internal/app/ensemble/replay_roundtrip_prop_test.go` (`TestPropFixedReplayRoundTrip`)
     - Verify: `cd backend && go test ./internal/app/ensemble -run TestPropFixedReplayRoundTrip`
-  - [ ] 7.9 Property test: ensemble parity (required)
+    - Reconciliation (M6 pass): Delivered: `backend/internal/app/ensemble/replay_roundtrip_prop_test.go` (`TestPropFixedReplayRoundTrip`).
+  - [x] 7.9 Property test: ensemble parity (required)
     - **Property 30: Ensemble parity** (INV-17)
     - **Validates: Requirements 22.5**
     - Dependencies: 7.7
     - Deliverables: `backend/internal/app/ensemble/parity_prop_test.go` (`TestPropEnsembleParity`)
     - Verify: `cd backend && go test ./internal/app/ensemble -run TestPropEnsembleParity`
-  - [ ] 7.10 Implement Ensemble_Report statistics and JSON/CSV output
+    - Reconciliation (M6 pass): Delivered: `backend/internal/app/ensemble/parity_prop_test.go` (`TestPropEnsembleParity`).
+  - [x] 7.10 Implement Ensemble_Report statistics and JSON/CSV output
     - _Requirements: 24.12, 24.13, 24.14, 25.2, 25.3, 25.5, 25.6, 25.7, 25.8, 25.9, 25.10, 31.6_
     - Dependencies: 7.7
     - Deliverables: `backend/internal/app/ensemble/report.go` (per-run rows in ascending Seed order, Skipped_Commands, arm labels and the human-versus-AI asymmetry statement, min/p10/median/mean/p90/max by nearest rank and half-to-even mean, per-Seed score differences, win/tie counts, header with Scenario hash, engine version, horizon, Comparison_Tick, Tie_Tolerance, Seed count, Disclaimer; canonical JSON and fixed-column CSV), `report_test.go`
     - Verify: `cd backend && go test ./internal/app/ensemble -run TestReport`
     - Acceptance: a hand-computed 5-Seed example matches every statistic; running with concurrency 1 and 8 writes identical bytes.
-  - [ ] 7.11 Property test: ensemble determinism under any execution order (required)
+    - Reconciliation (M6 pass): Delivered: `backend/internal/app/ensemble/report.go` and `report_test.go` (`TestReport*`): nearest-rank statistics, win/tie counts, canonical JSON and fixed-column CSV; concurrency 1 and 8 write identical bytes.
+  - [x] 7.11 Property test: ensemble determinism under any execution order (required)
     - **Property 29: Ensemble determinism under any execution order** (INV-16)
     - **Validates: Requirements 24.16**
     - Dependencies: 7.10
     - Deliverables: `backend/internal/app/ensemble/determinism_prop_test.go` (`TestPropEnsembleDeterminism`)
     - Verify: `cd backend && go test ./internal/app/ensemble -run TestPropEnsembleDeterminism`
-  - [ ] 7.12 Property test: win/tie count conservation
+    - Reconciliation (M6 pass): Delivered: `backend/internal/app/ensemble/determinism_prop_test.go` (`TestPropEnsembleDeterminism`).
+  - [x] 7.12 Property test: win/tie count conservation
     - **Property 31: Win/tie count conservation**
     - **Validates: Requirements 25.11**
     - Dependencies: 7.10
     - Deliverables: `backend/internal/app/ensemble/counts_prop_test.go` (`TestPropWinTieConservation`)
     - Verify: `cd backend && go test ./internal/app/ensemble -run TestPropWinTieConservation`
+    - Reconciliation (M6 pass): Delivered: `backend/internal/app/ensemble/counts_prop_test.go` (`TestPropWinTieConservation`).
   - [ ]* 7.13 Property test: arm symmetry
     - **Property 32: Arm symmetry**
     - **Validates: Requirements 25.12**
     - Dependencies: 7.10
     - Deliverables: `backend/internal/app/ensemble/arm_symmetry_prop_test.go` (`TestPropArmSymmetry`)
     - Verify: `cd backend && go test ./internal/app/ensemble -run TestPropArmSymmetry`
+    - Reconciliation (M6 pass): Optional property test skipped on purpose (`TestPropArmSymmetry` not written).
   - [ ]* 7.14 Property test: paired identity
     - **Property 33: Paired identity**
     - **Validates: Requirements 25.13**
     - Dependencies: 7.10
     - Deliverables: `backend/internal/app/ensemble/identity_prop_test.go` (`TestPropPairedIdentity`)
     - Verify: `cd backend && go test ./internal/app/ensemble -run TestPropPairedIdentity`
-  - [ ] 7.15 Measure the 50-Seed paired ensemble benchmark
+    - Reconciliation (M6 pass): Optional property test skipped on purpose (`TestPropPairedIdentity` not written).
+  - [x] 7.15 Measure the 50-Seed paired ensemble benchmark
     - _Requirements: 29.2, 29.8, 29.9, 29.10, 29.11_
     - Dependencies: 7.11
     - Deliverables: `backend/internal/app/ensemble/bench_test.go` (`BenchmarkPairedEnsemble50`: fixed demo plan versus Rule_Based_Manager, Seeds 1..50), updated `docs/benchmarks.md` entry with the full metadata of 29.8
     - Verify: `cd backend && go test ./internal/app/ensemble -run '^$' -bench BenchmarkPairedEnsemble50 -benchtime 3x -count 5`
     - Acceptance: the recorded figures are copied from this run; the 29.2 label changes from "target, not yet measured" to the measured value or the measured shortfall; invariant checks remain enabled.
-  - [ ] 7.16 Calibrate the Flagship_Scenario and write `docs/calibration.md`
+    - Reconciliation (M6 pass): Delivered: `backend/internal/app/ensemble/bench_test.go` and the "50-Seed paired ensemble (2026-11-27)" entry in `docs/benchmarks.md`: median 3.27 s at the default concurrency (GOMAXPROCS 10), 13.00 s at concurrency 1, against the 60 s target.
+  - [x] 7.16 Calibrate the Flagship_Scenario and write `docs/calibration.md`
     - _Requirements: 36.1, 36.2, 36.3, 36.4, 36.5, 36.6, 36.7, 36.8, 36.9, 36.10, 3.9, 34.9_
     - Dependencies: 7.15
     - Deliverables: `backend/internal/app/calibration/calibration_test.go` (`TestCalibrationGates`: stockout with open orders in the no-Command run; Rule_Based_Manager Composite_Score above the no-Command run, default Seed); `backend/cmd/parallel-sim/calibrate.go` or a test helper that prints Composite_Scores of the no-Command run, the Rule_Based_Manager run and the recorded human demo plan over Seeds 1..20; final Profit_Floor and Profit_Target in `black-friday.json`; regenerated `demo-plan.json` and golden files if values move; `docs/calibration.md` (every Assumption with value, unit, bounds and rationale; gates, Seeds and results; every change with previous value, new value and reason; Crisis_Tick, Demo_Fork_Tick, Demo_Commands with reasons; Profit_Floor and Profit_Target rationale; statement that no Demo_Path or Duel outcome is a calibration target; Disclaimer)
     - Verify: `cd backend && go test ./internal/app/calibration/... ./internal/app/demoplan/... ./internal/sim -run 'TestCalibrationGates|TestGoldenFlagshipHash' && go test ./...`
     - Acceptance: gates exist only on the no-Command and Rule_Based_Manager runs; no Assumption is changed to make the AI or the human win; the 20-Seed scores are reported as observed results without a target; any engine or scenario change updates the golden hashes in the same commit with the reason recorded.
-  - [ ] 7.17 Commit the golden 20-Seed Ensemble_Report
+    - Reconciliation (M6 pass): Delivered: `backend/internal/app/calibration/` (`TestCalibrationGates`), `backend/cmd/parallel-sim/calibrate.go`, the calibrated `scenarios/black-friday.json`, regenerated goldens and demo plan, and `docs/calibration.md` (changes with previous and new values, gates, 20-Seed observations, no outcome used as a target).
+  - [x] 7.17 Commit the golden 20-Seed Ensemble_Report
     - _Requirements: 25.14_
     - Dependencies: 7.16
     - Deliverables: `backend/scenarios/golden/ensemble-flagship-20.json` and `.csv` (demo human Inputs_File as fixed plan versus Rule_Based_Manager, Seeds 1..20), `backend/internal/app/ensemble/golden_test.go` (`TestGoldenEnsembleReport`)
     - Verify: `cd backend && go test ./internal/app/ensemble -run TestGoldenEnsembleReport && go run ./cmd/parallel-sim ensemble --scenario scenarios/black-friday.json --seeds 1..20 --arm fixed:scenarios/demo-duel-human.json --arm rulebased --out /tmp/ens && cmp /tmp/ens.json scenarios/golden/ensemble-flagship-20.json`
     - Acceptance: the report reproduces byte for byte on amd64 and arm64 in CI.
-  - [ ] 7.18 Checkpoint — M6 complete
+    - Reconciliation (M6 pass): Delivered: `backend/scenarios/golden/ensemble-flagship-20.json` and `.csv`, `backend/internal/app/ensemble/golden_test.go` (`TestGoldenEnsembleReport`). The CLI output matched both files byte for byte on arm64 (M6 checkpoint); the test also passed under linux/amd64 emulation in Docker. CI on real amd64 and arm64 runners has not run.
+  - [-] 7.18 Checkpoint — M6 complete
     - Run `cd backend && go test ./...` and `cd web && npx tsc --noEmit && npx vitest --run`. Ensure all tests pass, ask the user if questions arise.
 
+    - Reconciliation (M6 pass): M6 checkpoint pass (see M6 implementation notes): security checks clean, full Go regression with PostgreSQL passed, race runs passed, golden hashes and ensemble reproduced on arm64 and under amd64 emulation, web checks and the full e2e suite run, two new e2e specs added. Task status is left to the orchestrator.
 - [ ] 8. M7 — Integration, visual polish, testing and deployment (~300 credits)
   - [ ] 8.1 Harden the HTTP boundary
     - _Requirements: 26.3, 26.4, 26.5, 15.5, 27.5, `security.md` HTTP and resource-limit rules_
@@ -940,6 +960,16 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
 - Live LLM verification is PENDING: no runtime API key was configured, so only the `httptest` and e2e stub providers were exercised.
 - Engine version is still 2; no change under `backend/internal/sim` in this round. Seed 2026 hash `4c6d0dd0...ab99e`, demo-fork golden `a51c195a...e2a5`, and both demo-duel golden hashes verify MATCH.
 - Credit and time: not measured. The full e2e suite takes about 4.7 minutes (16 passed, 0 failed, 6 skipped at the last run).
+
+### M6 implementation notes
+
+- **LLM calls outside the service lock.** The LLM decider used to hold the service mutex during the provider call. It now runs single-flight per window: the lock is taken to read the observation, validate the branch version and reserve the call and token budget (reservation under the lock), released for the provider call, and re-taken to apply the result after revalidating the branch version. A concurrent change of the head in the meantime makes the apply fail with `ErrDecisionStale`, mapped to HTTP 409 (`stale-head` problem), and nothing is recorded. Tests: `TestAIConcurrency*`, `TestLLMBudget`, `TestAIWindow*` (race runs pass).
+- **Calibration** (details and reasons in `docs/calibration.md`): opening units of every SKU doubled (headphones 700 to 1400, charger 900 to 1800, speaker 400 to 800, watch band 800 to 1600); `workforce.regularWorkers` 20 to 14; `profitFloorCents` -2,000,000 to 1,000,000; `profitTargetCents` 6,000,000 to 20,000,000; one demo-plan sizing rule refined (hire count divided by the shortest promise window). Engine version stays 2; golden hashes were regenerated in the same change (Seed 2026 no-command `4c6d0dd0...ab99e` to `f6f41425...fac80`).
+- **Observed, not tuned:** the calibrated no-command run and the fixed plans give seed-independent net profits (supply-limited regime: for example $17,784 for every Seed with no commands); only service level and composite vary by Seed. The Rule_Based_Manager reaches 100% service level but overspends on labor (it schedules overtime and temporary workers for the backlog and never lowers overtime), so in this scenario it underperforms some human-style plans (`inventory-only`, `both`) in the calibration harness. This is reported honestly in `docs/calibration.md` and was not changed.
+- **Ensemble benchmark:** 50-Seed paired ensemble median 3.27 s at the default concurrency and 13.00 s at concurrency 1 on the Apple M5 (`docs/benchmarks.md`).
+- **Diff service design:** one comparison tick for both branches (the lower head unless given), First_Divergence_Tick from per-tick hash comparison, differing components and inputs listed as observed differences; the fixed causality statement is shown verbatim and the UI never claims a cause.
+- **Assumptions reveal rule:** `revealScript=true` returns entries with onset at or before the displayed branch's head; at the horizon the whole script; for a Duel Branch the head is the lower of the two heads, so the side that is ahead never reveals the other side's future. The script is absent without the flag.
+- **Remaining:** live LLM provider verification is PENDING (stub providers only); 5.7 is partial (no `interpolate.ts`); the CI matrix (ubuntu amd64 and arm64) has not executed on GitHub (golden tests were run on local arm64 and under linux/amd64 emulation in Docker); optional tests 7.3, 7.5, 7.13, 7.14 skipped; Kiro credit use for M6 was not measured.
 
 ## Task Dependency Graph
 

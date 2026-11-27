@@ -186,8 +186,8 @@ test("stub provider (live LLM verification pending, no runtime API key configure
   await expect(rows.nth(2).getByTestId("provenance-badge")).toHaveText("Rule-based AI (LLM fallback: invalid reply)");
   await expect(rows.nth(3).getByTestId("provenance-badge")).toHaveText("Rule-based AI (LLM fallback: service error)");
   await expect(rows.nth(4).getByTestId("provenance-badge")).toHaveText(`LLM AI (${MODEL})`);
-  await expect(rows.nth(2).getByTestId("fallback-reason")).toHaveText("The LLM's reply could not be read, so the Rule-based AI played this window.");
-  await expect(rows.nth(3).getByTestId("fallback-reason")).toHaveText("The LLM service returned an error, so the Rule-based AI played this window.");
+  await expect(rows.nth(2).getByTestId("fallback-reason")).toHaveText("The AI's answer wasn't in a usable format, so the rule-based manager decided instead.");
+  await expect(rows.nth(3).getByTestId("fallback-reason")).toHaveText("The AI service had a problem and could not answer, so the rule-based manager decided instead.");
   await expect(page.locator("main")).not.toContainText(/invalid_json|http_error|ai_rule_based_fallback/);
   await shot(page, info, "17-duel-llm-fallback", true);
 

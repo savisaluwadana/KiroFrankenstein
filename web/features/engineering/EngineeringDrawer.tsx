@@ -29,6 +29,8 @@ export interface EngineeringDrawerProps {
   plan: DemoPlan | null;
   accepted: readonly AcceptedCommand[];
   onSelectBranch: (id: string) => void;
+  /** Opens the diff of two ticked futures. */
+  onCompareBranches?: (branchA: string, branchB: string) => void;
   onGoToTick: (tick: number) => void;
 }
 
@@ -183,7 +185,13 @@ export function EngineeringDrawer(props: EngineeringDrawerProps) {
 
       {tab === "branches" ? (
         <div className="h-72 rounded-[4px] border border-hairline bg-ink">
-          <BranchTree branches={props.branches} activeBranchId={branch.id} onSelect={props.onSelectBranch} />
+          <BranchTree
+            branches={props.branches}
+            activeBranchId={branch.id}
+            onSelect={props.onSelectBranch}
+            startClock={props.world.scenario.startClock}
+            {...(props.onCompareBranches !== undefined ? { onCompare: props.onCompareBranches } : {})}
+          />
         </div>
       ) : null}
     </section>

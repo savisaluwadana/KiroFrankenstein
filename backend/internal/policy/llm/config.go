@@ -184,12 +184,14 @@ type Tracker struct {
 	mu          sync.Mutex
 	maxCalls    int
 	maxTotalTok int
+	perCallTok  int // assumed worst-case tokens of a call still in flight
+	inflight    int // reserved calls whose usage is not yet recorded
 	usage       Usage
 }
 
 // NewTracker returns a Tracker with the limits of cfg.
 func NewTracker(cfg Config) *Tracker {
-	return &Tracker{maxCalls: cfg.MaxCallsPerWorld, maxTotalTok: cfg.MaxTotalTokensPerWorld}
+	return &Tracker{maxCalls: cfg.MaxCallsPerWorld, maxTotalTok: cfg.MaxTotalTokensPerWorld, perCallTok: cfg.MaxTokensPerCall}
 }
 
 // Restore sets the cumulative usage, for rebuilding a Tracker after restart.
@@ -210,20 +212,30 @@ func (t *Tracker) Usage() Usage {
 func (t *Tracker) Limits() (calls, totalTokens int) { return t.maxCalls, t.maxTotalTok }
 
 // Reserve counts one call, or returns ErrBudgetExhausted without counting
-// when either limit is already reached.
+// when either limit is already reached. Calls already reserved but not yet
+// recorded are assumed to spend MaxTokensPerCall each, so concurrent
+// reservations cannot all pass a token limit that only the first one fits
+// (shortcut: a provider that reports more than that per call can still
+// overshoot the token limit by the excess; the call limit is exact).
+// Every successful Reserve must be settled by exactly one Record, with a zero
+// Usage when no request was made.
 func (t *Tracker) Reserve() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if t.usage.Calls >= t.maxCalls || t.usage.TotalTokens >= t.maxTotalTok {
+	if t.usage.Calls >= t.maxCalls || t.usage.TotalTokens+t.inflight*t.perCallTok >= t.maxTotalTok {
 		return ErrBudgetExhausted
 	}
 	t.usage.Calls++
+	t.inflight++
 	return nil
 }
 
-// Record adds provider-reported token usage.
+// Record adds provider-reported token usage and settles one reservation.
 func (t *Tracker) Record(u Usage) {
 	t.mu.Lock()
+	if t.inflight > 0 {
+		t.inflight--
+	}
 	t.usage.PromptTokens += u.PromptTokens
 	t.usage.CompletionTokens += u.CompletionTokens
 	t.usage.TotalTokens += u.TotalTokens

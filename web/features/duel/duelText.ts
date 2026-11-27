@@ -32,14 +32,16 @@ const FALLBACK_PLAIN: Record<string, string> = {
   invalid_json: "invalid reply",
   schema_violation: "reply broke the rules",
   budget_exhausted: "call limit reached",
+  llm_unavailable: "service unavailable",
 };
 
 const FALLBACK_SENTENCE: Record<string, string> = {
-  timeout: "The LLM did not answer in time, so the Rule-based AI played this window.",
-  http_error: "The LLM service returned an error, so the Rule-based AI played this window.",
-  invalid_json: "The LLM's reply could not be read, so the Rule-based AI played this window.",
-  schema_violation: "The LLM's reply did not follow the allowed format, so the Rule-based AI played this window.",
-  budget_exhausted: "The LLM call limit for this world was used up, so the Rule-based AI played this window.",
+  timeout: "The AI service took too long, so the rule-based manager decided instead.",
+  http_error: "The AI service had a problem and could not answer, so the rule-based manager decided instead.",
+  invalid_json: "The AI's answer wasn't in a usable format, so the rule-based manager decided instead.",
+  schema_violation: "The AI's answer broke the rules of the game, so the rule-based manager decided instead.",
+  budget_exhausted: "The AI call limit for this game was reached, so the rule-based manager decided instead.",
+  llm_unavailable: "The AI service isn't available right now, so the rule-based manager decided instead.",
 };
 
 export function fallbackReasonPlain(code: string): string {
@@ -47,7 +49,7 @@ export function fallbackReasonPlain(code: string): string {
 }
 
 export function fallbackSentence(code: string): string {
-  return FALLBACK_SENTENCE[code] ?? "The LLM was unavailable, so the Rule-based AI played this window.";
+  return FALLBACK_SENTENCE[code] ?? "The AI service isn't available right now, so the rule-based manager decided instead.";
 }
 
 /** Replaces a raw fallback reason code in a server label with plain words. */

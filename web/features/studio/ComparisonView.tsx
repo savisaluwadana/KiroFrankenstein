@@ -37,6 +37,10 @@ export interface ComparisonViewProps {
   advancingId: string | null;
   onAdvance: (branchId: string) => void;
   onGoTo: (branchId: string) => void;
+  /** Opens "What changed between these two futures" for this pair. */
+  onWhatChanged?: () => void;
+  /** Model identifier of the LLM AI, for display names. */
+  llmModel?: string | undefined;
 }
 
 function useIsPhone(): boolean {
@@ -122,6 +126,8 @@ export function ComparisonView(props: ComparisonViewProps) {
   const [phoneId, setPhoneId] = useState(left.id);
   const shownPhoneId = phoneId === left.id || phoneId === right.id ? phoneId : left.id;
 
+  const labelCtx = useMemo(() => ({ branches, startClock, llmModel: props.llmModel }), [branches, startClock, props.llmModel]);
+  const nameOf = (b: Branch): string => realityName(b, labelCtx);
   const sides = [left, right] as const;
   const common = commonTick(selectedTick, left.headTick, right.headTick);
   const divergence = divergenceTick(left, right, branches);
@@ -140,8 +146,8 @@ export function ComparisonView(props: ComparisonViewProps) {
   const mAt = (b: Branch, tick: number): MetricsResponse | undefined => metrics[`${b.id}@${tick}`];
   const summaryA = mAt(left, common);
   const summaryB = mAt(right, common);
-  const nameL = realityName(left);
-  const nameR = realityName(right);
+  const nameL = nameOf(left);
+  const nameR = nameOf(right);
   const behind = common < selectedTick ? (left.headTick < right.headTick ? left : right) : null;
 
   const pane = (b: Branch) => {
@@ -152,13 +158,13 @@ export function ComparisonView(props: ComparisonViewProps) {
     return (
       <section
         key={b.id}
-        aria-label={`Future: ${realityName(b)}`}
+        aria-label={`Future: ${nameOf(b)}`}
         data-testid={`pane-${b.id}`}
         className="flex min-w-0 flex-col gap-2 rounded-[8px] border border-hairline bg-surface p-2"
       >
         <h3 className="flex items-center gap-2 text-sm font-medium">
           <LaneMark lane={lane} />
-          {realityName(b)}
+          {nameOf(b)}
         </h3>
         {ready ? (
           <StagePane
@@ -175,7 +181,7 @@ export function ComparisonView(props: ComparisonViewProps) {
             className="flex min-h-40 flex-col items-start justify-center gap-2 rounded-[4px] border border-dashed border-hairline p-3 text-sm"
           >
             <p>
-              {realityName(b)} has not been simulated up to {formatSimTime(selectedTick, startClock)} yet.
+              {nameOf(b)} has not been simulated up to {formatSimTime(selectedTick, startClock)} yet.
             </p>
             {isWaiting ? null : (
               <button
@@ -191,13 +197,13 @@ export function ComparisonView(props: ComparisonViewProps) {
         )}
         {isWaiting ? (
           <div role="status" data-testid={`waiting-${b.id}`} className="flex flex-wrap items-center gap-2 text-sm text-amber">
-            <span>Your move is waiting in {realityName(b)}.</span>
+            <span>Your move is waiting in {nameOf(b)}.</span>
             <button
               type="button"
               onClick={() => props.onGoTo(b.id)}
               className="min-h-11 rounded-[4px] border border-amber px-3"
             >
-              Go to {realityName(b)}
+              Go to {nameOf(b)}
             </button>
           </div>
         ) : null}
@@ -221,7 +227,7 @@ export function ComparisonView(props: ComparisonViewProps) {
             activeId={shownPhoneId}
             stickyOnPhone
             onSelect={setPhoneId}
-            items={sides.map((b) => ({ id: b.id, label: realityName(b), laneIndex: laneIndexOf(branches, b.id) }))}
+            items={sides.map((b) => ({ id: b.id, label: nameOf(b), laneIndex: laneIndexOf(branches, b.id) }))}
           />
         ) : null}
       </div>
@@ -238,7 +244,7 @@ export function ComparisonView(props: ComparisonViewProps) {
         {behind !== null ? (
           <p className="text-xs text-ivory-dim" data-testid="common-tick-note">
             Compared at {formatSimTime(common, startClock)}, the latest hour both futures have reached.{" "}
-            {realityName(behind)} has not been simulated further yet.
+            {nameOf(behind)} has not been simulated further yet.
           </p>
         ) : null}
         {summaryA !== undefined && summaryB !== undefined ? (
@@ -269,6 +275,16 @@ export function ComparisonView(props: ComparisonViewProps) {
         ) : (
           <p className="text-ivory-dim">{playing ? "Figures update when you pause." : "Loading figures…"}</p>
         )}
+        {props.onWhatChanged !== undefined ? (
+          <button
+            type="button"
+            data-testid="what-changed"
+            onClick={props.onWhatChanged}
+            className="min-h-11 rounded-[4px] border border-amber px-3 text-amber"
+          >
+            What changed?
+          </button>
+        ) : null}
         <p className="text-xs text-ivory-dim">{COMPARE_EXPLAINER}</p>
         <p className="text-xs text-ivory-dim" data-testid="compare-disclaimer">
           {DISCLAIMER_FULL}

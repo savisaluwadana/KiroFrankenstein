@@ -24,6 +24,17 @@ func (s *BranchService) ForkBranch(ctx context.Context, parent BranchID, atTick 
 	if manager == "" {
 		manager = ManagerHuman
 	}
+	child, err := s.createChild(ctx, parent, atTick, label, manager)
+	if err != nil {
+		return Branch{}, err
+	}
+	if isAIManager(manager) {
+		s.decideAtHead(ctx, child.ID) // waits for a slow provider without s.mu
+	}
+	return child, nil
+}
+
+func (s *BranchService) createChild(ctx context.Context, parent BranchID, atTick sim.Tick, label string, manager ManagerKind) (Branch, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	pc, err := s.loadMutable(ctx, parent)
@@ -50,9 +61,6 @@ func (s *BranchService) ForkBranch(ctx context.Context, parent BranchID, atTick 
 	}
 	if err := s.store.CreateBranch(ctx, child); err != nil {
 		return Branch{}, fmt.Errorf("create child branch: %w", err)
-	}
-	if isAIManager(manager) {
-		s.decideAtHead(ctx, child.ID)
 	}
 	return child, nil
 }

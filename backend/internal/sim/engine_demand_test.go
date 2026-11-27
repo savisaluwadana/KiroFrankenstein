@@ -61,7 +61,7 @@ func TestInitFlagship(t *testing.T) {
 	if st.Clock != 0 || st.Tick() != 0 {
 		t.Errorf("clock = %d", st.Clock)
 	}
-	if len(st.Inventory) != 4 || st.Inventory[0].OnHand != 700 || st.Inventory[0].Value != 700*3000 {
+	if len(st.Inventory) != 4 || st.Inventory[0].OnHand != 1400 || st.Inventory[0].Value != 1400*3000 {
 		t.Errorf("inventory = %+v", st.Inventory)
 	}
 	if got := st.Ledger.Balance(AccountCash); got != sc.OpeningCashCents {
@@ -70,7 +70,7 @@ func TestInitFlagship(t *testing.T) {
 	if len(st.Ledger.Entries) != 1 || st.Ledger.Entries[0].Cause != CauseOpening {
 		t.Errorf("ledger entries = %d", len(st.Ledger.Entries))
 	}
-	if st.Prices[2].PriceCents != sc.SKUs[2].ReferencePriceCents || st.Workforce.Regular != 20 {
+	if st.Prices[2].PriceCents != sc.SKUs[2].ReferencePriceCents || st.Workforce.Regular != 14 {
 		t.Errorf("prices/workforce = %+v %+v", st.Prices, st.Workforce)
 	}
 	names := []StreamName{}

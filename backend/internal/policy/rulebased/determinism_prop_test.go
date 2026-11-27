@@ -3,6 +3,7 @@ package rulebased_test
 import (
 	"context"
 	"reflect"
+	"strings"
 	"testing"
 
 	"pgregory.net/rapid"
@@ -57,6 +58,12 @@ func TestPropRuleBasedDeterminism(t *testing.T) {
 			for name, p := range map[string]any{"repeat": again, "fresh": fresh, "other-script": diff} {
 				if !reflect.DeepEqual(first, p) {
 					t.Fatalf("%s proposal differs:\n%+v\n%+v", name, first, p)
+				}
+			}
+			low := strings.ToLower(first.Rationale)
+			for _, jargon := range []string{"sku", "reorder point", "inventory position"} {
+				if strings.Contains(low, jargon) {
+					t.Fatalf("rationale uses jargon %q: %s", jargon, first.Rationale)
 				}
 			}
 			if len(first.Commands) > budget {

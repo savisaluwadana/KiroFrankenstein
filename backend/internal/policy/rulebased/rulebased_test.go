@@ -70,7 +70,7 @@ func TestNothingWhenStocked(t *testing.T) {
 	if len(cmds) != 0 {
 		t.Fatalf("commands = %+v", cmds)
 	}
-	if !strings.Contains(why, "No action") {
+	if !strings.Contains(why, "Nothing needed changing this hour: every product has enough stock for the next few hours and packing is keeping up.") {
 		t.Fatalf("rationale = %q", why)
 	}
 }
@@ -87,7 +87,7 @@ func TestReorderBelowReorderPoint(t *testing.T) {
 	if c.Kind != sim.CmdPlacePurchaseOrder || c.SKU != 0 || c.Role != sim.SupplierPrimary || c.Qty != 98 {
 		t.Fatalf("command = %+v", c)
 	}
-	for _, want := range []string{"Chargers: 12 on hand", "0 backlog", "primary"} {
+	for _, want := range []string{"Chargers: 12 in stock, so I ordered 98 more from the normal supplier (about 10 hours away, $10.00 each)."} {
 		if !strings.Contains(why, want) {
 			t.Errorf("rationale %q lacks %q", why, want)
 		}
@@ -110,7 +110,7 @@ func TestBackupSupplierDuringOutage(t *testing.T) {
 	if len(cmds) != 1 || cmds[0].Role != sim.SupplierBackup {
 		t.Fatalf("commands = %+v", cmds)
 	}
-	if !strings.Contains(why, "backup") || !strings.Contains(why, "outage") {
+	if !strings.Contains(why, "the normal supplier is down, so I ordered 68 more from the backup supplier (about 4 hours away, $15.00 each)") {
 		t.Fatalf("rationale = %q", why)
 	}
 	// backup lead 4: reorder point 5*8=40, target 5*16=80, position 12.
@@ -145,7 +145,10 @@ func TestCapacityGapOvertimeThenTemps(t *testing.T) {
 	if cmds[1].Kind != sim.CmdHireTempWorkers || cmds[1].Qty != 6 {
 		t.Fatalf("second = %+v", cmds[1])
 	}
-	if !strings.Contains(why, "200 shippable") {
+	if !strings.Contains(why, "so I scheduled 2 hours of overtime per worker. Overtime alone is not enough, so I hired 6 temporary workers.") {
+		t.Fatalf("rationale = %q", why)
+	}
+	if !strings.Contains(why, "Orders are piling up faster than the team can pack (200 items ready to ship") {
 		t.Fatalf("rationale = %q", why)
 	}
 }
@@ -173,7 +176,7 @@ func TestBudgetTruncationPrioritisesStockoutRisk(t *testing.T) {
 	if cmds[1].Kind != sim.CmdScheduleOvertime {
 		t.Fatalf("second = %+v", cmds[1])
 	}
-	if !strings.Contains(why, "dropped") {
+	if !strings.Contains(why, "other change") {
 		t.Fatalf("rationale = %q", why)
 	}
 	if got, _ := propose(t, obs, 0); len(got) != 0 {
@@ -210,5 +213,23 @@ func TestDeterministic(t *testing.T) {
 		if a[i] != b[i] {
 			t.Fatalf("command %d differs", i)
 		}
+	}
+}
+
+func TestOrdersWaitingAndProductNames(t *testing.T) {
+	obs := stocked()
+	obs.SKUs[0].OnHand = 12
+	obs.OpenOrders = orders(3, 0, 1)
+	_, why := propose(t, obs, 5)
+	if !strings.Contains(why, "Chargers: 12 in stock and 3 orders waiting, so I ordered") {
+		t.Fatalf("rationale = %q", why)
+	}
+	for id, want := range map[string]string{"speaker": "Speakers", "watchband": "Watch bands", "usb_hub-pro": "Usb Hub Pro", "": "Product"} {
+		if got := productName(id); got != want {
+			t.Errorf("productName(%q) = %q, want %q", id, got, want)
+		}
+	}
+	if got := dollars(800); got != "$8.00" {
+		t.Errorf("dollars = %q", got)
 	}
 }

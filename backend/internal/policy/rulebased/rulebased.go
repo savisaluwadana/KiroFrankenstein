@@ -78,8 +78,10 @@ func (m *Manager) Propose(_ context.Context, obs sim.Observation, budget int) (p
 	var notes []string
 
 	backlog := map[int64]int64{} // lookup only, never iterated
+	waiting := map[int64]int64{} // open orders per product, lookup only
 	for _, o := range obs.OpenOrders {
 		backlog[o.SKU] += o.Qty
+		waiting[o.SKU]++
 	}
 	var committed int64
 	for _, po := range obs.PurchaseOrders {
@@ -89,7 +91,7 @@ func (m *Manager) Propose(_ context.Context, obs sim.Observation, budget int) (p
 
 	for _, s := range obs.SKUs {
 		rate := m.demandRate(obs, s, backlog[s.SKU])
-		c, note := m.reorder(s, rate, backlog[s.SKU])
+		c, note := m.reorder(s, rate, backlog[s.SKU], waiting[s.SKU])
 		if c != nil {
 			cands = append(cands, *c)
 		}
@@ -119,22 +121,26 @@ func (m *Manager) Propose(_ context.Context, obs sim.Observation, budget int) (p
 		}
 		cmd, cost, ok := m.afford(obs, c.cmd, avail)
 		if !ok {
-			lines = append(lines, c.text+" Skipped: not enough cash.")
+			lines = append(lines, c.text+" I skipped that because there is not enough cash.")
 			continue
 		}
 		avail -= cost
 		cmds = append(cmds, cmd)
 		if cmd.Qty != c.cmd.Qty {
-			lines = append(lines, fmt.Sprintf("%s Reduced to %d to fit cash.", c.text, cmd.Qty))
+			lines = append(lines, fmt.Sprintf("%s I scaled that down to %d to stay within cash.", c.text, cmd.Qty))
 		} else {
 			lines = append(lines, c.text)
 		}
 	}
 	if dropped > 0 {
-		lines = append(lines, fmt.Sprintf("%d lower-priority command(s) dropped: the budget is %d per window.", dropped, budget))
+		if dropped == 1 {
+			lines = append(lines, fmt.Sprintf("One other change will have to wait: I can make at most %d per decision window.", budget))
+		} else {
+			lines = append(lines, fmt.Sprintf("%d other changes will have to wait: I can make at most %d per decision window.", dropped, budget))
+		}
 	}
 	if len(cmds) == 0 && len(lines) == 0 {
-		lines = append(lines, "No action: no SKU is at or below its reorder point and capacity covers the backlog.")
+		lines = append(lines, "Nothing needed changing this hour: every product has enough stock for the next few hours and packing is keeping up.")
 	}
 	rationale := strings.Join(append(notes, lines...), " ")
 	return policy.Proposal{Commands: cmds, Rationale: rationale}, nil
@@ -165,7 +171,8 @@ func (m *Manager) demandRate(obs sim.Observation, s sim.ObsSKU, backlog int64) i
 }
 
 // reorder returns a purchase-order candidate for s, or nil, and a note.
-func (m *Manager) reorder(s sim.ObsSKU, rate, backlog int64) (*candidate, string) {
+func (m *Manager) reorder(s sim.ObsSKU, rate, backlog, waiting int64) (*candidate, string) {
+	name := productName(s.ID)
 	var primary, backup *sim.ObsSupplier
 	for i := range s.Suppliers {
 		switch s.Suppliers[i].Role {
@@ -175,17 +182,17 @@ func (m *Manager) reorder(s sim.ObsSKU, rate, backlog int64) (*candidate, string
 			backup = &s.Suppliers[i]
 		}
 	}
-	sup, why := primary, "primary"
+	sup, backupNote := primary, ""
 	if sup == nil || !sup.Available {
 		if backup == nil || !backup.Available {
 			if rate > 0 {
-				return nil, fmt.Sprintf("%s: %d on hand, %d backlog; no supplier available, cannot reorder.", s.ID, s.OnHand, backlog)
+				return nil, fmt.Sprintf("%s: %s, but no supplier is available right now, so I could not reorder.", name, stockLine(s.OnHand, waiting, s.InboundUnits))
 			}
 			return nil, ""
 		}
-		sup, why = backup, "backup (primary supplier is in an outage)"
-		if primary == nil {
-			why = "backup"
+		sup = backup
+		if primary != nil {
+			backupNote = "and the normal supplier is down, "
 		}
 	}
 	position := s.OnHand + s.InboundUnits - backlog
@@ -205,8 +212,12 @@ func (m *Manager) reorder(s sim.ObsSKU, rate, backlog int64) (*candidate, string
 	if s.OnHand <= rate*sup.LeadTimeTicks {
 		prio = prioStockoutRisk
 	}
-	text := fmt.Sprintf("%s: %d on hand, %d backlog, %d inbound; demand about %d/tick, reorder point %d, ordering %d from the %s supplier (lead %d ticks, %d cents/unit).",
-		s.ID, s.OnHand, backlog, s.InboundUnits, rate, rop, qty, why, sup.LeadTimeTicks, int64(sup.UnitCostCents))
+	supplier := "normal"
+	if sup.Role == sim.SupplierBackup {
+		supplier = "backup"
+	}
+	text := fmt.Sprintf("%s: %s, %sso I ordered %d more from the %s supplier (about %d hours away, %s each).",
+		name, stockLine(s.OnHand, waiting, s.InboundUnits), backupNote, qty, supplier, sup.LeadTimeTicks, dollars(int64(sup.UnitCostCents)))
 	return &candidate{
 		prio: prio,
 		key:  s.OnHand * 1000 / rate,
@@ -241,12 +252,12 @@ func (m *Manager) capacity(obs sim.Observation, backlog map[int64]int64) []candi
 	for hours < m.sc.Workforce.MaxOvertimePerWorker && capAt(hours) < need {
 		hours++
 	}
-	text := fmt.Sprintf("Capacity gap: %d shippable units waiting vs %d units/tick of capacity.", need, cur)
+	text := fmt.Sprintf("Orders are piling up faster than the team can pack (%d items ready to ship, room to pack %d an hour)", need, cur)
 	if hours > w.OvertimeHours {
 		out = append(out, candidate{prio: prioCapacity, key: 0,
 			cmd:  sim.Command{Kind: sim.CmdScheduleOvertime, Qty: hours},
-			text: fmt.Sprintf("%s Scheduling %d overtime hours per worker (limit %d).", text, hours, m.sc.Workforce.MaxOvertimePerWorker)})
-		text = "Overtime alone is not enough."
+			text: fmt.Sprintf("%s, so I scheduled %d %s of overtime per worker.", text, hours, plural(hours, "hour", "hours"))})
+		text = "Overtime alone is not enough"
 	}
 	if short := need - capAt(hours); short > 0 {
 		n := ceilDiv(short, upw)
@@ -256,7 +267,7 @@ func (m *Manager) capacity(obs sim.Observation, backlog map[int64]int64) []candi
 		if n >= 1 {
 			out = append(out, candidate{prio: prioCapacity, key: 1,
 				cmd:  sim.Command{Kind: sim.CmdHireTempWorkers, Qty: n},
-				text: fmt.Sprintf("%s Hiring %d temporary workers (limit %d, %d on shift or onboarding).", text, n, m.sc.Workforce.MaxTempWorkers, temps)})
+				text: fmt.Sprintf("%s, so I hired %d temporary %s.", text, n, plural(n, "worker", "workers"))})
 		}
 	}
 	return out
@@ -317,4 +328,58 @@ func ceilDiv(a, b int64) int64 {
 		return 0
 	}
 	return (a + b - 1) / b
+}
+
+// productNames mirrors the web glossary's known display names; other ids are
+// title-cased.
+var productNames = map[string]string{
+	"headphones": "Headphones",
+	"charger":    "Chargers",
+	"speaker":    "Speakers",
+	"watchband":  "Watch bands",
+}
+
+// productName turns a product id into a display name with the same rules as
+// the web glossary productName: known names first, else "_" and "-" become
+// spaces and each word is capitalised. Deterministic.
+func productName(id string) string {
+	if n, ok := productNames[id]; ok {
+		return n
+	}
+	words := strings.Fields(strings.NewReplacer("_", " ", "-", " ").Replace(id))
+	if len(words) == 0 {
+		return "Product"
+	}
+	for i, w := range words {
+		words[i] = strings.ToUpper(w[:1]) + w[1:]
+	}
+	return strings.Join(words, " ")
+}
+
+// dollars formats cents as "$8.00" with integer math only.
+func dollars(cents int64) string {
+	sign := ""
+	if cents < 0 {
+		sign, cents = "-", -cents
+	}
+	return fmt.Sprintf("%s$%d.%02d", sign, cents/100, cents%100)
+}
+
+func plural(n int64, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
+}
+
+// stockLine reads "12 in stock and 40 orders waiting (30 already on the way)".
+func stockLine(onHand, waiting, inbound int64) string {
+	line := fmt.Sprintf("%d in stock", onHand)
+	if waiting > 0 {
+		line += fmt.Sprintf(" and %d %s waiting", waiting, plural(waiting, "order", "orders"))
+	}
+	if inbound > 0 {
+		line += fmt.Sprintf(" (%d already on the way)", inbound)
+	}
+	return line
 }

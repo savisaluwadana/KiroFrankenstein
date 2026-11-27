@@ -126,6 +126,7 @@ describe("rejection copy", () => {
     expect(rejectionMessage("insufficient_cash")).toBe("Not enough cash for this order.");
     expect(rejectionMessage(undefined)).toBe("That move wasn't accepted.");
     expect(requestFailureMessage("stale-head")).toMatch(/situation changed/);
+    expect(requestFailureMessage("decision-stale")).toMatch(/discarded\. Press Continue to try again\./);
     expect(priceRangeCents(5999)).toEqual({ min: 3000, max: 11998 });
     expect(priceRangeCents(5999, { minCents: 4800, maxCents: 7200 })).toEqual({ min: 4800, max: 7200 });
     expect(rejectionMessage("marketing_exceeds_limit")).toContain("marketing");

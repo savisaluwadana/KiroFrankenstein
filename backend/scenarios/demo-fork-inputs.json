@@ -1,17 +1,31 @@
 {
-  "scenarioHash": "cfe8373209240221e76d87cfb559d8fc7314784f22ba98eb63af5a28fe87afe8",
+  "scenarioHash": "1a56aa3aee635ea8164f0379f3e184474d37949a2f67c6a6f8784416e0e7a337",
   "seed": 2026,
   "engineVersion": "2",
   "inputs": [
     {
-      "effectiveTick": 21,
+      "effectiveTick": 41,
       "seq": 1,
       "kind": "command",
       "command": {
         "kind": "place_purchase_order",
         "sku": 2,
         "role": 1,
-        "qty": 315,
+        "qty": 339,
+        "amountCents": 0,
+        "poRef": 0
+      },
+      "provenance": "human"
+    },
+    {
+      "effectiveTick": 41,
+      "seq": 2,
+      "kind": "command",
+      "command": {
+        "kind": "hire_temp_workers",
+        "sku": 0,
+        "role": 0,
+        "qty": 3,
         "amountCents": 0,
         "poRef": 0
       },
