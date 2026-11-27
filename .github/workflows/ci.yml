@@ -8,9 +8,18 @@ on:
 permissions:
   contents: read
 
+# Cancel superseded runs of the same ref.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Third-party actions use major tags (not commit SHAs): the SHAs could not be verified
+# offline. Pin them to SHAs once the first run is green (see docs/ci.md).
+
 jobs:
   go:
     name: go (${{ matrix.arch }})
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -23,6 +32,26 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          # Non-secret throwaway dev values, identical to docker-compose.yml.
+          POSTGRES_USER: parallel
+          POSTGRES_PASSWORD: parallel_dev_password
+          POSTGRES_DB: parallel
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U parallel -d parallel"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      # Same URLs the dev setup uses (.env.example); the bootstrap step creates these roles.
+      MIGRATE_DATABASE_URL: postgres://parallel_migrator:migrator_dev_password@localhost:5432/parallel_test?sslmode=disable
+      PARALLEL_TEST_DATABASE_URL: postgres://parallel_app:app_dev_password@localhost:5432/parallel_test?sslmode=disable
+      PARALLEL_TEST_MIGRATE_DATABASE_URL: postgres://parallel_migrator:migrator_dev_password@localhost:5432/parallel_test?sslmode=disable
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -31,14 +60,38 @@ jobs:
           # Pinned tool versions below need Go 1.26; Go downloads that toolchain automatically (GOTOOLCHAIN=auto).
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
+      - name: postgres client
+        working-directory: .
+        run: command -v psql >/dev/null || (sudo apt-get update && sudo apt-get install -y postgresql-client)
+      - name: postgres bootstrap (roles and databases)
+        working-directory: .
+        env:
+          PGHOST: localhost
+          PGPORT: "5432"
+          PGPASSWORD: parallel_dev_password
+          POSTGRES_USER: parallel
+        run: sh scripts/db-bootstrap.sh
+      - name: postgres migrate up (parallel_test)
+        run: go run ./cmd/parallel-api migrate up
       - name: go vet
         run: go vet ./...
       - name: staticcheck
         run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
       - name: govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.10.0 ./...
-      - name: go test
+      - name: go test (PostgreSQL tests enabled)
         run: go test ./...
+      - name: postgres tests must run, not skip
+        run: |
+          go test ./internal/store/postgres -v -count=1 | tee /tmp/pg-store.txt
+          go test ./internal/httpapi -run TestPostgresRestartSmoke -v -count=1 | tee /tmp/pg-http.txt
+          if grep -E -- '--- SKIP|^SKIP' /tmp/pg-store.txt /tmp/pg-http.txt; then
+            echo "::error::PostgreSQL tests were skipped"; exit 1
+          fi
+          grep -q -- '--- PASS: TestInputLogImmutable' /tmp/pg-store.txt
+          grep -q -- '--- PASS: TestPostgresRestartSmoke' /tmp/pg-http.txt
+      - name: race tests (concurrency-sensitive)
+        run: go test -race ./internal/app -run 'TestAIConcurrency|TestLLM|TestAIWindow|TestDuel|TestConcurrent' -count=1
       - name: golden flagship hash (both architectures)
         run: |
           go test ./internal/sim -run TestGoldenFlagshipHash -count=1
@@ -55,9 +108,22 @@ jobs:
           cmp /tmp/ens.json scenarios/golden/ensemble-flagship-20.json
           cmp /tmp/ens.csv scenarios/golden/ensemble-flagship-20.csv
 
+  openapi:
+    name: openapi lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # 2.84.0 is the version used locally ("Woohoo! Your API description is valid.").
+      - run: npx --yes @redocly/cli@2.84.0 lint backend/api/openapi.yaml
+
   web:
     name: web
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: web
@@ -69,11 +135,61 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
+      - name: generated API types are in sync with openapi.yaml
+        run: |
+          npm run gen:api
+          git diff --exit-code -- lib/api/schema.d.ts
       - name: typecheck
         run: npx tsc --noEmit
       - name: eslint
         run: npx eslint .
       - name: vitest
         run: npx vitest --run
+      - name: build
+        run: npm run build
       - name: npm audit
         run: npm audit --audit-level=high
+
+  docker:
+    name: docker build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: build image (no push)
+        if: hashFiles('backend/Dockerfile') != ''
+        run: docker build -t parallel-api ./backend
+      - name: image has no secrets or model identifiers
+        if: hashFiles('backend/Dockerfile') != '' && hashFiles('scripts/check-image-secrets.sh') != ''
+        run: sh scripts/check-image-secrets.sh parallel-api
+
+  e2e:
+    name: e2e (playwright, chromium)
+    needs: [go, openapi, web, docker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: playwright (includes the stub-LLM duel spec; in-memory API, no real provider)
+        run: npm run e2e
+      - name: upload traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: web/test-results
+          retention-days: 7
