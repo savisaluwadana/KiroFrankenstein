@@ -531,7 +531,7 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
   - [x] 4.9 Checkpoint — M3 complete
     - Run `cd backend && go test ./... && PARALLEL_TEST_DATABASE_URL=postgres://parallel:parallel@localhost:5432/parallel_test?sslmode=disable go test ./internal/store/...`. Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 5. M4 — Premium interactive simulation studio (~500 credits)
+- [x] 5. M4 — Premium interactive simulation studio (~500 credits)
   - [x] 5.1 Implement the Progress_Stream (SSE)
     - _Requirements: 27.1, 27.2, 27.3, 27.4, 27.5_
     - Dependencies: 4.9
@@ -590,7 +590,7 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
     - Reconciliation (post-redesign): Mostly satisfied by the redesign (`docs/ux-redesign.md`): `features/timeline/Timeline.tsx`, `features/world-view/Hud.tsx`, `WorldView.tsx` and `scene/*` (Warehouse view, PixiJS), `PlaybackControls.tsx`, `features/branches/BranchTree.tsx`, `ForkSequence.tsx`, `RealitySwitcher.tsx`, `features/studio/ComparisonView.tsx`, `features/engineering/EngineeringDrawer.tsx`/`EngineeringToggle.tsx` (Engineering mode), `features/intro`, `features/briefing`. Remaining: decorative interpolation `scene/interpolate.ts` with its number-equality test, provenance-distinguished Input markers. Diff view is not built (belongs to M6).
     - Reconciliation (M4/M5 pass): Delivered by the redesign and this pass: restyled studio components, Timeline, HUD, scene with `labelLayout.ts`/`sceneLabels.ts` (+ `labelLayout.test.ts`), playback controls. Remaining (not ticked on purpose): `web/features/world-view/scene/interpolate.ts` with the number-equality test, and provenance-distinguished Input markers on the Timeline. Diff view belongs to M6.
     - Reconciliation (M6 pass): Still partial after M6: the decorative interpolation `web/features/world-view/scene/interpolate.ts` with its number-equality test is NOT built, and provenance-distinguished Input markers are only partly done. Done: label collision handling (`labelLayout.ts`) and readability fixes, the divergence marker lane on the Timeline.
-  - [ ] 5.8 Checkpoint — M4 complete
+  - [x] 5.8 Checkpoint — M4 complete
     - Run `cd backend && go test ./...` and `cd web && npx tsc --noEmit && npx eslint . && npx vitest --run`. Ensure all tests pass, ask the user if questions arise.
 
     - Reconciliation (post-redesign): Superseded by 4.9 as the latest checkpoint; to be re-run with the final M4 scope.
@@ -832,7 +832,7 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
     - Verify: `docker build -t parallel-api ./backend && docker build -t parallel-web ./web`
     - Acceptance: images build; no secret or model identifier is baked in; the runtime role lacks DDL rights. Deploying to the demo host is a manual step for the user.
     - Reconciliation (M7 pass): `backend/Dockerfile` (multi-stage, nonroot, 14.1 MB, healthcheck, migrations via `parallel-api migrate`), `.dockerignore`, `scripts/check-image-secrets.sh` (passes), `docs/deploy.md`, `web/vercel.json`, `docs/deploy-templates/` (Fly.io and Render templates, placeholders only), `scripts/smoke-prod.sh` (passes against a local container + production web build, including SSE). The web app uses `web/vercel.json`; no `web/Dockerfile` was written. NOT verified: a real hosting platform, TLS/HSTS through a real proxy, a Vercel build, managed PostgreSQL, a real LLM provider.
-  - [-] 8.5 Checkpoint — MVP acceptance gate before polish
+  - [x] 8.5 Checkpoint — MVP acceptance gate before polish
     - Run `cd backend && go test ./... && go vet ./...`, the PostgreSQL suite, `cd web && npx tsc --noEmit && npx eslint . && npx vitest --run && npx playwright test`. Polish starts only when every MVP test passes. Ensure all tests pass, ask the user if questions arise.
     - Reconciliation (M7 pass): Run as the combined M7 final checkpoint with 8.8 (feature freeze), via `bash scripts/ci-local.sh` with `CI_LOCAL_DOCKER=1 CI_LOCAL_E2E=1`: ALL STEPS PASSED (PostgreSQL up and migrate to version 6, go vet, staticcheck v0.8.2, govulncheck v1.10.0, go test with PostgreSQL, no-skip check, race tests, three golden checks, redocly lint, npm ci, API types in sync, tsc, eslint, vitest, next build, npm audit, docker build, image secrets check, Playwright 22 passed / 10 skipped / 0 failed). amd64 goldens were run separately in a linux/amd64 container (sim golden, duel hashes, ensemble report: pass). CI has NOT run on GitHub.
   - [ ] 8.6 Implement the fork split transition
@@ -849,7 +849,7 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
     - Verify: `cd web && npx vitest --run features/duel && npx tsc --noEmit`
     - Acceptance: tests assert that every number shown at every animation frame equals the final API value.
     - Reconciliation (M7 pass): SKIPPED. The decorative duel result reveal (`ScoreReveal.tsx`) was not implemented under feature freeze. The scoreboard shows the final API values immediately, so the requirement that no animation shows a non-authoritative number holds trivially.
-  - [ ] 8.8 Checkpoint — M7 complete
+  - [x] 8.8 Checkpoint — M7 complete
     - Run the full backend, web and Playwright suites. Ensure all tests pass, ask the user if questions arise.
     - Reconciliation (M7 pass): Combined with 8.5 and 5.8 as the M7 final checkpoint; results are listed under 8.5. Feature freeze applies. 8.6 is an accepted deviation and 8.7 is skipped (see above). Remaining defects are listed in the M7 implementation notes. Status is left to the orchestrator.
 

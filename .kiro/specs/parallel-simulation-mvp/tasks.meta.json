@@ -1587,6 +1587,32 @@
         "executionId": "da7a9f5d-8af5-413c-b774-6ff2e82a4fe8",
         "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
         "timestamp": 1795804477736
+      },
+      {
+        "executionId": "da7a9f5d-8af5-413c-b774-6ff2e82a4fe8",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795805978042
+      }
+    ],
+    "5.8 Checkpoint — M4 complete": [
+      {
+        "executionId": "da7a9f5d-8af5-413c-b774-6ff2e82a4fe8",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795805978016
+      }
+    ],
+    "5. M4 — Premium interactive simulation studio (~500 credits)": [
+      {
+        "executionId": "da7a9f5d-8af5-413c-b774-6ff2e82a4fe8",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795805978022
+      }
+    ],
+    "8.8 Checkpoint — M7 complete": [
+      {
+        "executionId": "da7a9f5d-8af5-413c-b774-6ff2e82a4fe8",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795805978912
       }
     ]
   }
