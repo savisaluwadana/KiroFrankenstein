@@ -402,6 +402,11 @@ export function DiffPanel(props: DiffPanelProps) {
         ) : null}
       </div>
       {body}
+      {result === null ? (
+        <p className="text-xs text-ivory-dim" data-testid="diff-disclaimer">
+          {DISCLAIMER_FULL}
+        </p>
+      ) : null}
     </section>
   );
 }

@@ -116,10 +116,10 @@ export function Scoreboard({ score, startClock, onOpenAssumptions }: ScoreboardP
                 <th scope="row" className="py-1 pr-2 text-left font-normal">
                   {c.label} ({formatWeight(c.weight)})
                 </th>
-                <td className="py-1 pr-2">
+                <td className="whitespace-nowrap py-1 pr-2">
                   {formatPoints(c.hv)} <span className="text-xs text-ivory-dim">({formatPercentBps(c.hp)})</span>
                 </td>
-                <td className="py-1 pr-2">
+                <td className="whitespace-nowrap py-1 pr-2">
                   {formatPoints(c.av)} <span className="text-xs text-ivory-dim">({formatPercentBps(c.ap)})</span>
                 </td>
               </tr>
@@ -149,16 +149,16 @@ export function Scoreboard({ score, startClock, onOpenAssumptions }: ScoreboardP
           <tbody>
             <tr className="border-t border-hairline" data-testid="raw-composite">
               <th scope="row" className="py-1 pr-2 text-left font-normal">Points</th>
-              <td className="py-1 pr-2">{formatPoints(h.score.compositeHundredths)}</td>
-              <td className="py-1 pr-2">{formatPoints(a.score.compositeHundredths)}</td>
-              <td className="py-1 font-semibold">{signedPoints(h.score.compositeHundredths - a.score.compositeHundredths)}</td>
+              <td className="whitespace-nowrap py-1 pr-2">{formatPoints(h.score.compositeHundredths)}</td>
+              <td className="whitespace-nowrap py-1 pr-2">{formatPoints(a.score.compositeHundredths)}</td>
+              <td className="whitespace-nowrap py-1 font-semibold">{signedPoints(h.score.compositeHundredths - a.score.compositeHundredths)}</td>
             </tr>
             {raw.map((r) => (
               <tr key={r.key} className="border-t border-hairline" data-testid={`raw-${r.key}`}>
                 <th scope="row" className="py-1 pr-2 text-left font-normal">{r.label}</th>
-                <td className="py-1 pr-2">{r.hv}</td>
-                <td className="py-1 pr-2">{r.av}</td>
-                <td className="py-1 font-semibold">{r.diff}</td>
+                <td className="whitespace-nowrap py-1 pr-2">{r.hv}</td>
+                <td className="whitespace-nowrap py-1 pr-2">{r.av}</td>
+                <td className="whitespace-nowrap py-1 font-semibold">{r.diff}</td>
               </tr>
             ))}
           </tbody>

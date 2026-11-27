@@ -9,6 +9,8 @@
  * (see deriveSceneEvents); anything else snaps.
  */
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+// CSP forbids unsafe-eval in production: this replaces Pixi's runtime shader code generation.
+import "pixi.js/unsafe-eval";
 import { Application } from "pixi.js";
 import type { TickFrame } from "@/lib/api/client";
 import { SCENE_H, SCENE_W } from "./scene/iso";

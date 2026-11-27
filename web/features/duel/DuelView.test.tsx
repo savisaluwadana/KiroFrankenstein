@@ -314,6 +314,15 @@ describe("DuelView", () => {
     expect(screen.getByTestId("duel-disclaimer").textContent).toContain("Not a forecast or guarantee");
   });
 
+  it("speaks business language in normal mode (no engine words on the duel page)", async () => {
+    await openDuel({ decisions: [decision()] });
+    await screen.findByTestId("scoreboard");
+    const text = document.body.textContent ?? "";
+    expect(text.length).toBeGreaterThan(500);
+    expect(text).not.toMatch(/\bSKUs?\b|\bticks?\b|stock-bound|capacity-bound|\bhash(es)?\b|\bPOs?\b|\bengine\b|provenance|disruption|\bnull\b|undefined/i);
+    expect(text).not.toMatch(/\bNaN\b/i);
+  });
+
   it("calls the outcome provisional before the horizon and names it only at the end", async () => {
     await openDuel({ score: scoreFixture({ provisional: true, outcome: "ai_wins" }) });
     await screen.findByTestId("scoreboard");

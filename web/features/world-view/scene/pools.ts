@@ -1,3 +1,5 @@
+import { tweenProgress } from "./interpolate";
+
 /** Fixed-size pool: objects are created once, shown and hidden, never created per tick. */
 export class Pool<T> {
   private readonly items: T[] = [];
@@ -41,9 +43,6 @@ export interface Tween {
   started: boolean;
 }
 
-export const easeOut = (k: number): number => 1 - Math.pow(1 - k, 3);
-export const easeInOut = (k: number): number => (k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2);
-
 /** Advances tweens by dt. Returns true while any remains. */
 export class TweenList {
   private list: Tween[] = [];
@@ -65,7 +64,7 @@ export class TweenList {
       t.elapsed += dt;
       if (t.elapsed < t.delay) continue;
       this.start(t);
-      const k = Math.min(1, (t.elapsed - t.delay) / Math.max(1, t.dur));
+      const k = tweenProgress(t.elapsed, t.delay, t.dur);
       t.apply(k);
       if (k >= 1) done.push(t);
     }

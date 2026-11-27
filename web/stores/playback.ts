@@ -292,7 +292,29 @@ export function createPlaybackStore(deps: Partial<PlaybackDeps> = {}) {
         let watched: string | null = null;
         let stopped = false;
 
+        // A burst of frames (a run to the horizon streams ~100) is applied in one store update per
+        // FLUSH_MS; one update per frame can exceed React's nested update limit (error 185).
+        const FLUSH_MS = 50;
+        let pending: TickFrame[] = [];
+        let flushTimer: ReturnType<typeof setTimeout> | null = null;
+        let lastFlush = 0;
+        const flush = (branchId: string): void => {
+          flushTimer = null;
+          const frames = pending;
+          pending = [];
+          if (frames.length === 0 || watched !== branchId) return;
+          lastFlush = Date.now();
+          const st = studio.getState();
+          st.addFrames(branchId, frames);
+          const top = Math.max(...frames.map((f) => f.tick));
+          const b = studio.getState().branches.find((x) => x.id === branchId);
+          if (b && top > b.headTick) st.setBranchHead(branchId, top);
+        };
+
         const close = (): void => {
+          if (flushTimer !== null) clearTimeout(flushTimer);
+          flushTimer = null;
+          pending = [];
           handle?.close();
           handle = null;
           watched = null;
@@ -316,10 +338,11 @@ export function createPlaybackStore(deps: Partial<PlaybackDeps> = {}) {
             },
             onFrame: (frame) => {
               if (watched !== branchId) return;
-              const st = studio.getState();
-              st.addFrames(branchId, [frame]);
-              const b = st.branches.find((x) => x.id === branchId);
-              if (b && frame.tick > b.headTick) st.setBranchHead(branchId, frame.tick);
+              pending.push(frame);
+              if (flushTimer !== null) return;
+              const wait = FLUSH_MS - (Date.now() - lastFlush);
+              if (wait <= 0) flush(branchId);
+              else flushTimer = setTimeout(() => flush(branchId), wait);
             },
           });
         };

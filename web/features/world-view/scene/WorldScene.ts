@@ -66,7 +66,8 @@ import {
   type ZoneName,
 } from "./layout";
 import { PALETTE } from "./palette";
-import { easeInOut, easeOut, Pool, TweenList } from "./pools";
+import { easeInOut, easeOut, lerp, pointOnPath, travelEnabled } from "./interpolate";
+import { Pool, TweenList } from "./pools";
 import type { SceneModel } from "./sceneModel";
 import type { ZoneId } from "./worldViewModel";
 
@@ -80,8 +81,6 @@ const ZONE_OF: Record<ZoneId, ZoneName> = {
 /** Base (1x) durations in ms. */
 const BASE = { truckIn: 700, unload: 500, truckOut: 600, flight: 900, vanOut: 600, slide: 180, flash: 1200 };
 const BASE_TOTAL = 1900;
-/** Below this display interval (16x playback and faster) only counts change. */
-const MIN_TRAVEL_INTERVAL_MS = 120;
 
 export interface UpdateOptions {
   /** Time between displayed frames. Unknown or large means a full-length animation. */
@@ -219,7 +218,11 @@ export class WorldScene {
     const T = opts.tickIntervalMs ?? 1000;
     // The same tick re-rendered (for example new interventions) never replays motion.
     const sameTick = prev !== null && prev.tick === model.tick;
-    const animate = !sameTick && !this.reduced && opts.animate !== false && !model.syncing && T >= MIN_TRAVEL_INTERVAL_MS && model.events.length > 0;
+    const animate =
+      !sameTick &&
+      !model.syncing &&
+      model.events.length > 0 &&
+      travelEnabled({ reducedMotion: this.reduced, animate: opts.animate !== false, intervalMs: T });
     if (!animate && !sameTick) {
       this.tweens.finish();
       this.hideActors();
@@ -639,7 +642,7 @@ export class WorldScene {
       dur,
       tag: van,
       apply: (t) => {
-        const gx = b.gx + (VAN_EXIT_GX - b.gx) * easeInOut(t);
+        const gx = lerp(b.gx, VAN_EXIT_GX, easeInOut(t));
         const pt = project(gx, b.gy);
         van.position.set(pt.x, pt.y);
         van.zIndex = zIndex(gx + VAN_W, b.gy + VAN_D);
@@ -689,19 +692,13 @@ export class WorldScene {
     if (s === null || tex === undefined || path.length < 2) return;
     s.texture = tex.texture;
     s.pivot.set(tex.pivotX, tex.pivotY);
-    const segs = path.length - 1;
     this.tweens.add({
       delay,
       dur,
       tag: s,
       apply: (t) => {
-        const u = easeInOut(t) * segs;
-        const i = Math.min(segs - 1, Math.floor(u));
-        const a = path[i];
-        const b = path[i + 1];
-        if (a === undefined || b === undefined) return;
-        const k = u - i;
-        s.position.set(a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k - Math.sin(Math.PI * k) * 12);
+        const p = pointOnPath(path, t, easeInOut, 12);
+        s.position.set(p.x, p.y);
         s.zIndex = 99999;
       },
       onStart: () => (s.visible = true),

@@ -67,6 +67,7 @@ import { selectActiveBranch, selectDisplayedFrame, useStudioStore } from "@/stor
 import { useUiStore } from "@/stores/ui";
 import { AssumptionsPanel } from "@/features/assumptions/AssumptionsPanel";
 import { CrisisCards } from "./CrisisCards";
+import { ExploreHint, useExploreHintDismissed } from "./ExploreHint";
 import { deriveCrisisCards, type CrisisAction } from "./crisis";
 import { LedgerPanel } from "./LedgerPanel";
 import { loadDemoPlan } from "./demoPlanStorage";
@@ -144,6 +145,7 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
   const [waiting, setWaiting] = useState<Record<string, number>>({});
   const [advancingId, setAdvancingId] = useState<string | null>(null);
   const [forkSeq, dispatchFork] = useReducer(forkSequenceReducer, INITIAL_FORK_SEQUENCE);
+  const [hintDismissed, dismissHint] = useExploreHintDismissed();
   const endedWindows = useRef<Set<string>>(new Set());
   const initialBranchId = useRef(branchId ?? null);
   const startClockRef = useRef("Thu 00:00");
@@ -385,6 +387,12 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
     setSheetOpen(true);
   }, []);
 
+  const focusExplore = useCallback(() => {
+    setTab("moves");
+    setSheetOpen(true);
+    requestAnimationFrame(() => document.getElementById("explore-future")?.focus());
+  }, []);
+
   // F jumps to "Explore another future" (it never forks by itself).
   useEffect(() => {
     function onKey(e: KeyboardEvent): void {
@@ -394,13 +402,11 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
       const t = e.target;
       if (t instanceof HTMLElement && (["INPUT", "TEXTAREA", "SELECT", "BUTTON", "A"].includes(t.tagName) || t.isContentEditable)) return;
       e.preventDefault();
-      setTab("moves");
-      setSheetOpen(true);
-      requestAnimationFrame(() => document.getElementById("explore-future")?.focus());
+      focusExplore();
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, []);
+  }, [focusExplore]);
 
   const productNames = useMemo(() => {
     const names: string[] = [];
@@ -630,6 +636,8 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
         {mismatch ? <EngineVersionBanner storedVersion={world.engineVersion} engineering={engineering} /> : null}
       </header>
 
+      <ExploreHint show={!mismatch && windowOpenHere && !hintDismissed} onShowMe={focusExplore} onDismiss={dismissHint} className="min-[769px]:hidden" />
+
       <div className="grid flex-1 grid-cols-1 gap-3 min-[769px]:grid-cols-[minmax(0,1fr)_22.5rem]">
         <section aria-label="Your warehouse" className="relative flex min-w-0 flex-col gap-2">
           {partner !== undefined ? (
@@ -809,6 +817,7 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
       </div>
 
       <div className="space-y-2">
+        <ExploreHint show={!mismatch && windowOpenHere && !hintDismissed} onShowMe={focusExplore} onDismiss={dismissHint} className="max-[768px]:hidden" />
         <PlaybackControls readOnly={mismatch} />
         <ConnectedTimeline
           inputs={inputs}

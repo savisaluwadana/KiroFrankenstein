@@ -15,6 +15,7 @@ import { usePlaybackStore } from "@/stores/playback";
 import { useUiStore } from "@/stores/ui";
 import { saveDemoPlan } from "./demoPlanStorage";
 import { StudioPage } from "./StudioPage";
+import { EXPLORE_HINT_KEY, EXPLORE_HINT_TEXT } from "./ExploreHint";
 
 const shownTicks: (number | null)[] = [];
 
@@ -352,6 +353,7 @@ beforeEach(() => {
   shownTicks.length = 0;
   vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
   window.sessionStorage.clear();
+  window.localStorage.removeItem(EXPLORE_HINT_KEY);
   window.history.replaceState(null, "", "/");
   useUiStore.setState({ engineering: false });
 });
@@ -729,5 +731,120 @@ describe("studio flow", () => {
     expect(screen.queryByTestId("engine-version-banner")).toBeNull();
     expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Add a surprise" })).toBeTruthy();
+  });
+});
+
+describe("every playback control does something", () => {
+  const playing = (): boolean => usePlaybackStore.getState().playing;
+
+  it("play, pause, pace, auto-pause, step, window step, skips and keyboard shortcuts", async () => {
+    const api = makeFakeApi();
+    vi.stubGlobal("fetch", vi.fn(api.fetchImpl));
+    render(<StudioPage worldId={WORLD_ID} branchId="r1" />);
+    await settle();
+    expect(clock()).toBe(AT(0));
+
+    // Play / Pause button.
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    expect(playing()).toBe(true);
+    expect(screen.getByRole("button", { name: "Pause" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    expect(playing()).toBe(false);
+    expect(screen.getByTestId("playback-status").textContent).toContain("Paused");
+
+    // Pace.
+    for (const [name, speed] of [["Quick", 4], ["Fast", 16], ["Calm", 1]] as const) {
+      fireEvent.click(screen.getByRole("button", { name }));
+      expect(usePlaybackStore.getState().speed).toBe(speed);
+      expect(screen.getByRole("button", { name }).getAttribute("aria-pressed")).toBe("true");
+    }
+
+    // Auto-pause choice.
+    const select = screen.getByLabelText("Pause automatically at");
+    fireEvent.change(select, { target: { value: "disruption_onsets_only" } });
+    expect(usePlaybackStore.getState().autoPauseMode).toBe("disruption_onsets_only");
+    fireEvent.change(select, { target: { value: "every_decision_window" } });
+    expect(usePlaybackStore.getState().autoPauseMode).toBe("every_decision_window");
+
+    // Skip to next move: advances the branch to the first decision moment.
+    fireEvent.click(screen.getByRole("button", { name: "Skip to next move" }));
+    await settle();
+    expect(clock()).toBe(AT(4));
+    expect(advanceCalls(api.calls).map((c) => c.body)).toEqual([{ expectedHeadTick: 0 }]);
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await settle();
+
+    // Next moment computes one more hour; Previous moment is a read.
+    fireEvent.click(screen.getByRole("button", { name: "Next moment" }));
+    await settle();
+    expect(clock()).toBe(AT(5));
+    expect(advanceCalls(api.calls).map((c) => c.body).at(-1)).toEqual({ expectedHeadTick: 4, runToTick: 5 });
+    fireEvent.click(screen.getByRole("button", { name: "Previous moment" }));
+    await settle();
+    expect(clock()).toBe(AT(4));
+    const advancesSoFar = advanceCalls(api.calls).length;
+
+    // Keyboard: arrows step, Shift+arrows move between decision moments, Space plays and pauses.
+    press("ArrowRight");
+    await settle();
+    expect(clock()).toBe(AT(5));
+    press("ArrowLeft");
+    await settle();
+    expect(clock()).toBe(AT(4));
+    press("ArrowRight", { shiftKey: true });
+    await settle();
+    expect(clock()).toBe(AT(8));
+    press("ArrowLeft", { shiftKey: true });
+    await settle();
+    expect(clock()).toBe(AT(4));
+    press(" ");
+    expect(playing()).toBe(true);
+    press(" ");
+    expect(playing()).toBe(false);
+    expect(advanceCalls(api.calls)).toHaveLength(advancesSoFar);
+
+    // Skip to next surprise runs on (here to the end of the week: the fake week has no surprise).
+    fireEvent.click(screen.getByRole("button", { name: "Skip to next surprise" }));
+    await settle();
+    expect(clock()).toBe(AT(12));
+    expect(advanceCalls(api.calls).at(-1)?.body).toEqual({ expectedHeadTick: 8, runToTick: HORIZON });
+
+    // Shift+D does the same thing from the keyboard: with everything computed it shows the last hour.
+    press("ArrowLeft", { shiftKey: true });
+    await settle();
+    expect(clock()).toBe(AT(8));
+    const before = advanceCalls(api.calls).length;
+    press("D", { shiftKey: true });
+    await settle();
+    expect(clock()).toBe(AT(12));
+    expect(advanceCalls(api.calls)).toHaveLength(before);
+  });
+
+  it("shows a dismissible tip about exploring another future at a decision moment and remembers the dismissal", async () => {
+    const api = makeFakeApi();
+    vi.stubGlobal("fetch", vi.fn(api.fetchImpl));
+    const view = render(<StudioPage worldId={WORLD_ID} branchId="r1" />);
+    await settle();
+    expect(screen.queryByTestId("explore-hint")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Skip to next move" }));
+    await settle();
+    expect(screen.getAllByTestId("explore-hint")[0]?.textContent).toContain(EXPLORE_HINT_TEXT);
+    expect(EXPLORE_HINT_TEXT).toBe("Want to try a different decision? Explore another future — rewind to any moment and branch");
+
+    // The tip's button jumps to the real fork control without forking.
+    fireEvent.click(screen.getAllByRole("button", { name: "Show me" })[0] as HTMLElement);
+    await settle();
+    expect(api.calls.some((c) => c.path.endsWith("/fork"))).toBe(false);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Dismiss this tip" })[0] as HTMLElement);
+    expect(screen.queryByTestId("explore-hint")).toBeNull();
+    expect(window.localStorage.getItem(EXPLORE_HINT_KEY)).toBe("1");
+    view.unmount();
+
+    render(<StudioPage worldId={WORLD_ID} branchId="r1" />);
+    await settle();
+    fireEvent.click(screen.getByRole("button", { name: "Skip to next move" }));
+    await settle();
+    expect(screen.queryByTestId("explore-hint")).toBeNull();
   });
 });

@@ -154,3 +154,41 @@ describe("Timeline", () => {
     ]);
   });
 });
+
+describe("Input markers by provenance", () => {
+  const all = [
+    "human",
+    "ai_rule_based",
+    "ai_llm",
+    "ai_rule_based_fallback",
+    "injected",
+  ] as const;
+
+  it("gives each provenance its own glyph, label and colour classes (not colour alone)", () => {
+    render(
+      <Timeline
+        {...props({
+          inputs: all.map((p, i) => ({ effectiveTick: 5 + i, provenance: p, kind: "place_purchase_order" })),
+        })}
+      />,
+    );
+    const markers = [...document.querySelectorAll<HTMLElement>('[data-marker="input"]')];
+    expect(markers).toHaveLength(all.length);
+    const glyphs = markers.map((m) => m.textContent);
+    const labels = markers.map((m) => m.getAttribute("aria-label")?.split(",")[0]);
+    const colours = markers.map((m) => m.className.match(/(?:border|text)-(?:amber|sage|ivory|clay)\b/g)?.join(" "));
+    expect(new Set(glyphs).size).toBe(all.length);
+    expect(new Set(labels).size).toBe(all.length);
+    // The two sage markers (rule-based AI and its fallback) differ by glyph and dashed border, not colour.
+    expect(new Set(colours).size).toBeGreaterThanOrEqual(4);
+    expect(labels).toEqual([
+      "Your move",
+      "Move by Rule-based AI",
+      "Move by LLM AI",
+      "Move by Rule-based AI (LLM fallback)",
+      "Surprise you added",
+    ]);
+    expect(markers[3]?.className).toContain("border-dashed");
+    expect(markers[4]?.getAttribute("data-provenance")).toBe("injected");
+  });
+});

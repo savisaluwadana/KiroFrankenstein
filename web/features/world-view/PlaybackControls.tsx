@@ -9,6 +9,7 @@
 import { useEffect } from "react";
 import { FastForward, Pause, Play, StepBack, StepForward, TriangleAlert } from "lucide-react";
 import { InfoPopover } from "@/features/studio/InfoPopover";
+import { MarkerLegend } from "@/features/timeline/markerStyle";
 import { usePlaybackStore, type AutoPauseMode, type PlaybackPauseReason, type PlaybackSpeed } from "@/stores/playback";
 
 /** Plain speed names. Pace is unchanged: 2, 8 and 32 hours per second. */
@@ -183,6 +184,7 @@ export function PlaybackControls({ readOnly = false }: { readOnly?: boolean } = 
             </li>
           ))}
         </ul>
+        <MarkerLegend />
       </InfoPopover>
     </section>
   );

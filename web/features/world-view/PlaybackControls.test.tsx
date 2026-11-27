@@ -38,4 +38,15 @@ describe("PlaybackControls", () => {
     await user.keyboard("{Escape}");
     expect(screen.queryByTestId("key-hints")).toBeNull();
   });
+
+  it("explains every Input marker by provenance in the same popover", async () => {
+    const user = userEvent.setup();
+    render(<PlaybackControls />);
+    await user.click(screen.getByRole("button", { name: "About keyboard shortcuts" }));
+    const legend = screen.getByTestId("marker-legend");
+    for (const text of ["Your move", "Move by Rule-based AI", "Move by LLM AI", "Move by Rule-based AI (LLM fallback)", "Surprise you added"]) {
+      expect(legend.textContent).toContain(text);
+    }
+    expect(legend.querySelectorAll("[data-legend-provenance]")).toHaveLength(5);
+  });
 });

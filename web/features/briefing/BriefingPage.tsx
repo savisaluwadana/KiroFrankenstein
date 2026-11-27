@@ -77,12 +77,6 @@ export function BriefingPage() {
           >
             {busy ? "Starting…" : "Start Black Friday demo"}
           </button>
-          <Link
-            href="/setup"
-            className="inline-flex min-h-12 items-center rounded-[4px] border border-edge px-6 text-base hover:border-amber hover:text-amber-hot"
-          >
-            Customize the business
-          </Link>
         </div>
         {error !== null ? (
           <p role="alert" className="mt-4 text-clay">
@@ -91,6 +85,12 @@ export function BriefingPage() {
         ) : null}
 
         <ChallengeAi />
+
+        <p className="mt-6 text-sm">
+          <Link href="/setup" className="inline-flex min-h-11 items-center text-ivory-dim underline hover:text-amber-hot">
+            Customize the business
+          </Link>
+        </p>
 
         <p className="mt-8 text-sm text-ivory-dim" data-testid="disclaimer">
           {DISCLAIMER_FULL}

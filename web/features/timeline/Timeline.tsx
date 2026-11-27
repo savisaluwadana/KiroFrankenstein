@@ -14,6 +14,7 @@ import type { components } from "@/lib/api/schema";
 import { disruptionLabel, formatDayName, formatSimTime } from "@/lib/glossary";
 import { selectActiveBranch, useStudioStore } from "@/stores/studio";
 import { usePlaybackStore } from "@/stores/playback";
+import { PROVENANCE_MARKER } from "./markerStyle";
 
 export type InputProvenance = components["schemas"]["Provenance"];
 
@@ -57,15 +58,6 @@ export interface TimelineProps {
 }
 
 const HOURS_PER_DAY = 24;
-
-const PROVENANCE_LABEL: Record<InputProvenance, string> = {
-  human: "Your move",
-  ai_rule_based: "Move by Rule-based AI",
-  ai_llm: "Move by LLM AI",
-  ai_rule_based_fallback: "Move by Rule-based AI (LLM fallback)",
-  scenario: "Scheduled event",
-  injected: "Surprise you added",
-};
 
 /** Flattens loaded Tick_Frames into marker records, sorted by Tick. */
 export function markersFromFrames(frames: Record<number, TickFrame> | undefined): FrameMarkerAt[] {
@@ -238,21 +230,26 @@ export function Timeline(props: TimelineProps) {
           </div>
         ) : null}
         <div className={lane} data-lane="inputs">
-          {inputs.map((inp, i) => (
-            <button
-              key={`i${inp.effectiveTick}-${i}`}
-              type="button"
-              tabIndex={-1}
-              data-marker="input"
-              data-provenance={inp.provenance}
-              aria-label={`${PROVENANCE_LABEL[inp.provenance]}, takes effect at ${at(inp.effectiveTick)}`}
-              onClick={() => select(inp.effectiveTick)}
-              className={`${markerBase} border-amber bg-ink text-amber`}
-              style={{ left: pct(inp.effectiveTick, horizonTicks) }}
-            >
-              ●
-            </button>
-          ))}
+          {inputs.map((inp, i) => {
+            const m = PROVENANCE_MARKER[inp.provenance];
+            const text = `${m.label}, takes effect at ${at(inp.effectiveTick)}`;
+            return (
+              <button
+                key={`i${inp.effectiveTick}-${i}`}
+                type="button"
+                tabIndex={-1}
+                data-marker="input"
+                data-provenance={inp.provenance}
+                aria-label={text}
+                title={text}
+                onClick={() => select(inp.effectiveTick)}
+                className={`${markerBase} bg-ink ${m.classes}`}
+                style={{ left: pct(inp.effectiveTick, horizonTicks) }}
+              >
+                {m.glyph}
+              </button>
+            );
+          })}
         </div>
 
         {/* The focusable scrub bar: day bands, computed region and cursor. */}
