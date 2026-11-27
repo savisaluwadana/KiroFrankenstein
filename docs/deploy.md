@@ -1,0 +1,233 @@
+# Deployment and operations
+
+Nothing in the repository deploys itself. The artifacts are `backend/Dockerfile`, `web/vercel.json`, `scripts/check-image-secrets.sh`, `scripts/smoke-prod.sh` and the untested templates in `docs/deploy-templates/`. The deployment procedure comes first; reference sections (variables with bounds, headers, probes, shutdown, SSE) follow under [Reference](#reference).
+
+## Architecture
+
+```
+ Browser ──HTTPS──> Vercel (Next.js web app, static + SSR shell)
+    │                  NEXT_PUBLIC_API_BASE_URL is inlined at build time
+    │
+    └──HTTPS (direct, CORS, SSE)──> TLS proxy / platform edge ──HTTP──> parallel-api container (:8080)
+                                       (buffering off, idle timeout > 15 s)          │ runtime role parallel_app
+                                                                                     │ (no DDL)  sslmode=require
+                                                                                     v
+                                                                        Managed PostgreSQL 16
+                                                                          ^ owner role parallel_migrator
+                                       release step: `parallel-api migrate up` ──────┘ (separate, never at app start)
+                                       optional: LLM provider (HTTPS, server-side key only)
+```
+
+Vercel does not proxy the API. The browser calls the API origin directly, so the API's `WEB_ORIGIN` must equal the exact production web URL.
+
+## Prerequisites
+
+- A container host that keeps one long-lived process (SSE streams, in-process rate-limit counters): Fly.io, Render, Railway, or Cloud Run with minimum instances = 1 and request timeout above the stream length. Serverless functions are not suitable.
+- Managed PostgreSQL 16 with TLS, **automated backups and point-in-time recovery enabled**. The rollback procedure for a bad migration is a restore, so this is a prerequisite, not an extra.
+- A TLS-terminating proxy (normally the platform's) in front of the API, and a Vercel project (or any Node host) for `web/`.
+- Docker locally to build the image. Never build or push with credentials in build arguments.
+
+## Environment variables by deployment unit
+
+**API runtime container** (secrets in the platform secret store, never in the image or repository):
+
+| Variable | Required in production | Secure production value |
+|---|---|---|
+| `ENV` | yes | `production` |
+| `PORT` | no | `8080` (image default) |
+| `DATABASE_URL` | yes | Runtime role `parallel_app`, `sslmode=verify-full` (or `require`). Secret |
+| `WEB_ORIGIN` | yes | Exact Vercel production URL, e.g. `https://parallel.example.com` (https, no path, no trailing slash) |
+| `TRUSTED_PROXY_HOPS` | yes (explicit) | Number of proxies in front; see below |
+| `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` | no | Set all three or none. `LLM_API_KEY` is a secret. `LLM_BASE_URL` must be https |
+| `SHUTDOWN_TIMEOUT_SECONDS`, `HTTP_REQUEST_TIMEOUT_SECONDS`, `RATE_LIMIT_*`, `MAX_CONCURRENT_SIMULATIONS`, `WORLD_CREATE_PER_HOUR_PER_IP`, `LLM_*` limits | no | Defaults in the table above and `.env.example` |
+
+**Migration step** (one-off container, same image):
+
+| Variable | Required | Notes |
+|---|---|---|
+| `MIGRATE_DATABASE_URL` | yes | Owner role `parallel_migrator`, `sslmode=require` or stronger. Secret. Never set on the running API |
+
+The API does not read `MIGRATE_DATABASE_URL`; the migrate command does not read `DATABASE_URL`.
+
+**Web (Vercel project, Production environment)**:
+
+| Variable | Required | Notes |
+|---|---|---|
+| `NEXT_PUBLIC_API_BASE_URL` | yes | API origin plus `/api/v1`, e.g. `https://api.example.com/api/v1`. Set in the Vercel dashboard before the build |
+
+`NEXT_PUBLIC_*` values are inlined into the browser bundle at build time and are public. Never put an LLM key, database URL or any secret in a `NEXT_PUBLIC_*` variable. Changing the value requires a rebuild, because the CSP `connect-src` is also computed from it at build time. Preview deployments get a different URL: add a Preview-scoped `NEXT_PUBLIC_API_BASE_URL` only if you run a separate preview API, and give that API its own `WEB_ORIGIN` (the API allows exactly one origin, so previews cannot share the production API).
+
+## Container image
+
+```
+docker build -t parallel-api ./backend
+scripts/check-image-secrets.sh parallel-api
+```
+
+The image is multi-stage: `golang:1.25-alpine` builds a static binary (`CGO_ENABLED=0`, `-trimpath -ldflags '-s -w'`), and `gcr.io/distroless/static-debian12:nonroot` runs it as `nonroot:nonroot` with the only env default `PORT=8080`. Migrations (`go:embed` of `backend/migrations/*.sql`) and the flagship scenario are inside the binary. `HEALTHCHECK` runs `parallel-api healthcheck`, which GETs `http://127.0.0.1:$PORT/healthz` (distroless has no curl). Default command: serve. Alternative command: `migrate up|down|status`.
+
+`scripts/check-image-secrets.sh` fails if the image env defines `LLM_*` or database variables, if the image history or binary contains credential URLs, API-key shapes or provider/model identifiers, or if the image runs as root. Export your real `LLM_API_KEY` and `DATABASE_URL` in the calling shell to also check for those exact values.
+
+## Managed PostgreSQL setup
+
+Run once as the database administrator (the same statements as `docker/initdb/01-bootstrap.sh`, with placeholder passwords you must replace; generate long random values):
+
+```sql
+CREATE ROLE parallel_migrator LOGIN PASSWORD '<MIGRATOR_PASSWORD>';
+CREATE ROLE parallel_app LOGIN PASSWORD '<APP_PASSWORD>' NOSUPERUSER NOCREATEDB NOCREATEROLE;
+CREATE DATABASE parallel OWNER parallel_migrator;
+REVOKE ALL ON DATABASE parallel FROM PUBLIC;
+GRANT CONNECT ON DATABASE parallel TO parallel_app;
+```
+
+Some managed services restrict `CREATE ROLE` or database ownership; create the roles through the provider's console and apply the same ownership and grants. Table-level grants for `parallel_app` are issued by the migrations themselves (`SELECT, INSERT` on worlds, branches, input log, decision records and duels, `UPDATE (head_tick)` on branches, limited `DELETE` on the snapshot and summary caches, no `UPDATE`/`DELETE`/`TRUNCATE` on the input log, no DDL). Connection strings:
+
+```
+DATABASE_URL=postgres://parallel_app:<APP_PASSWORD>@<host>:5432/parallel?sslmode=verify-full
+MIGRATE_DATABASE_URL=postgres://parallel_migrator:<MIGRATOR_PASSWORD>@<host>:5432/parallel?sslmode=verify-full
+```
+
+Check the runtime role cannot create tables (expect `permission denied for schema public`):
+
+```
+psql "$DATABASE_URL" -c 'CREATE TABLE ddl_probe (a int)'
+```
+
+## Migration procedure
+
+Migrations run as a separate release step with the owner role, never at API start (the runtime role cannot run DDL).
+
+```
+docker run --rm -e MIGRATE_DATABASE_URL='postgres://parallel_migrator:...@host/parallel?sslmode=require' parallel-api migrate status
+docker run --rm -e MIGRATE_DATABASE_URL=... parallel-api migrate up
+```
+
+Use the image tag you are about to deploy. Run `migrate up` before starting the new API version. Migrations are additive and backward compatible, so the previous API version keeps working against the new schema. `migrate down` reverts one migration and can drop tables that hold the append-only input log. Use it only on a restored copy or an empty database, never on production data; recover production by restoring a backup instead. Take a backup or confirm a recent PITR point before every `migrate up`.
+
+## API container host
+
+Generic checklist (the tested path is local Docker only; see the templates in `docs/deploy-templates/`, labelled untested):
+
+1. Push the image to your registry yourself; deploy by immutable tag (a git SHA), not `latest`.
+2. Inject the environment variables above from the platform secret store.
+3. One instance, or accept per-instance rate limits and world-creation counters.
+4. Liveness probe `GET /healthz`, readiness probe `GET /readyz`, period 10 to 15 s, timeout 3 s, failure threshold 3. `/readyz` checks the database, so do not use it for liveness.
+5. Termination grace period of at least 30 s (default `SHUTDOWN_TIMEOUT_SECONDS` is 25).
+6. Proxy: response buffering off for `/api/v1/branches/*/progress`, idle timeout above 15 s (60 s or more), HTTP/1.1 or HTTP/2 to the client.
+7. Expose only the TLS proxy, not port 8080 directly.
+
+Local example (runtime image against a database you control):
+
+```
+docker run --rm -p 8080:8080 \
+  -e ENV=production -e WEB_ORIGIN=https://parallel.example.com -e TRUSTED_PROXY_HOPS=1 \
+  -e DATABASE_URL='postgres://parallel_app:...@host/parallel?sslmode=verify-full' parallel-api
+```
+
+`TRUSTED_PROXY_HOPS` per platform: set it to the number of proxies that append to `X-Forwarded-For` before the API. Typical values are 1 for Fly.io, Render and Railway (one platform proxy), and 1 for Cloud Run (Google front end); put a CDN or load balancer you operate in front and it becomes 2. Verify rather than assume: send a request with a forged `X-Forwarded-For` and confirm per-IP limits do not follow the forged value. `0` is correct only when clients connect to the container directly.
+
+Rate limits are per process (see Not covered). Secrets are never logged by the API; rotate `LLM_API_KEY` and database passwords in the secret store and restart. Rotating a database password means changing the role password and the secret, then redeploying.
+
+## Web host (Vercel)
+
+`web/vercel.json` selects the Next.js framework with `npm ci` and `npm run build`. Create a Vercel project with root directory `web`, set `NEXT_PUBLIC_API_BASE_URL` for Production, and deploy from the Vercel dashboard or Git integration. Security headers come from `web/next.config.ts`. There is no `web/Dockerfile`: building a standalone image would change `next.config.ts` output settings, so Vercel is the supported frontend host.
+
+## Release order and rollback
+
+Release: backup check, `migrate status`, `migrate up`, deploy the API image, run the smoke test, then deploy the web app (if the API origin changed, rebuild it).
+
+Rollback: redeploy the previous image tag (and the previous Vercel deployment). Because migrations are additive and backward compatible, the older API runs on the newer schema. If a migration itself was wrong, stop the API, restore the database from backup or PITR to a point before the migration, and redeploy the previous tag. Recorded inputs are never edited or deleted to repair data.
+
+## Production smoke test
+
+```
+scripts/smoke-prod.sh https://api.example.com https://parallel.example.com
+```
+
+It needs only `curl`. It creates **one small demo world** through `POST /api/v1/demo` (it never deletes worlds) and advances it to tick 4. Checks: `/healthz`, `/readyz`, `/api/v1/health` (engine version), CORS preflight allows exactly the web origin and refuses `https://evil.example`, API security headers (HSTS over https), no `unsafe-eval`, `/api/v1/managers` and LLM state, demo creation, advance to the first decision window, state read, an SSE connection of 3 s that must deliver `event: tick`, and the web `/` returns 200 with a CSP that has no `unsafe-eval` and whose `connect-src` includes the API origin. Exit status is non-zero if any check fails, and every failure is listed.
+
+Local rehearsal (ports other than 3000, 3100, 8000 and 8080): build the web app with `NEXT_PUBLIC_API_BASE_URL=http://localhost:18099/api/v1`, run `npx next start -p 13100`, run the container with `-p 18099:8080 -e WEB_ORIGIN=http://localhost:13100`, then run the script with those two origins. Over plain http the HSTS check is skipped.
+
+## Reference
+
+Production readiness notes for `parallel-api` and the web app. Results are synthetic; see the README disclaimer.
+
+## Environment variables (API)
+
+Out-of-range or malformed values stop start-up with a message that names the variable. No message ever contains `DATABASE_URL`, `LLM_API_KEY` or the LLM endpoint.
+
+| Variable | Default | Bounds | Meaning |
+|---|---|---|---|
+| `PORT` | 8080 | 1..65535 | Listen port |
+| `DATABASE_URL` | unset | | PostgreSQL runtime-role URL. Unset selects the in-memory store (state is lost on restart) |
+| `MIGRATE_DATABASE_URL` | unset | | Owner-role URL, used only by `parallel-api migrate` |
+| `WEB_ORIGIN` | `http://localhost:3100` | one `http(s)` origin | The single allowed CORS origin, exact match. `*`, other schemes, paths and trailing slashes are rejected. Credentials are never allowed |
+| `ENV` (or `PARALLEL_ENV`) | unset | | `production` turns on strict validation and HSTS |
+| `TRUSTED_PROXY_HOPS` | 0 | 0..5 | Trusted reverse proxies in front of the API (see Client IP) |
+| `RATE_LIMIT_RPS`, `RATE_LIMIT_BURST` | 50, 100 | > 0 | Per-IP token bucket |
+| `HTTP_REQUEST_TIMEOUT_SECONDS` | 30 | 1..120 | Context deadline of every request except the progress stream |
+| `SHUTDOWN_TIMEOUT_SECONDS` | 25 | 1..120 | Drain time on SIGTERM or SIGINT |
+| `MAX_CONCURRENT_SIMULATIONS` | 8 | 1..64 | Expensive requests at once (advance, fork, diff, journal, ledger summary, duel create and advance) |
+| `WORLD_CREATE_PER_HOUR_PER_IP` | 60 | 1..10000 | World creations (`/worlds`, `/demo`, `/duels`) per client IP per hour, then 429 |
+| `MAX_WORLDS` | 5000 | 1..1000000 | World cap for the memory store only, then 503. PostgreSQL is not capped |
+| `LLM_*` | see `.env.example` | | Optional LLM opponent |
+
+Fixed limits: request body 256 KiB, 32 branches per world, 4 progress streams per client IP, names 1 to 64 printable characters. Server timeouts: ReadHeaderTimeout 5 s, ReadTimeout 15 s, WriteTimeout request timeout + 10 s (the progress stream clears its own write deadline), IdleTimeout 60 s, MaxHeaderBytes 16 KiB.
+
+## Production mode
+
+With `ENV=production` the server refuses to start unless:
+
+- `WEB_ORIGIN` is set explicitly, uses `https` and is not localhost or a loopback address.
+- `DATABASE_URL` is set and has `sslmode=require`, `verify-ca` or `verify-full`. A missing `sslmode` (the driver would use `prefer`) and `disable` are rejected. `verify-full` is recommended.
+- `TRUSTED_PROXY_HOPS` is set explicitly (`0` when nothing is in front).
+- The LLM configuration is complete when any of `LLM_API_KEY` or `LLM_MODEL` is set, and `LLM_BASE_URL` uses `https`.
+
+In production mode, responses carry `Strict-Transport-Security` when the request arrived over TLS or with `X-Forwarded-Proto: https`.
+
+## API response headers
+
+Every API response: `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store` (the progress stream sends `no-cache, no-transform`), `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`. The API serves no static documents.
+
+## Client IP and proxies
+
+Per-IP limits (rate limit, world creation, 4 streams per IP) key on the peer address. `X-Forwarded-For` is ignored unless `TRUSTED_PROXY_HOPS` = N > 0. Then the Nth entry from the right is used: with one proxy that is the address the proxy saw as its peer. Entries further left are client-controlled and are never used. If the header has fewer than N entries or the entry is not an IP address, the peer address is used. Set N to the exact number of proxies you operate; a value that is too small keys limits on a proxy address, and one that is too large lets a client choose its own key.
+
+## Probes
+
+| Endpoint | Purpose | Behaviour |
+|---|---|---|
+| `GET /healthz` | Liveness | 200 `{"status":"ok"}`. No dependency check |
+| `GET /readyz` | Readiness | 200 `{"status":"ready"}` when not shutting down, the database answers a ping within 2 s (result cached 1 s) and the schema is present (cached 30 s). Otherwise a generic 503 `unavailable` problem. The memory store is always ready |
+| `GET /api/v1/health` | Used by the web client | Unchanged |
+
+`/healthz` and `/readyz` sit at the server root, answer GET and HEAD, are exempt from CORS and rate limiting, and write no log line when they succeed. They are documented in `backend/api/openapi.yaml` under the `Operations` tag.
+
+## Graceful shutdown
+
+On SIGTERM or SIGINT the server (1) marks `/readyz` not ready at once, (2) ends open progress streams, (3) stops accepting connections and drains in-flight requests for up to `SHUTDOWN_TIMEOUT_SECONDS`, (4) closes remaining connections, which cancels their contexts and any LLM call waiting on them, and (5) closes the database pool. Set the platform's termination grace period above `SHUTDOWN_TIMEOUT_SECONDS`.
+
+## Server-sent events behind proxies
+
+The progress stream sends `Content-Type: text/event-stream`, `Cache-Control: no-cache, no-transform`, `X-Accel-Buffering: no` and a heartbeat comment every 15 s. The proxy or platform idle timeout must exceed 15 s (60 s or more is safe) and response buffering must be off for `/api/v1/branches/*/progress`. Polling is the documented fallback if a platform breaks SSE.
+
+## Web app headers
+
+`web/next.config.ts` sets, in production builds only, a Content-Security-Policy plus `X-Content-Type-Options`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, a minimal `Permissions-Policy` and HSTS. The CSP is pragmatic: `script-src` and `style-src` keep `'unsafe-inline'` because Next.js emits inline bootstrap scripts and styles and a nonce would force dynamic rendering of every page. `'unsafe-eval'` is not allowed. `connect-src` is `'self'` plus the origin of `NEXT_PUBLIC_API_BASE_URL`, which is read at build time, so build with the production API URL. `img-src` allows `data:` and `blob:` and `worker-src` allows `blob:` for PixiJS. `frame-ancestors 'none'`.
+
+## Capability model and known limitation
+
+There are no accounts. A world, branch or duel ID is a random UUIDv4 (122 random bits) and acts as a capability: whoever holds it can read and mutate that world. Consequences:
+
+- Nothing lists or enumerates worlds, branches or duels. Unknown and malformed IDs give the same 404 `not-found` problem.
+- An ID from one world is never accepted as a different world's resource (the assumptions route answers 403, diffs answer 422 `incomparable-branches`, duel branches answer 409 `duel-branch`).
+- IDs travel in URLs, so they appear in browser history and in any proxy access log. Do not share a URL you do not want mutated.
+- Anyone with an ID can change that world. There is no read-only link in the MVP.
+
+Tests: `TestSessionIsolation`, `TestTrustedProxy`, `TestSecurityHeaders`, `TestCORSStrict`, `TestNameValidation`, `TestReadiness`, `TestConcurrencyLimit`, `TestRateLimit*` in `backend/internal/httpapi`, and `TestLoadConfig*`, `TestProductionConfig`, `TestStartupLogsContainNoSecrets` in `backend/cmd/parallel-api`.
+
+## Not covered
+
+- The per-request deadline is a context deadline. Waits (store, advance lock, simulation queue, LLM call) honour it; a CPU-bound advance that is already computing finishes (it is bounded by the scenario horizon).
+- The 5000-world cap counts worlds created through this process. A failed duel creation after its world was made releases its slot although the world remains.
+- Rate-limit and creation counters are per process. Run one replica or accept per-replica limits.

@@ -1,0 +1,30 @@
+# TEMPLATE, NOT TESTED ON FLY.IO. Replace every <placeholder>.
+# Secrets: fly secrets set DATABASE_URL=... (and optionally LLM_*), never here.
+# Migrations: run `parallel-api migrate up` as a separate release step with MIGRATE_DATABASE_URL.
+app = "<your-app-name>"
+primary_region = "<region>"
+
+[build]
+  image = "<registry>/parallel-api:<git-sha>"
+
+[env]
+  ENV = "production"
+  WEB_ORIGIN = "https://<your-web-origin>"
+  TRUSTED_PROXY_HOPS = "1"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    path = "/readyz"
+    interval = "15s"
+    timeout = "3s"
+    grace_period = "10s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+
+kill_timeout = 30

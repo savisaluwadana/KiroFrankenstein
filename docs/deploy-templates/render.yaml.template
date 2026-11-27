@@ -1,0 +1,25 @@
+# TEMPLATE, NOT TESTED ON RENDER. Replace every <placeholder>; rename to render.yaml only on your own fork.
+# Secrets are set in the dashboard (sync: false), never here.
+# Migrations: run `parallel-api migrate up` as a separate release step with MIGRATE_DATABASE_URL.
+services:
+  - type: web
+    name: <your-service-name>
+    runtime: image
+    image:
+      url: <registry>/parallel-api:<git-sha>
+    healthCheckPath: /readyz
+    envVars:
+      - key: ENV
+        value: production
+      - key: WEB_ORIGIN
+        value: https://<your-web-origin>
+      - key: TRUSTED_PROXY_HOPS
+        value: "1"
+      - key: DATABASE_URL
+        sync: false
+      - key: LLM_BASE_URL
+        sync: false
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_MODEL
+        sync: false
