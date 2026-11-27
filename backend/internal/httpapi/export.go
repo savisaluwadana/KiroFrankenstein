@@ -39,6 +39,9 @@ func (s *Server) exportBranch(w http.ResponseWriter, r *http.Request) {
 	h := w.Header()
 	h.Set("Content-Type", "application/json")
 	h.Set("Cache-Control", "no-store")
+	if ws, werr := s.svc.WorldEngineWarnings(r.Context(), ex.World.ID); werr == nil && len(ws) > 0 {
+		h.Set("X-Parallel-Warnings", app.WarningEngineVersionMismatch)
+	}
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(body)
 }

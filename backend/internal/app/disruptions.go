@@ -40,7 +40,7 @@ func injectIdemKey(key string) string { return "inject:" + key }
 func (s *BranchService) InjectDisruption(ctx context.Context, req InjectRequest) (InjectResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	c, err := s.load(ctx, req.Branch)
+	c, err := s.loadMutable(ctx, req.Branch)
 	if err != nil {
 		return InjectResult{}, err
 	}

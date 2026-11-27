@@ -150,6 +150,27 @@ type SnapshotRepo interface {
 	LoadLatestSnapshot(ctx context.Context, b BranchID, atOrBefore sim.Tick) (Snapshot, bool, error)
 }
 
+// TickSummary is one row of the derived tick_summaries projection: the state
+// hash and the JSON of the computed metrics and fulfilment-constraint report of
+// one computed tick. It is a cache, never read as truth for state.
+type TickSummary struct {
+	BranchID BranchID
+	Tick     sim.Tick
+	Hash     [32]byte
+	Metrics  []byte // JSON
+	FCR      []byte // JSON
+}
+
+// ProjectionRepo is an optional port a Store may also implement. The
+// BranchService writes one batch per Advance and checks stored hashes against
+// replayed hashes on rebuild.
+type ProjectionRepo interface {
+	// UpsertTickSummaries inserts or replaces the rows in one round trip.
+	UpsertTickSummaries(ctx context.Context, rows []TickSummary) error
+	// TickSummaries returns the branch's rows with from <= tick <= to, ascending.
+	TickSummaries(ctx context.Context, b BranchID, from, to sim.Tick) ([]TickSummary, error)
+}
+
 // Store bundles all repositories; the in-memory and PostgreSQL stores both
 // implement it and run the same contract suite.
 type Store interface {

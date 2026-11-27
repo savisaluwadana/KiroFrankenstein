@@ -41,23 +41,24 @@ type problemSpec struct {
 }
 
 var problemSpecs = map[string]problemSpec{
-	"history-immutable": {http.StatusConflict, "History is immutable"},
-	"not-yet-simulated": {http.StatusConflict, "Tick is not yet simulated"},
-	"stale-head":        {http.StatusConflict, "Stale head tick"},
-	"window-not-open":   {http.StatusConflict, "No decision window is open"},
-	"branch-limit":      {http.StatusConflict, "Branch limit reached"},
-	"horizon-reached":   {http.StatusConflict, "Horizon reached"},
-	"budget-exceeded":   {http.StatusUnprocessableEntity, "Command budget exceeded"},
-	"validation":        {http.StatusUnprocessableEntity, "Validation failed"},
-	"invalid-tick":      {http.StatusUnprocessableEntity, "Invalid tick"},
-	"invalid-scenario":  {http.StatusBadRequest, "Invalid scenario"},
-	"invalid-name":      {http.StatusBadRequest, "Invalid name"},
-	"bad-request":       {http.StatusBadRequest, "Bad request"},
-	"not-found":         {http.StatusNotFound, "Not found"},
-	"payload-too-large": {http.StatusRequestEntityTooLarge, "Payload too large"},
-	"rate-limited":      {http.StatusTooManyRequests, "Rate limit exceeded"},
-	"unavailable":       {http.StatusServiceUnavailable, "Service unavailable"},
-	"internal":          {http.StatusInternalServerError, "Internal error"},
+	"history-immutable":       {http.StatusConflict, "History is immutable"},
+	"not-yet-simulated":       {http.StatusConflict, "Tick is not yet simulated"},
+	"stale-head":              {http.StatusConflict, "Stale head tick"},
+	"window-not-open":         {http.StatusConflict, "No decision window is open"},
+	"branch-limit":            {http.StatusConflict, "Branch limit reached"},
+	"horizon-reached":         {http.StatusConflict, "Horizon reached"},
+	"engine-version-mismatch": {http.StatusConflict, "Engine version mismatch"},
+	"budget-exceeded":         {http.StatusUnprocessableEntity, "Command budget exceeded"},
+	"validation":              {http.StatusUnprocessableEntity, "Validation failed"},
+	"invalid-tick":            {http.StatusUnprocessableEntity, "Invalid tick"},
+	"invalid-scenario":        {http.StatusBadRequest, "Invalid scenario"},
+	"invalid-name":            {http.StatusBadRequest, "Invalid name"},
+	"bad-request":             {http.StatusBadRequest, "Bad request"},
+	"not-found":               {http.StatusNotFound, "Not found"},
+	"payload-too-large":       {http.StatusRequestEntityTooLarge, "Payload too large"},
+	"rate-limited":            {http.StatusTooManyRequests, "Rate limit exceeded"},
+	"unavailable":             {http.StatusServiceUnavailable, "Service unavailable"},
+	"internal":                {http.StatusInternalServerError, "Internal error"},
 }
 
 func newProblem(slug, detail string, issues ...ProblemIssue) *Problem {
@@ -92,6 +93,14 @@ func problemFor(err error) *Problem {
 	switch {
 	case errors.As(err, &tooBig):
 		return newProblem("payload-too-large", fmt.Sprintf("request body exceeds %d bytes", MaxBodyBytes))
+	case errors.Is(err, app.ErrEngineVersionMismatch):
+		detail := "the world was recorded under another engine version; reads are flagged, but the history cannot be extended"
+		var em *app.EngineVersionMismatchError
+		if errors.As(err, &em) {
+			detail = fmt.Sprintf("the world was recorded under engine version %s but the running engine is version %s; "+
+				"the engine cannot guarantee identical outcomes, so the world is read-only", em.Stored, em.Running)
+		}
+		return newProblem("engine-version-mismatch", detail)
 	case errors.Is(err, app.ErrNotFound):
 		return newProblem("not-found", "the world or branch does not exist")
 	case errors.Is(err, app.ErrHistoryImmutable):

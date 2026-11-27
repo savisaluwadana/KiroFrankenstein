@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/hex"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/savisaluwadana/KiroFrankenstein/backend/internal/app"
@@ -276,6 +277,32 @@ type assumptionDTO struct {
 	Overridden bool   `json:"overridden"`
 }
 
+// warningDTO is a caveat attached to a read response (Req 22.4).
+type warningDTO struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+func warningsToDTO(ws []app.Warning) []warningDTO {
+	if len(ws) == 0 {
+		return nil
+	}
+	out := make([]warningDTO, len(ws))
+	for i, w := range ws {
+		out[i] = warningDTO{Code: w.Code, Message: w.Message}
+	}
+	return out
+}
+
+// branchWarnings returns the engine warnings of the branch's world.
+func (s *Server) branchWarnings(r *http.Request, id app.BranchID) ([]warningDTO, error) {
+	ws, err := s.svc.EngineWarnings(r.Context(), id)
+	if err != nil {
+		return nil, err
+	}
+	return warningsToDTO(ws), nil
+}
+
 type worldDTO struct {
 	ID            string             `json:"id"`
 	Name          string             `json:"name"`
@@ -286,6 +313,7 @@ type worldDTO struct {
 	Currency      string             `json:"currency"`
 	Scenario      scenarioSummaryDTO `json:"scenario"`
 	Assumptions   []assumptionDTO    `json:"assumptions"`
+	Warnings      []warningDTO       `json:"warnings,omitempty"`
 }
 
 func worldToDTO(w app.World, sc sim.Scenario) worldDTO {
@@ -316,14 +344,15 @@ func worldToDTO(w app.World, sc sim.Scenario) worldDTO {
 }
 
 type branchDTO struct {
-	ID             string  `json:"id"`
-	WorldID        string  `json:"worldId"`
-	ParentBranchID *string `json:"parentBranchId"`
-	ForkTick       int64   `json:"forkTick"`
-	HeadTick       int64   `json:"headTick"`
-	Label          string  `json:"label"`
-	ManagerKind    string  `json:"managerKind"`
-	CreatedAt      string  `json:"createdAt"`
+	ID             string       `json:"id"`
+	WorldID        string       `json:"worldId"`
+	ParentBranchID *string      `json:"parentBranchId"`
+	ForkTick       int64        `json:"forkTick"`
+	HeadTick       int64        `json:"headTick"`
+	Label          string       `json:"label"`
+	ManagerKind    string       `json:"managerKind"`
+	CreatedAt      string       `json:"createdAt"`
+	Warnings       []warningDTO `json:"warnings,omitempty"`
 }
 
 func branchToDTO(b app.Branch) branchDTO {

@@ -122,6 +122,11 @@ export function EngineeringDrawer(props: EngineeringDrawerProps) {
 
       {tab === "overview" ? (
         <div className="space-y-2">
+          {(world.warnings ?? []).map((w) => (
+            <p key={w.code} role="alert" data-testid={`eng-warning-${w.code}`} className="text-clay">
+              {w.message}
+            </p>
+          ))}
           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 tabular-nums">
             <dt className="text-ivory-dim">tick</dt>
             <dd data-testid="eng-tick">{tick}</dd>

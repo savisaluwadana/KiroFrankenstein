@@ -85,27 +85,39 @@ type BranchService struct {
 	newID func() string
 	now   func() time.Time
 
+	engineVersion string // running engine version, recorded with each World
+
 	mu        sync.Mutex
 	scenarios map[WorldID]sim.Scenario
 	heads     map[BranchID]*replayed // head state and frames 0..Head_Tick
 	ended     map[BranchID]sim.Tick  // tick of the window ended explicitly
+	hooks     SnapshotHooks
+	proj      ProjectionRepo // optional: set when the store implements it
 }
 
 // NewBranchService returns a service over store. newID and now may be nil
 // (random UUIDv4 and time.Now).
-func NewBranchService(store Store, newID func() string, now func() time.Time) *BranchService {
+func NewBranchService(store Store, newID func() string, now func() time.Time, opts ...Option) *BranchService {
 	if newID == nil {
 		newID = newUUIDv4
 	}
 	if now == nil {
 		now = time.Now
 	}
-	return &BranchService{
+	s := &BranchService{
 		store: store, newID: newID, now: now,
-		scenarios: map[WorldID]sim.Scenario{},
-		heads:     map[BranchID]*replayed{},
-		ended:     map[BranchID]sim.Tick{},
+		engineVersion: strconv.Itoa(sim.EngineVersion),
+		scenarios:     map[WorldID]sim.Scenario{},
+		heads:         map[BranchID]*replayed{},
+		ended:         map[BranchID]sim.Tick{},
 	}
+	for _, o := range opts {
+		o(s)
+	}
+	if p, ok := store.(ProjectionRepo); ok {
+		s.proj = p
+	}
+	return s
 }
 
 func newUUIDv4() string {
@@ -153,7 +165,7 @@ func (s *BranchService) CreateWorld(ctx context.Context, req CreateWorldRequest)
 	w := World{
 		ID: WorldID(s.newID()), Name: req.Name, ScenarioHash: sha256.Sum256(canon),
 		ScenarioJSON: canon, Seed: req.Seed,
-		EngineVersion: strconv.Itoa(sim.EngineVersion), CreatedAt: s.now(),
+		EngineVersion: s.engineVersion, CreatedAt: s.now(),
 	}
 	b := Branch{
 		ID: BranchID(s.newID()), WorldID: w.ID, Label: "main", HeadTick: 0,
@@ -202,16 +214,13 @@ func (s *BranchService) load(ctx context.Context, id BranchID) (branchCtx, error
 	}
 	h := s.heads[id]
 	if h == nil || h.state.Tick() != b.HeadTick {
-		inputs, err := s.engineInputs(ctx, id, b.HeadTick)
-		if err != nil {
-			return branchCtx{}, err
-		}
-		r, err := replay(sc, w.Seed, inputs, b.HeadTick)
+		r, err := s.rebuild(ctx, b, w, sc, b.HeadTick, false)
 		if err != nil {
 			return branchCtx{}, err
 		}
 		h = &r
 		s.heads[id] = h
+		s.checkProjections(ctx, id, r)
 	}
 	return branchCtx{b: b, w: w, sc: sc, head: h}, nil
 }
@@ -263,7 +272,7 @@ func hasReason(rs []sim.WindowReason, r sim.WindowReason) bool {
 func (s *BranchService) Advance(ctx context.Context, req AdvanceRequest) (AdvanceResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	c, err := s.load(ctx, req.Branch)
+	c, err := s.loadMutable(ctx, req.Branch)
 	if err != nil {
 		return AdvanceResult{}, err
 	}
@@ -303,6 +312,7 @@ func (s *BranchService) Advance(ctx context.Context, req AdvanceRequest) (Advanc
 		st = step.State
 		res.Frames = append(res.Frames, step.Frame)
 		tick := st.Tick()
+		s.saveSnapshot(ctx, c.sc, c.b, st)
 		open, reasons := windowAt(c.sc, c.b, st)
 		switch {
 		case tick >= horizon:
@@ -325,8 +335,9 @@ func (s *BranchService) Advance(ctx context.Context, req AdvanceRequest) (Advanc
 	if err := s.store.SetHeadTick(ctx, req.Branch, st.Tick()); err != nil {
 		return AdvanceResult{}, fmt.Errorf("set head tick: %w", err)
 	}
+	s.writeProjections(ctx, req.Branch, res.Frames)
 	frames := append(append([]sim.TickFrame(nil), c.head.frames...), res.Frames...)
-	s.heads[req.Branch] = &replayed{state: st, frames: frames}
+	s.heads[req.Branch] = &replayed{state: st, base: c.head.base, frames: frames}
 	delete(s.ended, req.Branch)
 	res.HeadTick = st.Tick()
 	res.Hash = sim.Hash(st)
@@ -355,7 +366,7 @@ func (s *BranchService) budgetUsed(ctx context.Context, id BranchID, window sim.
 func (s *BranchService) SubmitCommands(ctx context.Context, req SubmitRequest) (SubmitResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	c, err := s.load(ctx, req.Branch)
+	c, err := s.loadMutable(ctx, req.Branch)
 	if err != nil {
 		return SubmitResult{}, err
 	}
@@ -451,7 +462,7 @@ func (s *BranchService) previousSubmission(ctx context.Context, req SubmitReques
 func (s *BranchService) EndDecisionWindow(ctx context.Context, id BranchID, windowTick sim.Tick, expected *sim.Tick) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	c, err := s.load(ctx, id)
+	c, err := s.loadMutable(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -506,7 +517,18 @@ func (s *BranchService) FrameAt(ctx context.Context, id BranchID, t sim.Tick) (s
 	if err := c.checkTick(t); err != nil {
 		return sim.TickFrame{}, err
 	}
-	return c.head.frames[t], nil
+	if f, ok := c.head.frame(t); ok {
+		return f, nil
+	}
+	r, err := s.rebuild(ctx, c.b, c.w, c.sc, t, true)
+	if err != nil {
+		return sim.TickFrame{}, err
+	}
+	f, ok := r.frame(t)
+	if !ok {
+		return sim.TickFrame{}, fmt.Errorf("frame %d not recomputed", t)
+	}
+	return f, nil
 }
 
 // HashAt returns the State_Hash at tick.
@@ -540,11 +562,7 @@ func (s *BranchService) stateAt(ctx context.Context, c branchCtx, t sim.Tick) (s
 	if t == c.head.state.Tick() {
 		return c.head.state, nil
 	}
-	inputs, err := s.engineInputs(ctx, c.b.ID, t)
-	if err != nil {
-		return sim.State{}, err
-	}
-	r, err := replay(c.sc, c.w.Seed, inputs, t)
+	r, err := s.rebuild(ctx, c.b, c.w, c.sc, t, false)
 	if err != nil {
 		return sim.State{}, err
 	}

@@ -104,3 +104,7 @@ Method: `web/e2e/setup-and-perf.spec.ts` starts the demo, sets "Pause automatica
 | mobile 390x844 (emulated) | 302 | 16.67 | 16.7 | 16.8 | 16.8 | 16.8 | 0 |
 
 Earlier runs the same day varied: desktop 300 frames, mean 16.83 ms, p99 33.3 ms, max 33.4 ms; emulated phone 297 frames, mean 16.89 ms, p99 33.3 ms, max 50.1 ms (2 frames over 33 ms). So occasional single dropped frames occur; the table shows the final run. Emulated phone CPU throttling was not applied, so real phones will be slower.
+
+## Post-M2/M3 re-measure (2026-11-27)
+
+Engine version 2 plus the `State.clone` isolation fix, same machine (Apple M5, darwin/arm64, Go go1.25.5), idle, dirty working tree before the M3 commit. Command: `cd backend && go test ./internal/sim -run '^$' -bench BenchmarkFlagshipReplay -benchtime 10x -count 5 -benchmem`. Five runs: 101.6, 91.7, 92.3, 100.0 and 93.3 ms/op (median 93.3 ms, max 101.6 ms). Allocation per op: about 550.6 MB and about 32,340 allocs. Against the 500 ms target (29.1) this is met in-process (about 5x headroom). The engine-loop proxy excludes process start-up and JSON output. The roughly 550 MB per replay is high; it is churn from state cloning and has not been profiled or optimized. The 100-replay benchmark was not re-run, so the 29.2 proxy above still reflects engine version 1.

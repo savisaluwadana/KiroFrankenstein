@@ -65,6 +65,7 @@ type journalResponse struct {
 	Entries    []journalEntryDTO `json:"entries"`
 	Currency   string            `json:"currency"`
 	Disclaimer string            `json:"disclaimer"`
+	Warnings   []warningDTO      `json:"warnings,omitempty"`
 }
 
 func (s *Server) listJournal(w http.ResponseWriter, r *http.Request) {
@@ -104,8 +105,13 @@ func (s *Server) listJournal(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	warn, err := s.branchWarnings(r, app.BranchID(id))
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	out := journalResponse{
-		BranchID: id, From: from, To: to, Total: len(all), Offset: offset, Entries: make([]journalEntryDTO, 0),
+		Warnings: warn, BranchID: id, From: from, To: to, Total: len(all), Offset: offset, Entries: make([]journalEntryDTO, 0),
 		Currency: Currency, Disclaimer: sim.Disclaimer,
 	}
 	for i, e := range all {
@@ -179,6 +185,7 @@ type endOfHorizonResponse struct {
 	Statement  endOfHorizonDTO `json:"statement"`
 	Currency   string          `json:"currency"`
 	Disclaimer string          `json:"disclaimer"`
+	Warnings   []warningDTO    `json:"warnings,omitempty"`
 }
 
 // getEndOfHorizon reads the statement at the `tick` query, or at the head when
@@ -213,7 +220,12 @@ func (s *Server) getEndOfHorizon(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	warn, err := s.branchWarnings(r, bid)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, endOfHorizonResponse{
-		BranchID: id, StateHash: hashHex(h), Statement: endOfHorizonToDTO(e), Currency: Currency, Disclaimer: sim.Disclaimer,
+		Warnings: warn, BranchID: id, StateHash: hashHex(h), Statement: endOfHorizonToDTO(e), Currency: Currency, Disclaimer: sim.Disclaimer,
 	})
 }

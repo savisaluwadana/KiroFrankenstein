@@ -6,7 +6,7 @@ A new project repository for the **Kiroween 2026** hackathon, **Frankenstein** c
 
 **Concept approved: Parallel.** *Reality has no undo button. We built one.* A playable, forkable simulation of an e-commerce business in a Black Friday crisis, where a human and an AI manager compete under identical conditions.
 
-**M0 and M1 (the vertical slice) are implemented and tested.** M2 and later milestones are not started. Steering lives in `.kiro/steering/` and the spec (requirements, design, tasks) in `.kiro/specs/parallel-simulation-mvp/`.
+**M0 to M3 are implemented and tested:** the vertical slice, the complete engine and ledger (engine version 2, flagship hash `4c6d0dd0...ab99e`), and PostgreSQL persistence with snapshots, replay and engine-version mismatch flags. M4 (studio polish, SSE progress stream) and later milestones are partly or not started; the studio UI has been redesigned ahead of M4 (see `docs/ux-redesign.md`). Steering lives in `.kiro/steering/` and the spec (requirements, design, tasks) in `.kiro/specs/parallel-simulation-mvp/`.
 
 ## Run locally
 
@@ -32,7 +32,37 @@ Tests:
 - `cd web && npx tsc --noEmit && npx eslint . && npx vitest --run`
 - `cd web && npm run e2e` runs the real-browser suite (Playwright, chromium, desktop 1440x900 and phone 390x844) against the real Go API and a production build of the web app. It starts both servers itself on ports 18080 and 3199 and writes screenshots to `docs/screenshots/`. One-time setup: `npx playwright install chromium`.
 
-PostgreSQL via Docker Compose is optional and unused until M3.
+PostgreSQL store tests (`backend/internal/store/postgres`) run the shared repository contract suite and `TestRestartRebuild` (a cold service over the same database must rebuild every branch with hashes equal to the stored `tick_summaries`). They are skipped unless `PARALLEL_TEST_DATABASE_URL` is set. A Homebrew PostgreSQL on port 5432 can shadow the container, so publish the container on another port with `DB_PORT`:
+
+```
+DB_PORT=55432 docker compose up -d --wait db
+cd backend
+MIGRATE_DATABASE_URL='postgres://parallel_migrator:migrator_dev_password@127.0.0.1:55432/parallel_test?sslmode=disable' go run ./cmd/parallel-api migrate up
+PARALLEL_TEST_DATABASE_URL='postgres://parallel_app:app_dev_password@127.0.0.1:55432/parallel_test?sslmode=disable' go test ./internal/store/... -count=1
+```
+
+`TestInputLogImmutable` also needs `PARALLEL_TEST_MIGRATE_DATABASE_URL` (the `parallel_migrator` owner URL above, same value as `MIGRATE_DATABASE_URL`) and is skipped without it. It connects as the table owner to prove the triggers reject UPDATE, DELETE and TRUNCATE on `input_log` even for the owner, then checks that the runtime role is denied by permissions. Input log rows cannot be deleted, so each run leaves a few uniquely identified fixture rows in the test database.
+
+```
+PARALLEL_TEST_DATABASE_URL='postgres://parallel_app:app_dev_password@127.0.0.1:55432/parallel_test?sslmode=disable' \
+PARALLEL_TEST_MIGRATE_DATABASE_URL='postgres://parallel_migrator:migrator_dev_password@127.0.0.1:55432/parallel_test?sslmode=disable' \
+go test ./internal/store/postgres -run TestInputLogImmutable -count=1 -v
+```
+
+The tests connect as the runtime role `parallel_app` (no DDL, no UPDATE or DELETE on `input_log`). They use fresh random UUIDs per run and never truncate, so they can be re-run against the same database.
+
+### Running the API with PostgreSQL
+
+Without `DATABASE_URL` the API keeps worlds in memory and loses them on exit. With it, worlds, branches and the input log persist, and a restarted API rebuilds any branch by replay (snapshots speed this up). `DATABASE_URL` is the runtime role (no DDL); the schema is applied separately with the owner role. The URL is never logged.
+
+```
+DB_PORT=55432 docker compose up -d --wait db
+cd backend
+MIGRATE_DATABASE_URL='postgres://parallel_migrator:migrator_dev_password@127.0.0.1:55432/parallel?sslmode=disable' go run ./cmd/parallel-api migrate up
+DATABASE_URL='postgres://parallel_app:app_dev_password@127.0.0.1:55432/parallel?sslmode=disable' go run ./cmd/parallel-api
+```
+
+If the schema is missing the server exits with an error telling you to run `migrate up`. The `tick_summaries` table is a derived cache written on each advance; its hashes are checked against replayed hashes and never used as the source of state.
 
 ### Known limitations
 

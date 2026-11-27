@@ -55,7 +55,12 @@ func (s *Server) getBranch(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, branchToDTO(b))
+	dto := branchToDTO(b)
+	if dto.Warnings, err = s.branchWarnings(r, b.ID); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, dto)
 }
 
 type forkRequest struct {
@@ -371,6 +376,7 @@ type tickFramesResponse struct {
 	Frames     []tickFrameDTO `json:"frames"`
 	Currency   string         `json:"currency"`
 	Disclaimer string         `json:"disclaimer"`
+	Warnings   []warningDTO   `json:"warnings,omitempty"`
 }
 
 // rangeParams reads from and to. A missing or non-integer value is a 400; a
@@ -405,7 +411,12 @@ func (s *Server) listTickFrames(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	bid := app.BranchID(id)
-	out := tickFramesResponse{BranchID: id, Frames: make([]tickFrameDTO, 0, to-from+1), Currency: Currency, Disclaimer: sim.Disclaimer}
+	warn, err := s.branchWarnings(r, bid)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	out := tickFramesResponse{Warnings: warn, BranchID: id, Frames: make([]tickFrameDTO, 0, to-from+1), Currency: Currency, Disclaimer: sim.Disclaimer}
 	for t := from; t <= to; t++ {
 		f, err := s.svc.FrameAt(r.Context(), bid, sim.Tick(t))
 		if err != nil {
@@ -435,6 +446,7 @@ type branchStateResponse struct {
 	Observation observationDTO `json:"observation"`
 	Currency    string         `json:"currency"`
 	Disclaimer  string         `json:"disclaimer"`
+	Warnings    []warningDTO   `json:"warnings,omitempty"`
 }
 
 func (s *Server) getBranchState(w http.ResponseWriter, r *http.Request) {
@@ -459,19 +471,25 @@ func (s *Server) getBranchState(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	warn, err := s.branchWarnings(r, bid)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, branchStateResponse{
-		BranchID: id, Tick: int64(t), StateHash: hashHex(h), Observation: observationToDTO(obs),
+		Warnings: warn, BranchID: id, Tick: int64(t), StateHash: hashHex(h), Observation: observationToDTO(obs),
 		Currency: Currency, Disclaimer: sim.Disclaimer,
 	})
 }
 
 type metricsResponse struct {
-	BranchID   string     `json:"branchId"`
-	Tick       int64      `json:"tick"`
-	StateHash  string     `json:"stateHash"`
-	Metrics    metricsDTO `json:"metrics"`
-	Currency   string     `json:"currency"`
-	Disclaimer string     `json:"disclaimer"`
+	BranchID   string       `json:"branchId"`
+	Tick       int64        `json:"tick"`
+	StateHash  string       `json:"stateHash"`
+	Metrics    metricsDTO   `json:"metrics"`
+	Currency   string       `json:"currency"`
+	Disclaimer string       `json:"disclaimer"`
+	Warnings   []warningDTO `json:"warnings,omitempty"`
 }
 
 func (s *Server) getBranchMetrics(w http.ResponseWriter, r *http.Request) {
@@ -490,8 +508,13 @@ func (s *Server) getBranchMetrics(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	warn, err := s.branchWarnings(r, app.BranchID(id))
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, metricsResponse{
-		BranchID: id, Tick: int64(t), StateHash: hashHex(f.Hash), Metrics: metricsToDTO(f.Metrics),
+		Warnings: warn, BranchID: id, Tick: int64(t), StateHash: hashHex(f.Hash), Metrics: metricsToDTO(f.Metrics),
 		Currency: Currency, Disclaimer: sim.Disclaimer,
 	})
 }
@@ -505,6 +528,7 @@ type ledgerResponse struct {
 	Entries    []ledgerEntryDTO `json:"entries"`
 	Currency   string           `json:"currency"`
 	Disclaimer string           `json:"disclaimer"`
+	Warnings   []warningDTO     `json:"warnings,omitempty"`
 }
 
 func (s *Server) listLedgerEntries(w http.ResponseWriter, r *http.Request) {
@@ -553,8 +577,13 @@ func (s *Server) listLedgerEntries(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	warn, err := s.branchWarnings(r, app.BranchID(id))
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	out := ledgerResponse{
-		BranchID: id, From: from, To: to, Offset: offset, Entries: make([]ledgerEntryDTO, 0),
+		Warnings: warn, BranchID: id, From: from, To: to, Offset: offset, Entries: make([]ledgerEntryDTO, 0),
 		Currency: Currency, Disclaimer: sim.Disclaimer,
 	}
 	for i, e := range st.Ledger.Entries {

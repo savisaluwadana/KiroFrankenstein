@@ -1,0 +1,312 @@
+# 2026/11/27 09:40:21.248748 [TestPropSnapshotResume] [rapid] draw scenario: &sim.Scenario{SchemaVersion:1, Name:"Black Friday Meltdown", HorizonTicks:24, StartClock:"Thu 00:00", DecisionCadenceTicks:4, CommandBudget:5, SnapshotIntervalTicks:24, TieToleranceHundredths:10, ScoreWeights:sim.ScoreWeights{FinancialWeightBps:5000, FulfilmentWeightBps:3000, OnTimeWeightBps:2000}, ProfitFloorCents:-2000000, ProfitTargetCents:6000000, OpeningCashCents:10000000, SKUs:[]sim.SKUSpec{sim.SKUSpec{ID:"headphones", ReferencePriceCents:5999, OpeningUnits:0, OpeningUnitCostCents:3000, PromiseTicks:24}, sim.SKUSpec{ID:"charger", ReferencePriceCents:1999, OpeningUnits:900, OpeningUnitCostCents:800, PromiseTicks:24}, sim.SKUSpec{ID:"speaker", ReferencePriceCents:8999, OpeningUnits:400, OpeningUnitCostCents:4800, PromiseTicks:48}, sim.SKUSpec{ID:"watchband", ReferencePriceCents:1499, OpeningUnits:800, OpeningUnitCostCents:500, PromiseTicks:24}}, Suppliers:[]sim.SupplierSpec{sim.SupplierSpec{SKUID:"headphones", Role:"primary", UnitCostCents:3000, LeadTimeTicks:24}, sim.SupplierSpec{SKUID:"headphones", Role:"backup", UnitCostCents:3600, LeadTimeTicks:8}, sim.SupplierSpec{SKUID:"charger", Role:"primary", UnitCostCents:800, LeadTimeTicks:24}, sim.SupplierSpec{SKUID:"charger", Role:"backup", UnitCostCents:1050, LeadTimeTicks:8}, sim.SupplierSpec{SKUID:"speaker", Role:"primary", UnitCostCents:4800, LeadTimeTicks:24}, sim.SupplierSpec{SKUID:"speaker", Role:"backup", UnitCostCents:5700, LeadTimeTicks:8}, sim.SupplierSpec{SKUID:"watchband", Role:"primary", UnitCostCents:500, LeadTimeTicks:24}, sim.SupplierSpec{SKUID:"watchband", Role:"backup", UnitCostCents:700, LeadTimeTicks:8}}, Workforce:sim.WorkforceSpec{RegularWorkers:8, UnitsPerWorkerHour:8, MaxOvertimePerWorker:4, MaxTempWorkers:30, TempOnboardingTicks:6}, Wages:sim.WagesSpec{RegularPerHourCents:2200, OvertimePerHourCents:3300, TempPerHourCents:2500}, Costs:sim.CostsSpec{OutboundShipCentsPerUnit:400, ExpediteFeeCents:5000, ExpediteReductionTicks:4, HourlyOverheadCents:30000, ServiceCreditPerLateOrderCents:500}, Demand:sim.DemandSpec{HourlyProfile:[]sim.Bps{3000, 2000, 1500, 1500, 2000, 6000, 7000, 9000, 11000, 12000, 13000, 13000, 12000, 11000, 11000, 12000, 13000, 14000, 16000, 17000, 18000, 16000, 11000, 8000}, BaseArrivalsPerTick:100, BaseConversionBps:2500, PriceElasticityBps:1500, MarketingEffectBps:300, CancelThresholdTicks:48, NoiseBps:2000, MarketingSpendUnitCents:10000, MaxMarketingSpendCentsPerHour:50000}, Pricing:sim.PricingSpec{MinPriceBps:5000, MaxPriceBps:20000}, AssumptionMeta:map[string]sim.AssumptionMeta{"commandBudget":sim.AssumptionMeta{Unit:"commands", Default:5, Min:1, Max:50, Rationale:"synthetic, illustrative: small per-window command budget"}, "costs.expediteFeeCents":sim.AssumptionMeta{Unit:"cents", Default:5000, Min:0, Max:100000, Rationale:"synthetic, illustrative: $50.00 flat fee to expedite a purchase order"}, "costs.expediteReductionTicks":sim.AssumptionMeta{Unit:"ticks", Default:4, Min:0, Max:24, Rationale:"synthetic, illustrative: expediting shortens lead time by four hours"}, "costs.hourlyOverheadCents":sim.AssumptionMeta{Unit:"cents", Default:30000, Min:0, Max:500000, Rationale:"synthetic, illustrative: $300.00 per hour rent, utilities and marketing"}, "costs.outboundShipCentsPerUnit":sim.AssumptionMeta{Unit:"cents", Default:400, Min:0, Max:5000, Rationale:"synthetic, illustrative: $4.00 outbound freight per unit"}, "costs.serviceCreditPerLateOrderCents":sim.AssumptionMeta{Unit:"cents", Default:500, Min:0, Max:10000, Rationale:"synthetic, illustrative: $5.00 credit for each late order"}, "decisionCadenceTicks":sim.AssumptionMeta{Unit:"ticks", Default:4, Min:1, Max:24, Rationale:"synthetic, illustrative: a decision window every four hours"}, "demand.baseArrivalsPerTick":sim.AssumptionMeta{Unit:"arrivals/tick", Default:100, Min:1, Max:2000, Rationale:"synthetic, illustrative: about 100 potential customers per hour at profile 100%"}, "demand.baseConversionBps":sim.AssumptionMeta{Unit:"bps", Default:2500, Min:0, Max:10000, Rationale:"synthetic, illustrative; uncalibrated: 25% of potential customers buy at the reference price with no marketing"}, "demand.cancelThresholdTicks":sim.AssumptionMeta{Unit:"ticks", Default:48, Min:1, Max:240, Rationale:"synthetic, illustrative: open orders older than 48 hours are cancelled"}, "demand.hourlyProfile":sim.AssumptionMeta{Unit:"bps", Default:10000, Min:0, Max:50000, Rationale:"synthetic, illustrative: basis points of base per hour of day, averaging 10000, evening peak"}, "demand.marketingEffectBps":sim.AssumptionMeta{Unit:"bps", Default:300, Min:0, Max:10000, Rationale:"synthetic, illustrative: 3% conversion uplift per $100 of hourly marketing spend on a SKU"}, "demand.marketingSpendUnitCents":sim.AssumptionMeta{Unit:"cents", Default:10000, Min:100, Max:1000000, Rationale:"synthetic, illustrative: $100 of hourly marketing spend on a SKU is one uplift step of demand.marketingEffectBps"}, "demand.maxMarketingSpendCentsPerHour":sim.AssumptionMeta{Unit:"cents", Default:50000, Min:0, Max:10000000, Rationale:"synthetic, illustrative: at most $500 of marketing spend per hour on one SKU"}, "demand.noiseBps":sim.AssumptionMeta{Unit:"bps", Default:2000, Min:0, Max:10000, Rationale:"synthetic, illustrative: potential arrivals vary uniformly by plus or minus 20% around their expected value; 0 gives exact arrivals"}, "demand.priceElasticityBps":sim.AssumptionMeta{Unit:"bps", Default:1500, Min:0, Max:20000, Rationale:"synthetic, illustrative: 15% conversion change per 100% price change"}, "horizonTicks":sim.AssumptionMeta{Unit:"ticks", Default:120, Min:24, Max:336, Rationale:"synthetic, illustrative: five-day peak, Thursday 00:00 to Monday 23:59"}, "openingCashCents":sim.AssumptionMeta{Unit:"cents", Default:10000000, Min:0, Max:1000000000, Rationale:"synthetic, illustrative; uncalibrated: $100,000 of opening cash"}, "pricing.maxPriceBps":sim.AssumptionMeta{Unit:"bps", Default:20000, Min:10000, Max:100000, Rationale:"synthetic, illustrative: a price may not go above 200% of the reference price"}, "pricing.minPriceBps":sim.AssumptionMeta{Unit:"bps", Default:5000, Min:100, Max:10000, Rationale:"synthetic, illustrative: a price may not go below 50% of the reference price"}, "profitFloorCents":sim.AssumptionMeta{Unit:"cents", Default:-2000000, Min:-100000000, Max:100000000, Rationale:"synthetic, illustrative; uncalibrated: provisional profit floor of -$20,000 pending calibration"}, "profitTargetCents":sim.AssumptionMeta{Unit:"cents", Default:6000000, Min:-100000000, Max:100000000, Rationale:"synthetic, illustrative; uncalibrated: provisional profit target of $60,000 pending calibration"}, "scoreWeights.financialWeightBps":sim.AssumptionMeta{Unit:"bps", Default:5000, Min:0, Max:10000, Rationale:"synthetic, illustrative: financial result is half the composite score"}, "scoreWeights.fulfilmentWeightBps":sim.AssumptionMeta{Unit:"bps", Default:3000, Min:0, Max:10000, Rationale:"synthetic, illustrative: fill rate is 30% of the composite score"}, "scoreWeights.onTimeWeightBps":sim.AssumptionMeta{Unit:"bps", Default:2000, Min:0, Max:10000, Rationale:"synthetic, illustrative: on-time service level is 20% of the composite score"}, "skus.charger.openingUnitCostCents":sim.AssumptionMeta{Unit:"cents", Default:800, Min:1, Max:100000, Rationale:"synthetic, illustrative: equals the primary supplier unit cost"}, "skus.charger.openingUnits":sim.AssumptionMeta{Unit:"units", Default:900, Min:0, Max:100000, Rationale:"synthetic, illustrative: covers roughly a normal day, not the Black Friday surge"}, "skus.charger.promiseTicks":sim.AssumptionMeta{Unit:"ticks", Default:24, Min:1, Max:240, Rationale:"synthetic, illustrative: delivery promise window"}, "skus.charger.referencePriceCents":sim.AssumptionMeta{Unit:"cents", Default:1999, Min:100, Max:100000, Rationale:"synthetic, illustrative: list price in a plausible consumer-electronics accessory range"}, "skus.headphones.openingUnitCostCents":sim.AssumptionMeta{Unit:"cents", Default:3000, Min:1, Max:100000, Rationale:"synthetic, illustrative: equals the primary supplier unit cost"}, "skus.headphones.openingUnits":sim.AssumptionMeta{Unit:"units", Default:700, Min:0, Max:100000, Rationale:"synthetic, illustrative: covers roughly a normal day, not the Black Friday surge"}, "skus.headphones.promiseTicks":sim.AssumptionMeta{Unit:"ticks", Default:24, Min:1, Max:240, Rationale:"synthetic, illustrative: delivery promise window"}, "skus.headphones.referencePriceCents":sim.AssumptionMeta{Unit:"cents", Default:5999, Min:100, Max:100000, Rationale:"synthetic, illustrative: list price in a plausible consumer-electronics accessory range"}, "skus.speaker.openingUnitCostCents":sim.AssumptionMeta{Unit:"cents", Default:4800, Min:1, Max:100000, Rationale:"synthetic, illustrative: equals the primary supplier unit cost"}, "skus.speaker.openingUnits":sim.AssumptionMeta{Unit:"units", Default:400, Min:0, Max:100000, Rationale:"synthetic, illustrative: covers roughly a normal day, not the Black Friday surge"}, "skus.speaker.promiseTicks":sim.AssumptionMeta{Unit:"ticks", Default:48, Min:1, Max:240, Rationale:"synthetic, illustrative: delivery promise window"}, "skus.speaker.referencePriceCents":sim.AssumptionMeta{Unit:"cents", Default:8999, Min:100, Max:100000, Rationale:"synthetic, illustrative: list price in a plausible consumer-electronics accessory range"}, "skus.watchband.openingUnitCostCents":sim.AssumptionMeta{Unit:"cents", Default:500, Min:1, Max:100000, Rationale:"synthetic, illustrative: equals the primary supplier unit cost"}, "skus.watchband.openingUnits":sim.AssumptionMeta{Unit:"units", Default:800, Min:0, Max:100000, Rationale:"synthetic, illustrative: covers roughly a normal day, not the Black Friday surge"}, "skus.watchband.promiseTicks":sim.AssumptionMeta{Unit:"ticks", Default:24, Min:1, Max:240, Rationale:"synthetic, illustrative: delivery promise window"}, "skus.watchband.referencePriceCents":sim.AssumptionMeta{Unit:"cents", Default:1499, Min:100, Max:100000, Rationale:"synthetic, illustrative: list price in a plausible consumer-electronics accessory range"}, "snapshotIntervalTicks":sim.AssumptionMeta{Unit:"ticks", Default:24, Min:1, Max:120, Rationale:"synthetic, illustrative: one snapshot per simulated day"}, "suppliers.charger.backup.leadTimeTicks":sim.AssumptionMeta{Unit:"ticks", Default:8, Min:1, Max:240, Rationale:"synthetic, illustrative: pricier supplier with a short lead time"}, "suppliers.charger.backup.unitCostCents":sim.AssumptionMeta{Unit:"cents", Default:1050, Min:1, Max:100000, Rationale:"synthetic, illustrative: pricier supplier with a short lead time"}, "suppliers.charger.primary.leadTimeTicks":sim.AssumptionMeta{Unit:"ticks", Default:24, Min:1, Max:240, Rationale:"synthetic, illustrative: cheaper supplier with a long lead time"}, "suppliers.charger.primary.unitCostCents":sim.AssumptionMeta{Unit:"cents", Default:800, Min:1, Max:100000, Rationale:"synthetic, illustrative: cheaper supplier with a long lead time"}, "suppliers.headphones.backup.leadTimeTicks":sim.AssumptionMeta{Unit:"ticks", Default:8, Min:1, Max:240, Rationale:"synthetic, illustrative: pricier supplier with a short lead time"}, "suppliers.headphones.backup.unitCostCents":sim.AssumptionMeta{Unit:"cents", Default:3600, Min:1, Max:100000, Rationale:"synthetic, illustrative: pricier supplier with a short lead time"}, "suppliers.headphones.primary.leadTimeTicks":sim.AssumptionMeta{Unit:"ticks", Default:24, Min:1, Max:240, Rationale:"synthetic, illustrative: cheaper supplier with a long lead time"}, "suppliers.headphones.primary.unitCostCents":sim.AssumptionMeta{Unit:"cents", Default:3000, Min:1, Max:100000, Rationale:"synthetic, illustrative: cheaper supplier with a long lead time"}, "suppliers.speaker.backup.leadTimeTicks":sim.AssumptionMeta{Unit:"ticks", Default:8, Min:1, Max:240, Rationale:"synthetic, illustrative: pricier supplier with a short lead time"}, "suppliers.speaker.backup.unitCostCents":sim.AssumptionMeta{Unit:"cents", Default:5700, Min:1, Max:100000, Rationale:"synthetic, illustrative: pricier supplier with a short lead time"}, "suppliers.speaker.primary.leadTimeTicks":sim.AssumptionMeta{Unit:"ticks", Default:24, Min:1, Max:240, Rationale:"synthetic, illustrative: cheaper supplier with a long lead time"}, "suppliers.speaker.primary.unitCostCents":sim.AssumptionMeta{Unit:"cents", Default:4800, Min:1, Max:100000, Rationale:"synthetic, illustrative: cheaper supplier with a long lead time"}, "suppliers.watchband.backup.leadTimeTicks":sim.AssumptionMeta{Unit:"ticks", Default:8, Min:1, Max:240, Rationale:"synthetic, illustrative: pricier supplier with a short lead time"}, "suppliers.watchband.backup.unitCostCents":sim.AssumptionMeta{Unit:"cents", Default:700, Min:1, Max:100000, Rationale:"synthetic, illustrative: pricier supplier with a short lead time"}, "suppliers.watchband.primary.leadTimeTicks":sim.AssumptionMeta{Unit:"ticks", Default:24, Min:1, Max:240, Rationale:"synthetic, illustrative: cheaper supplier with a long lead time"}, "suppliers.watchband.primary.unitCostCents":sim.AssumptionMeta{Unit:"cents", Default:500, Min:1, Max:100000, Rationale:"synthetic, illustrative: cheaper supplier with a long lead time"}, "tieToleranceHundredths":sim.AssumptionMeta{Unit:"hundredths", Default:10, Min:0, Max:10000, Rationale:"synthetic, illustrative: a duel within 0.1 points is a tie"}, "wages.overtimePerHourCents":sim.AssumptionMeta{Unit:"cents", Default:3300, Min:500, Max:15000, Rationale:"synthetic, illustrative: 1.5 times the regular wage"}, "wages.regularPerHourCents":sim.AssumptionMeta{Unit:"cents", Default:2200, Min:500, Max:10000, Rationale:"synthetic, illustrative: $22.00 per hour regular wage"}, "wages.tempPerHourCents":sim.AssumptionMeta{Unit:"cents", Default:2500, Min:500, Max:10000, Rationale:"synthetic, illustrative: temp wage slightly above regular to attract short-notice labour"}, "workforce.maxOvertimePerWorker":sim.AssumptionMeta{Unit:"hours", Default:4, Min:0, Max:8, Rationale:"synthetic, illustrative: up to four overtime hours per worker per day"}, "workforce.maxTempWorkers":sim.AssumptionMeta{Unit:"workers", Default:30, Min:0, Max:200, Rationale:"synthetic, illustrative: temporary headcount cap"}, "workforce.regularWorkers":sim.AssumptionMeta{Unit:"workers", Default:20, Min:1, Max:200, Rationale:"synthetic, illustrative: 20 regular pickers give 160 units per hour, above a normal-hour load of about 100"}, "workforce.tempOnboardingTicks":sim.AssumptionMeta{Unit:"ticks", Default:6, Min:0, Max:48, Rationale:"synthetic, illustrative: temps add no capacity for six hours but are paid"}, "workforce.unitsPerWorkerHour":sim.AssumptionMeta{Unit:"units/hour", Default:8, Min:1, Max:60, Rationale:"synthetic, illustrative: eight picked-and-packed units per worker-hour"}}, DisruptionScript:[]sim.DisruptionSpec{sim.DisruptionSpec{Kind:"demand_surge", OnsetTick:48, DurationTicks:24, MagnitudeBps:(*sim.Bps)(0x14000010170), Target:(*string)(nil)}, sim.DisruptionSpec{Kind:"workforce_absence", OnsetTick:54, DurationTicks:12, MagnitudeBps:(*sim.Bps)(0x14000010178), Target:(*string)(nil)}, sim.DisruptionSpec{Kind:"supplier_outage", OnsetTick:60, DurationTicks:18, MagnitudeBps:(*sim.Bps)(nil), Target:(*string)(0x1400002c9d0)}}}
+# 2026/11/27 09:40:21.248863 [TestPropSnapshotResume] [rapid] draw seed: 0x0
+# 2026/11/27 09:40:21.248864 [TestPropSnapshotResume] [rapid] draw snapshotTick: 1
+# 2026/11/27 09:40:21.248881 [TestPropSnapshotResume] [rapid] draw ncmds: 0
+# 2026/11/27 09:40:21.248881 [TestPropSnapshotResume] [rapid] draw inject: 0
+# 2026/11/27 09:40:21.248882 [TestPropSnapshotResume] [rapid] draw dur: 1
+# 2026/11/27 09:40:21.248882 [TestPropSnapshotResume] [rapid] draw dkind: 0
+# 2026/11/27 09:40:21.248882 [TestPropSnapshotResume] [rapid] draw dtarget: 0
+# 2026/11/27 09:40:21.248883 [TestPropSnapshotResume] [rapid] draw surge: 10000
+# 2026/11/27 09:40:21.248909 [TestPropSnapshotResume] [rapid] draw ncmds: 0
+# 2026/11/27 09:40:21.248909 [TestPropSnapshotResume] [rapid] draw inject: 0
+# 2026/11/27 09:40:21.248910 [TestPropSnapshotResume] [rapid] draw dur: 1
+# 2026/11/27 09:40:21.248910 [TestPropSnapshotResume] [rapid] draw dkind: 0
+# 2026/11/27 09:40:21.248910 [TestPropSnapshotResume] [rapid] draw dtarget: 0
+# 2026/11/27 09:40:21.248910 [TestPropSnapshotResume] [rapid] draw surge: 10000
+# 2026/11/27 09:40:21.248936 [TestPropSnapshotResume] [rapid] draw ncmds: 0
+# 2026/11/27 09:40:21.248937 [TestPropSnapshotResume] [rapid] draw inject: 0
+# 2026/11/27 09:40:21.248937 [TestPropSnapshotResume] [rapid] draw dur: 1
+# 2026/11/27 09:40:21.248937 [TestPropSnapshotResume] [rapid] draw dkind: 0
+# 2026/11/27 09:40:21.248937 [TestPropSnapshotResume] [rapid] draw dtarget: 0
+# 2026/11/27 09:40:21.248938 [TestPropSnapshotResume] [rapid] draw surge: 10000
+# 2026/11/27 09:40:21.248967 [TestPropSnapshotResume] [rapid] draw ncmds: 0
+# 2026/11/27 09:40:21.248967 [TestPropSnapshotResume] [rapid] draw inject: 0
+# 2026/11/27 09:40:21.248968 [TestPropSnapshotResume] [rapid] draw dur: 1
+# 2026/11/27 09:40:21.248968 [TestPropSnapshotResume] [rapid] draw dkind: 0
+# 2026/11/27 09:40:21.248968 [TestPropSnapshotResume] [rapid] draw dtarget: 0
+# 2026/11/27 09:40:21.248968 [TestPropSnapshotResume] [rapid] draw surge: 10000
+# 2026/11/27 09:40:21.249008 [TestPropSnapshotResume] [rapid] draw ncmds: 0
+# 2026/11/27 09:40:21.249009 [TestPropSnapshotResume] [rapid] draw inject: 0
+# 2026/11/27 09:40:21.249009 [TestPropSnapshotResume] [rapid] draw dur: 1
+# 2026/11/27 09:40:21.249009 [TestPropSnapshotResume] [rapid] draw dkind: 0
+# 2026/11/27 09:40:21.249009 [TestPropSnapshotResume] [rapid] draw dtarget: 0
+# 2026/11/27 09:40:21.249010 [TestPropSnapshotResume] [rapid] draw surge: 10000
+# 2026/11/27 09:40:21.249053 [TestPropSnapshotResume] [rapid] draw ncmds: 0
+# 2026/11/27 09:40:21.249053 [TestPropSnapshotResume] [rapid] draw inject: 0
+# 2026/11/27 09:40:21.249054 [TestPropSnapshotResume] [rapid] draw dur: 1
+# 2026/11/27 09:40:21.249054 [TestPropSnapshotResume] [rapid] draw dkind: 0
+# 2026/11/27 09:40:21.249054 [TestPropSnapshotResume] [rapid] draw dtarget: 0
+# 2026/11/27 09:40:21.249054 [TestPropSnapshotResume] [rapid] draw surge: 10000
+# 2026/11/27 09:40:21.249113 [TestPropSnapshotResume] [rapid] draw ncmds: 0
+# 2026/11/27 09:40:21.249113 [TestPropSnapshotResume] [rapid] draw inject: 1
+# 2026/11/27 09:40:21.249183 [TestPropSnapshotResume] [rapid] draw inject: 0
+# 2026/11/27 09:40:21.249184 [TestPropSnapshotResume] [rapid] draw dur: 1
+# 2026/11/27 09:40:21.249184 [TestPropSnapshotResume] [rapid] draw dkind: 0
+# 2026/11/27 09:40:21.249184 [TestPropSnapshotResume] [rapid] draw dtarget: 0
+# 2026/11/27 09:40:21.249184 [TestPropSnapshotResume] [rapid] draw surge: 10000
+# 2026/11/27 09:40:21.249299 [TestPropSnapshotResume] [rapid] draw ncmds: 0
+# 2026/11/27 09:40:21.249300 [TestPropSnapshotResume] [rapid] draw inject: 1
+# 2026/11/27 09:40:21.249416 [TestPropSnapshotResume] [rapid] draw inject: 1
+# 2026/11/27 09:40:21.249563 [TestPropSnapshotResume] [rapid] draw inject: 1
+# 2026/11/27 09:40:21.249740 [TestPropSnapshotResume] [rapid] draw inject: 0
+# 2026/11/27 09:40:21.249741 [TestPropSnapshotResume] [rapid] draw dur: 1
+# 2026/11/27 09:40:21.249741 [TestPropSnapshotResume] [rapid] draw dkind: 0
+# 2026/11/27 09:40:21.249741 [TestPropSnapshotResume] [rapid] draw dtarget: 0
+# 2026/11/27 09:40:21.249742 [TestPropSnapshotResume] [rapid] draw surge: 10000
+# 2026/11/27 09:40:21.249969 [TestPropSnapshotResume] [rapid] draw ncmds: 0
+# 2026/11/27 09:40:21.249970 [TestPropSnapshotResume] [rapid] draw inject: 1
+# 2026/11/27 09:40:21.250188 [TestPropSnapshotResume] [rapid] draw inject: 1
+# 2026/11/27 09:40:21.250452 [TestPropSnapshotResume] [rapid] draw inject: 1
+# 2026/11/27 09:40:21.251821 [TestPropSnapshotResume] [rapid] draw inject: 0
+# 2026/11/27 09:40:21.251824 [TestPropSnapshotResume] [rapid] draw dur: 1
+# 2026/11/27 09:40:21.251824 [TestPropSnapshotResume] [rapid] draw dkind: 0
+# 2026/11/27 09:40:21.251825 [TestPropSnapshotResume] [rapid] draw dtarget: 0
+# 2026/11/27 09:40:21.251825 [TestPropSnapshotResume] [rapid] draw surge: 10000
+# 2026/11/27 09:40:21.252761 [TestPropSnapshotResume] [rapid] draw ncmds: 0
+# 2026/11/27 09:40:21.252766 [TestPropSnapshotResume] [rapid] draw inject: 1
+# 2026/11/27 09:40:21.254978 [TestPropSnapshotResume] [rapid] draw inject: 1
+# 2026/11/27 09:40:21.255883 [TestPropSnapshotResume] [rapid] draw inject: 1
+# 2026/11/27 09:40:21.257355 [TestPropSnapshotResume] [rapid] draw inject: 1
+# 2026/11/27 09:40:21.259054 [TestPropSnapshotResume] [rapid] draw ncmds: 0
+# 2026/11/27 09:40:21.259059 [TestPropSnapshotResume] [rapid] draw inject: 1
+# 2026/11/27 09:40:21.260211 [TestPropSnapshotResume] [rapid] draw inject: 1
+# 2026/11/27 09:40:21.262680 [TestPropSnapshotResume] [rapid] draw inject: 1
+# 2026/11/27 09:40:21.263341 [TestPropSnapshotResume] [rapid] draw inject: 1
+# 2026/11/27 09:40:21.264937 [TestPropSnapshotResume] state of tick 9 changed after later ticks were computed (Advance modified its input); differing fields: [Orders Disruptions]
+# 
+v0.4.8#85741351723057822
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x1
+0x0
+0x0
+0x0
+0x0
+0x1
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x1
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x1
+0x0
+0x0
+0x1
+0x0
+0x0
+0x1
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x1
+0x0
+0x0
+0x1
+0x0
+0x0
+0x1
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x1
+0x0
+0x0
+0x1
+0x0
+0x0
+0x1
+0x0
+0x0
+0x1
+0x0
+0x0
+0x0
+0x0
+0x0
+0x1
+0x0
+0x0
+0x1
+0x0
+0x0
+0x1
+0x0
+0x0
+0x1

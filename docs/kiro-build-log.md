@@ -116,6 +116,25 @@
 - **Known issues:** `OrderBook.Settled` and the scenario fields `openingCashCents` and `demand.baseConversionBps` deviate from the plan. The outage supplier role is stored in `ActiveDisruption.MagnitudeBps` (tech debt). SSE is not in the slice. The benchmark numbers in `docs/benchmarks.md` are an in-process proxy. The PixiJS view has not been manually browser-tested by the agent. The demo-reproducibility property test takes about 60 s.
 - **Learning / next action:** Start M2.
 
+### 2026-11-27 — M2 + M3 implementation
+
+- **Kiro surface/version:** Kiro IDE agent orchestrating spec-task-execution subagents
+- **Goal:** Implement M2 (complete engine and ledger) and M3 (PostgreSQL persistence, snapshots, replay, engine-version flags) from `tasks.md`.
+- **Inputs:** `.kiro/specs/parallel-simulation-mvp/tasks.md`, `design.md`, steering files.
+- **What Kiro actually did:**
+  - Executed tasks 3.1 to 3.17 except the optional 3.10, and tasks 4.1 to 4.9.
+  - One subagent run was interrupted ("input stream interrupted") on task 3.15 and was re-run.
+  - The property test in 4.6 (snapshot resume equals replay) genuinely found an engine bug: `State.clone` aliased reference data between states. It was fixed.
+- **What I reviewed or corrected:** Reconciled the M4 tasks with the approved UI redesign; recorded the pgx and x/text vulnerabilities without bumping the Go directive.
+- **Commands and verification outcomes (checkpoint 4.9):**
+  - `go vet` clean. `go test ./... -count=1` passed in every package with tests, against the real PostgreSQL container (no SKIPs; `internal/store/postgres` 10.6 s, `internal/app` 55.6 s, `internal/app/demoplan` 77.9 s, `internal/sim` 30.8 s). `go test -race` on the concurrency and snapshot tests passed.
+  - staticcheck clean. `govulncheck`: 3 reachable vulnerabilities (x/text v0.25.0 twice, pgx v5.7.5); the fixes need `go` 1.25, so they were not applied.
+  - Web: `tsc`, `eslint`, vitest (21 files, 170 tests) and `next build` passed. Playwright e2e on the real backend passed 8 of 8.
+  - Seed 2026 hash `4c6d0dd0...ab99e` unchanged; the demo-fork golden verify printed MATCH (`a51c195a...e2a5`).
+  - Flagship replay benchmark: median 93.3 ms/op over 5 runs (500 ms target), about 550 MB and 32,340 allocs per op.
+- **Known issues:** the vulnerabilities above; high per-replay allocation; SSE (5.1) and the diff view are not built.
+- **Learning / next action:** Finish the remaining M4 tasks (SSE, ledger drill-down, assumptions endpoint, disruption injection), then M5.
+
 Use this template after each real Kiro session:
 
 ### YYYY-MM-DD — session title

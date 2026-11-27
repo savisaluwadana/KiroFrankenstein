@@ -347,6 +347,7 @@ func (s State) clone() State {
 	c := s
 	c.Inventory = append([]SKUInventory(nil), s.Inventory...)
 	c.Orders.Open = append([]Order(nil), s.Orders.Open...)
+	c.Orders.Settled = append([]SettledOrder(nil), s.Orders.Settled...)
 	c.PurchaseOs = append([]PurchaseOrder(nil), s.PurchaseOs...)
 	c.Workforce.Temps = append([]TempCohort(nil), s.Workforce.Temps...)
 	c.Ledger.Entries = append([]LedgerEntry(nil), s.Ledger.Entries...)

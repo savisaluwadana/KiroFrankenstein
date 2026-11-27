@@ -406,7 +406,9 @@ export interface paths {
          *     later Inputs are not. Seq is renumbered 1 to n in effective-Tick order,
          *     as replay does. Idempotency keys, timestamps and model names are not
          *     exported. Provenance and rationale are metadata and never change a
-         *     State_Hash. The rationale is untrusted text.
+         *     State_Hash. The rationale is untrusted text. The body carries the
+         *     stored `engineVersion`; when it differs from the running engine the
+         *     response also sets the header `X-Parallel-Warnings: engine-version-mismatch`.
          */
         get: operations["exportBranchInputs"];
         put?: never;
@@ -493,13 +495,26 @@ export interface components {
         /**
          * @description URI that identifies the problem type. Status codes: history-immutable 409,
          *     not-yet-simulated 409, stale-head 409, window-not-open 409, branch-limit 409,
-         *     horizon-reached 409, budget-exceeded 422, validation 422, invalid-tick 422,
+         *     horizon-reached 409, engine-version-mismatch 409, budget-exceeded 422, validation 422, invalid-tick 422,
          *     invalid-scenario 400, invalid-name 400, bad-request 400, not-found 404,
          *     payload-too-large 413, rate-limited 429, unavailable 503, internal 500.
          *     An unknown route gives not-found 404. A wrong method gives bad-request with status 405.
          * @enum {string}
          */
-        ProblemType: "urn:parallel:problem:history-immutable" | "urn:parallel:problem:not-yet-simulated" | "urn:parallel:problem:stale-head" | "urn:parallel:problem:window-not-open" | "urn:parallel:problem:budget-exceeded" | "urn:parallel:problem:validation" | "urn:parallel:problem:branch-limit" | "urn:parallel:problem:horizon-reached" | "urn:parallel:problem:invalid-tick" | "urn:parallel:problem:invalid-scenario" | "urn:parallel:problem:invalid-name" | "urn:parallel:problem:bad-request" | "urn:parallel:problem:not-found" | "urn:parallel:problem:payload-too-large" | "urn:parallel:problem:rate-limited" | "urn:parallel:problem:unavailable" | "urn:parallel:problem:internal";
+        ProblemType: "urn:parallel:problem:history-immutable" | "urn:parallel:problem:not-yet-simulated" | "urn:parallel:problem:stale-head" | "urn:parallel:problem:window-not-open" | "urn:parallel:problem:budget-exceeded" | "urn:parallel:problem:validation" | "urn:parallel:problem:branch-limit" | "urn:parallel:problem:horizon-reached" | "urn:parallel:problem:engine-version-mismatch" | "urn:parallel:problem:invalid-tick" | "urn:parallel:problem:invalid-scenario" | "urn:parallel:problem:invalid-name" | "urn:parallel:problem:bad-request" | "urn:parallel:problem:not-found" | "urn:parallel:problem:payload-too-large" | "urn:parallel:problem:rate-limited" | "urn:parallel:problem:unavailable" | "urn:parallel:problem:internal";
+        Warning: {
+            /** @description Machine-readable code, for example `engine-version-mismatch`. */
+            code: string;
+            /** @description Plain-language caveat naming the cause. */
+            message: string;
+        };
+        /**
+         * @description Present only when a caveat applies. `engine-version-mismatch` means the
+         *     World was recorded under another engine version than the running one:
+         *     results may not be reproducible or comparable, and advance, submit,
+         *     fork and inject answer 409.
+         */
+        Warnings: components["schemas"]["Warning"][];
         /** @description RFC 9457 problem details. Never contains a stack trace. */
         Problem: {
             type: components["schemas"]["ProblemType"];
@@ -614,6 +629,7 @@ export interface components {
             scenario: components["schemas"]["ScenarioSummary"];
             /** @description Effective Assumptions in ascending path order. */
             assumptions: components["schemas"]["Assumption"][];
+            warnings?: components["schemas"]["Warnings"];
         };
         /** @description Public facts of the scenario. It never includes the Disruption_Script. */
         ScenarioSummary: {
@@ -672,9 +688,11 @@ export interface components {
             managerKind: components["schemas"]["ManagerKind"];
             /** Format: date-time */
             createdAt: string;
+            warnings?: components["schemas"]["Warnings"];
         };
         BranchList: {
             branches: components["schemas"]["Branch"][];
+            warnings?: components["schemas"]["Warnings"];
         };
         ForkRequest: {
             atTick: components["schemas"]["Tick"];
@@ -814,6 +832,7 @@ export interface components {
             frames: components["schemas"]["TickFrame"][];
             currency: components["schemas"]["Currency"];
             disclaimer: components["schemas"]["Disclaimer"];
+            warnings?: components["schemas"]["Warnings"];
         };
         /**
          * @description Read model of one Tick_Boundary, derived only from the state, the scenario
@@ -1080,6 +1099,7 @@ export interface components {
             metrics: components["schemas"]["Metrics"];
             currency: components["schemas"]["Currency"];
             disclaimer: components["schemas"]["Disclaimer"];
+            warnings?: components["schemas"]["Warnings"];
         };
         BranchState: {
             branchId: components["schemas"]["Uuid"];
@@ -1088,6 +1108,7 @@ export interface components {
             observation: components["schemas"]["Observation"];
             currency: components["schemas"]["Currency"];
             disclaimer: components["schemas"]["Disclaimer"];
+            warnings?: components["schemas"]["Warnings"];
         };
         /**
          * @description Everything a Manager may know at a Tick_Boundary. It never contains the
@@ -1213,6 +1234,7 @@ export interface components {
             entries: components["schemas"]["LedgerEntry"][];
             currency: components["schemas"]["Currency"];
             disclaimer: components["schemas"]["Disclaimer"];
+            warnings?: components["schemas"]["Warnings"];
         };
         /** @description One balanced posting. Total debits equal total credits. */
         LedgerEntry: {
@@ -1254,6 +1276,7 @@ export interface components {
             entries: components["schemas"]["JournalEntry"][];
             currency: components["schemas"]["Currency"];
             disclaimer: components["schemas"]["Disclaimer"];
+            warnings?: components["schemas"]["Warnings"];
         };
         /**
          * @description One outcome. `demand` sets potentialArrivals, conversionBps and
@@ -1292,6 +1315,7 @@ export interface components {
             statement: components["schemas"]["EndOfHorizon"];
             currency: components["schemas"]["Currency"];
             disclaimer: components["schemas"]["Disclaimer"];
+            warnings?: components["schemas"]["Warnings"];
         };
         EndOfHorizon: {
             tick: components["schemas"]["Tick"];
@@ -1393,7 +1417,8 @@ export interface components {
         /**
          * @description The request conflicts with the Branch state. Types: `history-immutable`,
          *     `not-yet-simulated`, `stale-head`, `window-not-open`, `branch-limit`,
-         *     `horizon-reached`.
+         *     `horizon-reached`, `engine-version-mismatch` (a mutation of a World recorded
+         *     under another engine version; its reads still work and carry a warning).
          */
         Conflict: {
             headers: {
@@ -1949,6 +1974,8 @@ export interface operations {
             /** @description The Inputs_File. */
             200: {
                 headers: {
+                    /** @description Set to `engine-version-mismatch` when the World was recorded under another engine version. */
+                    "X-Parallel-Warnings"?: string;
                     [name: string]: unknown;
                 };
                 content: {

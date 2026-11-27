@@ -95,7 +95,19 @@ func (s *Server) getWorld(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	if dto.Warnings, err = s.worldWarnings(r, app.WorldID(id)); err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, dto)
+}
+
+func (s *Server) worldWarnings(r *http.Request, id app.WorldID) ([]warningDTO, error) {
+	ws, err := s.svc.WorldEngineWarnings(r.Context(), id)
+	if err != nil {
+		return nil, err
+	}
+	return warningsToDTO(ws), nil
 }
 
 func (s *Server) listBranches(w http.ResponseWriter, r *http.Request) {
@@ -109,9 +121,15 @@ func (s *Server) listBranches(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	warn, err := s.worldWarnings(r, app.WorldID(id))
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	out := struct {
-		Branches []branchDTO `json:"branches"`
-	}{Branches: make([]branchDTO, 0, len(bs))}
+		Branches []branchDTO  `json:"branches"`
+		Warnings []warningDTO `json:"warnings,omitempty"`
+	}{Branches: make([]branchDTO, 0, len(bs)), Warnings: warn}
 	for _, b := range bs {
 		out.Branches = append(out.Branches, branchToDTO(b))
 	}

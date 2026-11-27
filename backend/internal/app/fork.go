@@ -26,7 +26,7 @@ func (s *BranchService) ForkBranch(ctx context.Context, parent BranchID, atTick 
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	pc, err := s.load(ctx, parent)
+	pc, err := s.loadMutable(ctx, parent)
 	if err != nil {
 		return Branch{}, err
 	}

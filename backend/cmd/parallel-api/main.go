@@ -3,12 +3,15 @@
 // Configuration comes from the environment:
 //
 //	PORT              listen port (default 8080)
+//	DATABASE_URL      PostgreSQL runtime-role URL; memory store when unset
+//	MIGRATE_DATABASE_URL  owner-role URL used only by `migrate`
 //	WEB_ORIGIN        the one allowed CORS origin (default http://localhost:3100)
 //	RATE_LIMIT_RPS    per-IP requests per second (default 50)
 //	RATE_LIMIT_BURST  per-IP burst size (default 100)
 //
-// The slice stores Worlds, Branches and Inputs in memory: state is lost when
-// the process stops.
+// The API stores Worlds in PostgreSQL when DATABASE_URL (the runtime role) is
+// set, and in memory otherwise (state is lost when the process stops).
+// `parallel-api migrate up` applies the schema with MIGRATE_DATABASE_URL.
 package main
 
 import (
@@ -26,7 +29,6 @@ import (
 
 	"github.com/savisaluwadana/KiroFrankenstein/backend/internal/app"
 	"github.com/savisaluwadana/KiroFrankenstein/backend/internal/httpapi"
-	"github.com/savisaluwadana/KiroFrankenstein/backend/internal/store/memory"
 	"github.com/savisaluwadana/KiroFrankenstein/backend/scenarios"
 )
 
@@ -77,6 +79,13 @@ func loadConfig() (config, error) {
 
 func main() {
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	if len(os.Args) > 1 && os.Args[1] == "migrate" {
+		if err := runMigrate(context.Background(), os.Args[2:]); err != nil {
+			log.Error("migrate failed", "err", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if err := run(log); err != nil {
 		log.Error("parallel-api stopped", "err", err)
 		os.Exit(1)
@@ -88,7 +97,12 @@ func run(log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	svc := app.NewBranchService(memory.New(), nil, nil)
+	store, closeStore, storeDesc, err := openStore(context.Background())
+	if err != nil {
+		return err
+	}
+	defer closeStore()
+	svc := app.NewBranchService(store, nil, nil)
 	api, err := httpapi.New(httpapi.Options{
 		Service: svc, FlagshipScenario: scenarios.BlackFriday, WebOrigin: cfg.webOrigin,
 		RatePerSecond: cfg.rps, RateBurst: cfg.burst, Logger: log,
@@ -111,7 +125,7 @@ func run(log *slog.Logger) error {
 	errc := make(chan error, 1)
 	go func() { errc <- srv.ListenAndServe() }()
 	log.Info("parallel-api listening", "addr", srv.Addr, "webOrigin", cfg.webOrigin, "base", "/api/v1",
-		"store", "memory (in-process: all worlds are lost when the server stops)")
+		"store", storeDesc)
 
 	select {
 	case err := <-errc:

@@ -47,32 +47,20 @@ func inputsAt(all []sim.Input, tick sim.Tick) []sim.Input {
 	return out
 }
 
-// replayed is a State at a Tick together with the frames of Ticks 0..Tick.
+// replayed is a State at a Tick together with the frames of Ticks base..Tick
+// (frames[i] is the frame of tick base+i). A replay that resumed from a
+// snapshot has no frames before the snapshot; they are recomputed on demand.
 type replayed struct {
 	state  sim.State
+	base   sim.Tick
 	frames []sim.TickFrame
 }
 
-// replay rebuilds a branch's state and frames from Init up to tick using the
-// already renumbered inputs. It is the cache-miss path and the past-read path.
-func replay(sc sim.Scenario, seed sim.Seed, inputs []sim.Input, tick sim.Tick) (replayed, error) {
-	st, err := sim.Init(sc, seed)
-	if err != nil {
-		return replayed{}, fmt.Errorf("init: %w", err)
+// frame returns the cached frame of tick t, if held.
+func (r replayed) frame(t sim.Tick) (sim.TickFrame, bool) {
+	i := int64(t - r.base)
+	if i < 0 || i >= int64(len(r.frames)) {
+		return sim.TickFrame{}, false
 	}
-	f0, _, err := sim.InitialFrame(sc, st)
-	if err != nil {
-		return replayed{}, fmt.Errorf("initial frame: %w", err)
-	}
-	r := replayed{state: st, frames: []sim.TickFrame{f0}}
-	for st.Tick() < tick {
-		step, err := sim.Advance(sc, st, inputsAt(inputs, st.Tick()+1))
-		if err != nil {
-			return replayed{}, fmt.Errorf("replay to tick %d: %w", st.Tick()+1, err)
-		}
-		st = step.State
-		r.state = st
-		r.frames = append(r.frames, step.Frame)
-	}
-	return r, nil
+	return r.frames[i], true
 }

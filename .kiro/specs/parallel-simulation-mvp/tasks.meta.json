@@ -63,6 +63,11 @@
     "3.12 Property test: Inputs_File round trip (required)": {
       "status": "passed",
       "lastRunTimestamp": 1795749654431
+    },
+    "4.6 Property test: Snapshot completeness and resume equivalence (required)": {
+      "status": "failed",
+      "failingExample": "rapid -rapid.seed=85741351723057822 (failfile internal/sim/testdata/rapid/TestPropSnapshotResume/TestPropSnapshotResume-20261127094021-26640.fail): \"state of tick 9 changed after later ticks were computed (Advance modified its input); differing fields: [Orders]\". Earlier minimal case: flagship, horizon 24, seed 0, regularWorkers 8, headphones openingUnits 0, snapshot tick 1, no commands, 1-tick demand_surge injections; the uninterrupted run's tick-9 State is mutated by later Advance calls, so resumed tick-9 hash != stored. Root cause: State.clone() (engine.go:346-358) does not copy Orders.Settled; OrderBook.settle (orders.go:26-34) inserts by ID with append+copy, shifting entries in the backing array shared with the previous State when a cancellation of an older order follows shipments of newer ones. Fix: add `c.Orders.Settled = append([]SettledOrder(nil), s.Orders.Settled...)` in clone().",
+      "lastRunTimestamp": 1795752633704
     }
   },
   "executionHistory": {
@@ -985,6 +990,102 @@
         "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
         "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
         "timestamp": 1795751786313
+      },
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795751933694
+      }
+    ],
+    "4.2 Implement the PostgreSQL repositories": [
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795751933707
+      },
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795752112345
+      }
+    ],
+    "4.3 Integration test: Input_Log rejects UPDATE and DELETE (required)": [
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795752112754
+      },
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795752312330
+      }
+    ],
+    "4.4 Implement snapshots with verify-by-hash and self-healing replay": [
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795752113656
+      },
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795752312772
+      }
+    ],
+    "4.5 Property test: replay equivalence from Snapshots (required)": [
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795752313866
+      },
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795752962183
+      }
+    ],
+    "4.6 Property test: Snapshot completeness and resume equivalence (required)": [
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795752314911
+      },
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795752962420
+      }
+    ],
+    "4.7 Wire PostgreSQL into `parallel-api` and test restart rebuild": [
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795752315976
+      },
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795752963475
+      }
+    ],
+    "4.8 Record the engine version and flag mismatches": [
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795752964362
+      },
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795753333938
+      }
+    ],
+    "4.9 Checkpoint — M3 complete": [
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795753334748
       }
     ]
   }

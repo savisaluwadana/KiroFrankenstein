@@ -21,9 +21,11 @@ type Store struct {
 	inputs    map[app.BranchID][]app.InputRecord
 	keys      map[app.BranchID]map[string]int // key -> index in inputs
 	snapshots map[app.BranchID][]app.Snapshot // sorted by tick
+	summaries map[app.BranchID]map[sim.Tick]app.TickSummary
 }
 
 var _ app.Store = (*Store)(nil)
+var _ app.ProjectionRepo = (*Store)(nil)
 
 // New returns an empty Store.
 func New() *Store {
@@ -33,6 +35,7 @@ func New() *Store {
 		inputs:    map[app.BranchID][]app.InputRecord{},
 		keys:      map[app.BranchID]map[string]int{},
 		snapshots: map[app.BranchID][]app.Snapshot{},
+		summaries: map[app.BranchID]map[sim.Tick]app.TickSummary{},
 	}
 }
 

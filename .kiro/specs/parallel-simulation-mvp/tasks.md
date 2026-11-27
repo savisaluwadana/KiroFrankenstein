@@ -480,55 +480,55 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
     - Run `cd backend && go test ./... && go vet ./...` and `cd web && npx tsc --noEmit && npx vitest --run`. Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 4. M3 — Persistence, replay and branching (~350 credits)
-  - [-] 4.1 Write the Goose migrations
+  - [x] 4.1 Write the Goose migrations
     - _Requirements: 28.1, 28.2, 28.5_
     - Dependencies: 3.17
     - Deliverables: `backend/migrations/00001_init.sql` (tables `worlds`, `branches`, `input_log` with UNIQUE constraints and the append-only trigger, `snapshots`, `tick_summaries`; full down section), `backend/cmd/parallel-api/migrate.go` (or a `migrate` subcommand) that runs Goose with a separate migration role URL
     - Verify: `docker compose up -d db && cd backend && go run ./cmd/parallel-api migrate up && go run ./cmd/parallel-api migrate down && go run ./cmd/parallel-api migrate up`
     - Acceptance: up, down and up again succeed; the runtime role has no DDL grant (documented in the migration comment and checked by a grant statement).
-  - [ ] 4.2 Implement the PostgreSQL repositories
+  - [x] 4.2 Implement the PostgreSQL repositories
     - _Requirements: 28.1, 13.1, 13.2, 13.4_
     - Dependencies: 4.1
     - Deliverables: `backend/internal/store/postgres/{worlds,branches,inputs,snapshots}.go` with pgx parameterized queries only, `store_test.go` running the shared contract suite when `PARALLEL_TEST_DATABASE_URL` is set
     - Verify: `docker compose up -d db && cd backend && PARALLEL_TEST_DATABASE_URL=postgres://parallel:parallel@localhost:5432/parallel_test?sslmode=disable go test ./internal/store/...`
     - Acceptance: the contract suite passes against both stores; the uint64 Seed round-trips through `bigint`; no SQL string is built by concatenation.
-  - [ ] 4.3 Integration test: Input_Log rejects UPDATE and DELETE (required)
+  - [x] 4.3 Integration test: Input_Log rejects UPDATE and DELETE (required)
     - _Requirements: 28.5, 13.2 (INV-3)_
     - Dependencies: 4.2
     - Deliverables: `backend/internal/store/postgres/immutability_test.go` (`TestInputLogImmutable`)
     - Verify: `cd backend && PARALLEL_TEST_DATABASE_URL=postgres://parallel:parallel@localhost:5432/parallel_test?sslmode=disable go test ./internal/store/postgres -run TestInputLogImmutable`
     - Acceptance: both statements fail with the trigger's error and the row is unchanged.
-  - [ ] 4.4 Implement snapshots with verify-by-hash and self-healing replay
+  - [x] 4.4 Implement snapshots with verify-by-hash and self-healing replay
     - _Requirements: 14.3, 14.4, 28.3, 28.6_
     - Dependencies: 4.2
     - Deliverables: `backend/internal/app/snapshots.go` (save complete canonical State every `snapshotIntervalTicks`; load latest at or before T, decode, re-hash, resume on match; on mismatch discard, replay from Tick 0 and log a snapshot-mismatch warning), `snapshots_test.go` with a corrupted-snapshot case
     - Verify: `cd backend && go test ./internal/app -run TestSnapshots`
     - Acceptance: a tampered snapshot blob is discarded and the served State hash equals the replayed hash.
-  - [ ] 4.5 Property test: replay equivalence from Snapshots (required)
+  - [x] 4.5 Property test: replay equivalence from Snapshots (required)
     - **Property 8: Replay equivalence from snapshots** (INV-2)
     - **Validates: Requirements 14.3**
     - Dependencies: 4.4
     - Deliverables: `backend/internal/app/replay_prop_test.go` (`TestPropReplayEquivalence`)
     - Verify: `cd backend && go test ./internal/app -run TestPropReplayEquivalence`
-  - [ ] 4.6 Property test: Snapshot completeness and resume equivalence (required)
+  - [x] 4.6 Property test: Snapshot completeness and resume equivalence (required)
     - **Property 38: Snapshot completeness and resume equivalence** (INV-2)
     - **Validates: Requirements 14.6, 28.6**
     - Dependencies: 4.4
     - Deliverables: `backend/internal/app/snapshot_resume_prop_test.go` (`TestPropSnapshotResume`: decode at Tick N, apply a random Input suffix, compare every hash, PO id and stream draw with the uninterrupted run)
     - Verify: `cd backend && go test ./internal/app -run TestPropSnapshotResume`
-  - [ ] 4.7 Wire PostgreSQL into `parallel-api` and test restart rebuild
+  - [x] 4.7 Wire PostgreSQL into `parallel-api` and test restart rebuild
     - _Requirements: 28.1, 28.4_
     - Dependencies: 4.4
     - Deliverables: store selection in `backend/cmd/parallel-api/main.go` (PostgreSQL when `DATABASE_URL` is set, memory otherwise), `tick_summaries` projection writes in the Branch_Service, `backend/internal/store/postgres/restart_test.go` (new service instance over the same database rebuilds every Branch with equal stored hashes)
     - Verify: `cd backend && PARALLEL_TEST_DATABASE_URL=postgres://parallel:parallel@localhost:5432/parallel_test?sslmode=disable go test ./internal/store/postgres -run TestRestartRebuild`
     - Acceptance: rebuilt hashes equal the stored hashes at every computed Tick; `DATABASE_URL` is never logged.
-  - [ ] 4.8 Record the engine version and flag mismatches
+  - [x] 4.8 Record the engine version and flag mismatches
     - _Requirements: 4.3, 22.4_
     - Dependencies: 4.7
     - Deliverables: `sim.EngineVersion` constant, mismatch warning attached to State, score and diff responses in `backend/internal/app/branch_service.go` and `httpapi`, test
     - Verify: `cd backend && go test ./internal/app -run TestEngineVersionMismatch`
     - Acceptance: a World stored with a different version returns every read with an engine-version-mismatch warning.
-  - [ ] 4.9 Checkpoint — M3 complete
+  - [-] 4.9 Checkpoint — M3 complete
     - Run `cd backend && go test ./... && PARALLEL_TEST_DATABASE_URL=postgres://parallel:parallel@localhost:5432/parallel_test?sslmode=disable go test ./internal/store/...`. Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 5. M4 — Premium interactive simulation studio (~500 credits)
@@ -538,45 +538,53 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
     - Deliverables: `backend/internal/httpapi/sse.go` (`GET /branches/{id}/progress`; `id` = Tick; tick, decision_window and completed events; `Last-Event-ID` resume; 4 connections per client IP → 429), `openapi.yaml` entry, `sse_test.go`
     - Verify: `cd backend && go test ./internal/httpapi -run TestProgressStream`
     - Acceptance: reconnecting with `Last-Event-ID: 10` yields Tick 11 first; the fifth connection from one IP gets 429.
+    - Reconciliation (post-redesign): Remaining. No `sse.go` exists; the studio paces tick frames from `GET /tick-frames` polling in `web/stores/playback.ts`. Still needed: SSE endpoint, `Last-Event-ID` resume, 4-per-IP limit.
   - [ ] 5.2 Consume the Progress_Stream in the Web_App with a polling fallback
     - _Requirements: 27.1, 27.3, 33.3, 33.4_
     - Dependencies: 5.1
     - Deliverables: `web/lib/api/progress.ts` (EventSource with resume and fallback to `GET /tick-frames` polling), integration into `web/stores/playback.ts`, Vitest tests with a mocked EventSource
     - Verify: `cd web && npx vitest --run lib/api stores && npx tsc --noEmit`
     - Acceptance: when the stream errors, frames continue through polling with no skipped Tick.
+    - Reconciliation (post-redesign): Remaining, depends on 5.1. Polling already works (`web/stores/playback.ts`, `web/lib/api/client.ts`); the EventSource client with polling fallback is not built.
   - [ ] 5.3 Build the Ledger_Panel drill-down
     - _Requirements: 32.9, 31.5, 10.13, 11.9_
     - Dependencies: 5.1
     - Deliverables: ledger filter parameters (account, Tick range) in `backend/internal/httpapi/reads.go` and `openapi.yaml`; `web/features/ledger/LedgerPanel.tsx` (P&L by account; selecting a money figure lists the Ledger_Entries whose lines sum to it, with cause links; Disclaimer); tests on both sides
     - Verify: `cd backend && go test ./internal/httpapi/... && cd ../web && npm run gen:api && npx vitest --run features/ledger && npx tsc --noEmit`
     - Acceptance: a backend test asserts that the returned lines sum exactly to the reported figure; the panel shows that sum from the API, not a client recomputation.
+    - Reconciliation (post-redesign): Partly satisfied. `web/features/studio/LedgerPanel.tsx` and `StudioPage.tsx` show the ledger. Remaining: account and Tick-range filters in `reads.go`/`openapi.yaml`, drill-down from a money figure to its entries, backend sum test, and moving the panel to `features/ledger/` if wanted.
   - [ ] 5.4 Build the Assumptions endpoint, Assumptions_Editor and Assumptions_Panel
     - _Requirements: 31.1, 31.2, 31.3, 31.4, 32.13, 4.4_
     - Dependencies: 5.3
     - Deliverables: `GET /worlds/{id}/assumptions` (value, unit, default, min, max, rationale, overridden flag) in `backend/internal/httpapi/worlds.go` and `openapi.yaml`; `web/features/assumptions/AssumptionsEditor.tsx` (overrides sent with World creation; Disruption_Script hidden until "Reveal disruption script"), `AssumptionsPanel.tsx` (one action from World_View, later Duel view and Diff_Panel); tests
     - Verify: `cd backend && go test ./internal/httpapi/... && cd ../web && npm run gen:api && npx vitest --run features/assumptions && npx tsc --noEmit`
     - Acceptance: out-of-bounds overrides surface the validator's message; while Head_Tick < horizon only script entries with onset ≤ the displayed Tick are shown.
+    - Reconciliation (post-redesign): Partly satisfied. `web/features/studio/AssumptionsPanel.tsx` (read view) and `web/features/setup/SetupPage.tsx` with `controls.ts` (overrides at World creation, e2e `setup-and-perf.spec.ts`). Remaining: `GET /worlds/{id}/assumptions` with default/min/max/rationale, reveal-script gating, panel in duel and diff views.
   - [ ] 5.5 Complete the Decision_Panel for all Command kinds
     - _Requirements: 32.7, 32.8, 17.1, 17.3_
     - Dependencies: 5.3
     - Deliverables: forms for `expedite_purchase_order`, `schedule_overtime`, `hire_temp_workers`, `set_marketing_spend` in `web/features/decisions/`, client-side bounds hints taken from Assumptions (server remains the validator), tests
     - Verify: `cd web && npx vitest --run features/decisions && npx tsc --noEmit`
     - Acceptance: each kind round-trips through a mocked API; rejection messages appear next to the rejected Command.
+    - Reconciliation (post-redesign): Partly satisfied. `web/features/decisions/DecisionPanel.tsx` (+ test) and the redesign Crisis cards (`features/studio/CrisisCards.tsx`, `crisis.ts`). Remaining: confirm all four Command kinds have forms, bounds hints from Assumptions, per-Command rejection messages.
   - [ ] 5.6 Add Disruption injection to the studio
     - _Requirements: 16.2, 16.3_
     - Dependencies: 5.5
     - Deliverables: `web/features/decisions/InjectDisruption.tsx` (kind, start Tick > Head_Tick, duration, magnitude within Scenario bounds), tests
     - Verify: `cd web && npx vitest --run features/decisions && npx tsc --noEmit`
     - Acceptance: an out-of-range request shows the server's allowed range; an accepted injection appears as a Timeline marker after reload.
+    - Reconciliation (post-redesign): Remaining. No disruption-injection UI; the backend endpoint exists (`internal/app/disruptions.go`). `features/decisions/InjectDisruption.tsx` is not built.
   - [ ] 5.7 Apply the studio visual design, interpolation and full Timeline markers
     - _Requirements: 32.3, 32.12, 32.15, 35.3, 35.4, 35.6_
     - Dependencies: 5.4, 5.6
     - Deliverables: restyled components per `ui-design-system.md`; decorative position interpolation between two authoritative Tick_Frames in `web/features/world-view/scene/interpolate.ts` (positions only, never numbers; disabled under reduced motion); provenance-distinguished Input markers; tests
     - Verify: `cd web && npx vitest --run && npx tsc --noEmit && npx eslint . && npm run build`
     - Acceptance: a test asserts that every rendered number equals the value of the displayed Tick_Frame at all interpolation steps.
+    - Reconciliation (post-redesign): Mostly satisfied by the redesign (`docs/ux-redesign.md`): `features/timeline/Timeline.tsx`, `features/world-view/Hud.tsx`, `WorldView.tsx` and `scene/*` (Warehouse view, PixiJS), `PlaybackControls.tsx`, `features/branches/BranchTree.tsx`, `ForkSequence.tsx`, `RealitySwitcher.tsx`, `features/studio/ComparisonView.tsx`, `features/engineering/EngineeringDrawer.tsx`/`EngineeringToggle.tsx` (Engineering mode), `features/intro`, `features/briefing`. Remaining: decorative interpolation `scene/interpolate.ts` with its number-equality test, provenance-distinguished Input markers. Diff view is not built (belongs to M6).
   - [ ] 5.8 Checkpoint — M4 complete
     - Run `cd backend && go test ./...` and `cd web && npx tsc --noEmit && npx eslint . && npx vitest --run`. Ensure all tests pass, ask the user if questions arise.
 
+    - Reconciliation (post-redesign): Superseded by 4.9 as the latest checkpoint; to be re-run with the final M4 scope.
 - [ ] 6. M5 — LLM manager and human-versus-AI arena (~400 credits)
   - [ ] 6.1 Implement the Rule_Based_Manager
     - _Requirements: 19.1, 19.2, 19.3, 19.4, 19.5_
@@ -885,6 +893,16 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
   - Local ports: web 3100, API 8080 (3000 and 8000 are used by other local apps).
   - The demo-reproducibility property test takes about 60 s.
   - The numbers in `docs/benchmarks.md` are an in-process proxy.
+
+### M2/M3 implementation notes
+
+- Optional test 3.10 (P36) was skipped and left unchecked.
+- `sim.EngineVersion` was bumped to 2 in 3.5: the disruption stream now draws once per Tick and `ActiveDisruption.Role` is encoded in the hash, replacing the supplier role stored in `MagnitudeBps`. Seed 2026 no-command hash: `96e7d8d9...bce08` (v1) to `4c6d0dd08cf7c1c8c27991355f734705356aced57fe060556e0d038ad03ab99e` (v2). The demo-fork golden hash is `a51c195a82713024b615292cc5491a29f8af57d35633b8bd706af9abaefbe2a5`.
+- Property test 4.6 (snapshot resume equals replay) found a real engine bug: `State.clone` aliased reference-typed data between the original and the clone, so advancing one state mutated the other. It is fixed. The 4.5/4.6 properties and the fork independence properties pass after the fix. The fix raised per-replay allocation to about 550 MB (see `docs/benchmarks.md`); not yet optimized.
+- Adjustable assumptions were added during M2 (additional scenario knobs surfaced through the Setup page overrides); the full min/max/rationale endpoint is still task 5.4.
+- Local PostgreSQL: Homebrew Postgres occupies 5432, so the dev container is published on `DB_PORT=55432`. Test DB `parallel_test`, roles `parallel_migrator` (DDL) and `parallel_app` (runtime).
+- Stores: the API runs on the in-memory store by default (state lost on restart; the e2e suite uses it) and on PostgreSQL when `DATABASE_URL` is set. Both implement the same ports and run the same `storetest` contract tests.
+- Known issues at 4.9: `govulncheck` reports 3 reachable vulnerabilities (GO-2026-6629 and GO-2026-5970 in `golang.org/x/text` v0.25.0; GO-2026-5004 in `pgx/v5` v5.7.5, fixed in v5.9.2). Upgrading raises the `go` directive from 1.23.0 to 1.25.0, so it was not applied; decide before CI enforces govulncheck. The ~550 MB allocation per flagship replay is unprofiled. Frame stats on emulated mobile occasionally drop single frames.
 
 ## Task Dependency Graph
 

@@ -1,0 +1,347 @@
+# 2026/11/27 09:36:11.073895 [TestPropReplayEquivalence] [rapid] draw hasCmds: false
+# 2026/11/27 09:36:11.073898 [TestPropReplayEquivalence] [rapid] draw hasCmds: true
+# 2026/11/27 09:36:11.073899 [TestPropReplayEquivalence] [rapid] draw ncmds: 1
+# 2026/11/27 09:36:11.073899 [TestPropReplayEquivalence] [rapid] draw sku: 2
+# 2026/11/27 09:36:11.073900 [TestPropReplayEquivalence] [rapid] draw isPO: false
+# 2026/11/27 09:36:11.073900 [TestPropReplayEquivalence] [rapid] draw price: 4775
+# 2026/11/27 09:36:11.073901 [TestPropReplayEquivalence] [rapid] draw hasCmds: true
+# 2026/11/27 09:36:11.073901 [TestPropReplayEquivalence] [rapid] draw ncmds: 2
+# 2026/11/27 09:36:11.073902 [TestPropReplayEquivalence] [rapid] draw sku: 1
+# 2026/11/27 09:36:11.073902 [TestPropReplayEquivalence] [rapid] draw isPO: true
+# 2026/11/27 09:36:11.073902 [TestPropReplayEquivalence] [rapid] draw qty: 5
+# 2026/11/27 09:36:11.073903 [TestPropReplayEquivalence] [rapid] draw sku: 1
+# 2026/11/27 09:36:11.073903 [TestPropReplayEquivalence] [rapid] draw isPO: false
+# 2026/11/27 09:36:11.073903 [TestPropReplayEquivalence] [rapid] draw price: 3849
+# 2026/11/27 09:36:11.073903 [TestPropReplayEquivalence] [rapid] draw hasCmds: false
+# 2026/11/27 09:36:11.073904 [TestPropReplayEquivalence] [rapid] draw hasCmds: false
+# 2026/11/27 09:36:11.073904 [TestPropReplayEquivalence] [rapid] draw hasCmds: true
+# 2026/11/27 09:36:11.073904 [TestPropReplayEquivalence] [rapid] draw ncmds: 2
+# 2026/11/27 09:36:11.073904 [TestPropReplayEquivalence] [rapid] draw sku: 0
+# 2026/11/27 09:36:11.073904 [TestPropReplayEquivalence] [rapid] draw isPO: true
+# 2026/11/27 09:36:11.073905 [TestPropReplayEquivalence] [rapid] draw qty: 38
+# 2026/11/27 09:36:11.073905 [TestPropReplayEquivalence] [rapid] draw sku: 0
+# 2026/11/27 09:36:11.073905 [TestPropReplayEquivalence] [rapid] draw isPO: true
+# 2026/11/27 09:36:11.073905 [TestPropReplayEquivalence] [rapid] draw qty: 22
+# 2026/11/27 09:36:11.073906 [TestPropReplayEquivalence] [rapid] draw hasCmds: true
+# 2026/11/27 09:36:11.073906 [TestPropReplayEquivalence] [rapid] draw ncmds: 2
+# 2026/11/27 09:36:11.073906 [TestPropReplayEquivalence] [rapid] draw sku: 3
+# 2026/11/27 09:36:11.073906 [TestPropReplayEquivalence] [rapid] draw isPO: false
+# 2026/11/27 09:36:11.073907 [TestPropReplayEquivalence] [rapid] draw price: 2530
+# 2026/11/27 09:36:11.073907 [TestPropReplayEquivalence] [rapid] draw sku: 0
+# 2026/11/27 09:36:11.073907 [TestPropReplayEquivalence] [rapid] draw isPO: false
+# 2026/11/27 09:36:11.073907 [TestPropReplayEquivalence] [rapid] draw price: 3061
+# 2026/11/27 09:36:11.073907 [TestPropReplayEquivalence] [rapid] draw hasCmds: false
+# 2026/11/27 09:36:11.073908 [TestPropReplayEquivalence] [rapid] draw hasCmds: false
+# 2026/11/27 09:36:11.073908 [TestPropReplayEquivalence] [rapid] draw hasCmds: true
+# 2026/11/27 09:36:11.073908 [TestPropReplayEquivalence] [rapid] draw ncmds: 2
+# 2026/11/27 09:36:11.073908 [TestPropReplayEquivalence] [rapid] draw sku: 3
+# 2026/11/27 09:36:11.073908 [TestPropReplayEquivalence] [rapid] draw isPO: false
+# 2026/11/27 09:36:11.073909 [TestPropReplayEquivalence] [rapid] draw price: 757
+# 2026/11/27 09:36:11.073909 [TestPropReplayEquivalence] [rapid] draw sku: 1
+# 2026/11/27 09:36:11.073909 [TestPropReplayEquivalence] [rapid] draw isPO: true
+# 2026/11/27 09:36:11.073909 [TestPropReplayEquivalence] [rapid] draw qty: 24
+# 2026/11/27 09:36:11.073910 [TestPropReplayEquivalence] [rapid] draw hasCmds: false
+# 2026/11/27 09:36:11.073910 [TestPropReplayEquivalence] [rapid] draw hasCmds: true
+# 2026/11/27 09:36:11.073910 [TestPropReplayEquivalence] [rapid] draw ncmds: 2
+# 2026/11/27 09:36:11.073910 [TestPropReplayEquivalence] [rapid] draw sku: 1
+# 2026/11/27 09:36:11.073910 [TestPropReplayEquivalence] [rapid] draw isPO: false
+# 2026/11/27 09:36:11.073911 [TestPropReplayEquivalence] [rapid] draw price: 3725
+# 2026/11/27 09:36:11.073911 [TestPropReplayEquivalence] [rapid] draw sku: 2
+# 2026/11/27 09:36:11.073911 [TestPropReplayEquivalence] [rapid] draw isPO: true
+# 2026/11/27 09:36:11.073911 [TestPropReplayEquivalence] [rapid] draw qty: 13
+# 2026/11/27 09:36:11.073911 [TestPropReplayEquivalence] [rapid] draw hasCmds: false
+# 2026/11/27 09:36:11.073912 [TestPropReplayEquivalence] [rapid] draw hasCmds: false
+# 2026/11/27 09:36:11.073912 [TestPropReplayEquivalence] [rapid] draw hasCmds: true
+# 2026/11/27 09:36:11.073912 [TestPropReplayEquivalence] [rapid] draw ncmds: 1
+# 2026/11/27 09:36:11.073912 [TestPropReplayEquivalence] [rapid] draw sku: 3
+# 2026/11/27 09:36:11.073912 [TestPropReplayEquivalence] [rapid] draw isPO: true
+# 2026/11/27 09:36:11.073913 [TestPropReplayEquivalence] [rapid] draw qty: 3
+# 2026/11/27 09:36:11.073913 [TestPropReplayEquivalence] [rapid] draw hasCmds: true
+# 2026/11/27 09:36:11.073913 [TestPropReplayEquivalence] [rapid] draw ncmds: 2
+# 2026/11/27 09:36:11.073913 [TestPropReplayEquivalence] [rapid] draw sku: 0
+# 2026/11/27 09:36:11.073913 [TestPropReplayEquivalence] [rapid] draw isPO: true
+# 2026/11/27 09:36:11.073914 [TestPropReplayEquivalence] [rapid] draw qty: 28
+# 2026/11/27 09:36:11.073914 [TestPropReplayEquivalence] [rapid] draw sku: 1
+# 2026/11/27 09:36:11.073914 [TestPropReplayEquivalence] [rapid] draw isPO: false
+# 2026/11/27 09:36:11.073914 [TestPropReplayEquivalence] [rapid] draw price: 2921
+# 2026/11/27 09:36:11.073914 [TestPropReplayEquivalence] [rapid] draw hasCmds: false
+# 2026/11/27 09:36:11.073915 [TestPropReplayEquivalence] [rapid] draw hasCmds: false
+# 2026/11/27 09:36:11.073915 [TestPropReplayEquivalence] [rapid] draw hasCmds: true
+# 2026/11/27 09:36:11.073915 [TestPropReplayEquivalence] [rapid] draw ncmds: 1
+# 2026/11/27 09:36:11.073915 [TestPropReplayEquivalence] [rapid] draw sku: 0
+# 2026/11/27 09:36:11.073915 [TestPropReplayEquivalence] [rapid] draw isPO: true
+# 2026/11/27 09:36:11.073916 [TestPropReplayEquivalence] [rapid] draw qty: 14
+# 2026/11/27 09:36:11.073916 [TestPropReplayEquivalence] [rapid] draw hasCmds: true
+# 2026/11/27 09:36:11.073917 [TestPropReplayEquivalence] [rapid] draw ncmds: 1
+# 2026/11/27 09:36:11.073917 [TestPropReplayEquivalence] [rapid] draw sku: 3
+# 2026/11/27 09:36:11.073917 [TestPropReplayEquivalence] [rapid] draw isPO: true
+# 2026/11/27 09:36:11.073917 [TestPropReplayEquivalence] [rapid] draw qty: 44
+# 2026/11/27 09:36:11.073917 [TestPropReplayEquivalence] [rapid] draw hasCmds: false
+# 2026/11/27 09:36:11.073935 [TestPropReplayEquivalence] [rapid] draw hasCmds: false
+# 2026/11/27 09:36:11.073935 [TestPropReplayEquivalence] [rapid] draw hasCmds: true
+# 2026/11/27 09:36:11.073935 [TestPropReplayEquivalence] [rapid] draw ncmds: 1
+# 2026/11/27 09:36:11.073936 [TestPropReplayEquivalence] [rapid] draw sku: 0
+# 2026/11/27 09:36:11.073936 [TestPropReplayEquivalence] [rapid] draw isPO: false
+# 2026/11/27 09:36:11.073936 [TestPropReplayEquivalence] [rapid] draw price: 11998
+# 2026/11/27 09:36:11.073936 [TestPropReplayEquivalence] [rapid] draw hasCmds: false
+# 2026/11/27 09:36:11.073936 [TestPropReplayEquivalence] [rapid] draw hasCmds: false
+# 2026/11/27 09:36:11.073937 [TestPropReplayEquivalence] [rapid] draw hasCmds: false
+# 2026/11/27 09:36:11.073937 [TestPropReplayEquivalence] [rapid] draw hasCmds: false
+# 2026/11/27 09:36:11.073937 [TestPropReplayEquivalence] [rapid] draw hasCmds: false
+# 2026/11/27 09:36:11.073937 [TestPropReplayEquivalence] [rapid] draw hasCmds: true
+# 2026/11/27 09:36:11.073937 [TestPropReplayEquivalence] [rapid] draw ncmds: 1
+# 2026/11/27 09:36:11.073938 [TestPropReplayEquivalence] [rapid] draw sku: 0
+# 2026/11/27 09:36:11.073938 [TestPropReplayEquivalence] [rapid] draw isPO: false
+# 2026/11/27 09:36:11.073938 [TestPropReplayEquivalence] [rapid] draw price: 3044
+# 2026/11/27 09:36:11.073938 [TestPropReplayEquivalence] [rapid] draw hasCmds: true
+# 2026/11/27 09:36:11.073938 [TestPropReplayEquivalence] [rapid] draw ncmds: 2
+# 2026/11/27 09:36:11.073939 [TestPropReplayEquivalence] [rapid] draw sku: 3
+# 2026/11/27 09:36:11.073939 [TestPropReplayEquivalence] [rapid] draw isPO: true
+# 2026/11/27 09:36:11.073939 [TestPropReplayEquivalence] [rapid] draw qty: 4
+# 2026/11/27 09:36:11.073939 [TestPropReplayEquivalence] [rapid] draw sku: 3
+# 2026/11/27 09:36:11.073939 [TestPropReplayEquivalence] [rapid] draw isPO: false
+# 2026/11/27 09:36:11.073940 [TestPropReplayEquivalence] [rapid] draw price: 1667
+# 2026/11/27 09:36:11.073940 [TestPropReplayEquivalence] [rapid] draw hasCmds: false
+# 2026/11/27 09:36:11.074226 [TestPropReplayEquivalence] [rapid] draw head: 31
+# 2026/11/27 09:36:11.083635 [TestPropReplayEquivalence] [rapid] draw fork: false
+# 2026/11/27 09:36:11.083641 [TestPropReplayEquivalence] [rapid] draw ticks: 3
+# 2026/11/27 09:36:11.083642 [TestPropReplayEquivalence] [rapid] draw T: 24
+# 2026/11/27 09:36:11.102399 [TestPropReplayEquivalence] [rapid] draw T: 18
+# 2026/11/27 09:36:11.108703 [TestPropReplayEquivalence] [rapid] draw T: 32
+# 2026/11/27 09:36:11.108970 [TestPropReplayEquivalence] branch 965573b6-5e13-47e8-95de-636aaa1eab97 tick 32: cold service did not replay
+# 
+v0.4.8#13462918218896072243
+0x0
+0x1
+0x16bdd54e4da77a
+0x1b895764209616
+0x0
+0x24a7a8d868c5a
+0x3c0739debe8dd
+0x2
+0x0
+0xb77811bf6b1ad
+0x171e72ce459196
+0x113
+0x1
+0xa2886b99d7b55
+0x98c4f98a1afe
+0x1
+0x10f62537c92b5a
+0x78159295cd5e3
+0x1
+0x1
+0xb3cd0904a2b27
+0x1bca662bd9b247
+0x4
+0x1969d30d1c0358
+0x53ebf7ce44d1e
+0x1
+0x0
+0x1f38e242cc863f
+0x1a78d85239e964
+0xf3d
+0xf49
+0xb21
+0x0
+0x0
+0x1
+0xfdeba7baee7e1
+0x1e1f5ff9b3a9a4
+0x1
+0x2eafaa00b59ab
+0x163799a2aacba0
+0x0
+0x1
+0x10a25c00edfb67
+0x1574ffe3a6cf86
+0x25
+0x62de97a742475
+0x7b44bcf5ca524
+0x0
+0x1
+0x4f29f409c3f8e
+0x1f1b1845c717ad
+0x3e
+0x15
+0x1
+0x158d882070c253
+0x348fdfa2666ab
+0x1
+0x99e68b1788ea9
+0xf102dc71ae5e8
+0x3
+0x0
+0xee0935208a77a
+0x197eef5ab81e54
+0xe1d
+0xa89
+0x6f4
+0x6be7d6f9514df
+0x37567c567a376
+0x0
+0x0
+0x18a9d529e3b2e1
+0xe50576583b779
+0x3d
+0x0
+0x0
+0x1
+0x1db410115573be
+0x1778dfafe1c9c7
+0x1
+0xdd1396b893548
+0xf1175dfb279b0
+0x3
+0x0
+0x63e9f85a4940b
+0x8071be0bb0a60
+0x7
+0x57c2e4889679
+0x1d291eb7435e3c
+0x1
+0x1
+0xdac28428f9633
+0xd07bd3d0fdc60
+0x17
+0x0
+0x1
+0x6720476d3ed6d
+0x19e887ba7df1f9
+0x1
+0x17e5ede75d9c16
+0x8e0d57ddc72d2
+0x1
+0x0
+0x1dc12cb9465c38
+0x186f5127683b55
+0xaa5
+0x4d659954e2fd8
+0x1c17b93604b0b9
+0x2
+0x1
+0x1f94bbd6eac8b6
+0xaeede9ba88036
+0xc
+0x0
+0x0
+0x1
+0x1774e82ded7a3c
+0x1790aa6563b463
+0x0
+0x59c0e9ada1b12
+0x5176f13dd704b
+0x3
+0x1
+0x14e4b09bc6d1dc
+0x18535842c8dee4
+0x2
+0x1
+0x585a6ec58329a
+0xae9347d3254fd
+0x1
+0xa19dd2d828a92
+0x18457a2260e0fd
+0x0
+0x1
+0x1e53150345eac
+0xe00a45782be17
+0x1b
+0x17eb59d799474a
+0x10f9695d07fec9
+0x1
+0x0
+0x4cbb5818eab46
+0x1d97dc6f40d998
+0x781
+0x0
+0x0
+0x1
+0x792f9bd46cab4
+0x7eb537c258ac3
+0x0
+0x1bec3dc2cae9fc
+0xce1ded86ba588
+0x0
+0x1
+0x3096e1e9de8cb
+0x106ea5ddbc4d47
+0xd
+0x1
+0x1c6eb510f21d76
+0x13d9b3e983db57
+0x0
+0x5f582c58c16b8
+0x1c650c51f92e22
+0x3
+0x1
+0x1858942ede1108
+0x1955c6647887aa
+0x2b
+0x0
+0x0
+0x1
+0x12e7f771a40999
+0x1853a71ad66a8b
+0x0
+0x1ba3c3d28788b9
+0x1622cad9b9308
+0x0
+0x0
+0x1bc4969a91bcab
+0x1f67aab8af0ff4
+0xffffffffffffffff
+0x0
+0x0
+0x0
+0x0
+0x0
+0x1
+0xe1ddcdbb2a7bf
+0x2bbc2af9c1033
+0x0
+0x1a3cdffbf8ab00
+0x3d791c8a94ad2
+0x0
+0x0
+0x1371066db46763
+0xe25682b0715a9
+0x2c
+0x1
+0x1b61643045433b
+0x101224980a8097
+0x1
+0x1e56a628ed003c
+0x11295682df8f84
+0x3
+0x1
+0xa4443bae9fdcc
+0x7fae7df44a188
+0x3
+0x77d8fcb7c2655
+0x13d7ec59f7c419
+0x3
+0x0
+0x11bd66f676c72f
+0x14794238449063
+0x395
+0x0
+0x1ba0ceb07ccf63
+0x7c8f97d83b16a
+0x6
+0x0
+0x1dac2ae8d36d9f
+0x1d2ebf175c9307
+0x1
+0x68adfcc183d3f
+0x11d4f94622c413
+0x29
+0x33
+0x18
+0x1e5cb28b9b0135
+0x169dd133ea15fd
+0x30
+0x12
+0x18363dec912090
+0x1bad1d00a4b4dc
+0x20
