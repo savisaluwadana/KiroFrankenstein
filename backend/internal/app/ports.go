@@ -171,6 +171,20 @@ type ProjectionRepo interface {
 	TickSummaries(ctx context.Context, b BranchID, from, to sim.Tick) ([]TickSummary, error)
 }
 
+// DecisionRepo is an optional port a Store may also implement: the append-only
+// per-window record of what an AI manager proposed and what happened to it.
+// It has no update or delete method. Records are metadata: they never feed
+// replay, and the engine and state hash never read them.
+type DecisionRepo interface {
+	// AppendDecision stores one record. A second record for the same
+	// (branch, window tick) returns an error wrapping ErrAlreadyExists; an
+	// unknown branch wraps ErrNotFound.
+	AppendDecision(ctx context.Context, d DecisionRecord) error
+	// DecisionsForBranch returns the branch's own records (not its ancestors')
+	// in ascending window tick.
+	DecisionsForBranch(ctx context.Context, b BranchID) ([]DecisionRecord, error)
+}
+
 // Store bundles all repositories; the in-memory and PostgreSQL stores both
 // implement it and run the same contract suite.
 type Store interface {

@@ -46,7 +46,30 @@ tags:
     description: Rewind reads at any computed Tick. Reads never change a Head_Tick or the Input_Log.
   - name: Demo
     description: The flagship demo path.
+  - name: Duels
+    description: Human versus AI manager from one fork Tick, advanced in lockstep.
+  - name: Managers
+    description: The Manager kinds a Branch can have and whether each is available.
 paths:
+  /managers:
+    get:
+      operationId: listManagers
+      tags: [Managers]
+      summary: List Manager kinds and their availability.
+      description: |
+        Lists human, the rule-based AI and the LLM AI. The rule-based AI is
+        always available. The LLM AI is available only when the server has an
+        LLM configuration; the response then names the model and never the
+        API key or the endpoint.
+      responses:
+        '200':
+          description: The Manager kinds.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManagerList'
+        '429':
+          $ref: '#/components/responses/RateLimited'
   /health:
     get:
       operationId: getHealth
@@ -488,6 +511,16 @@ paths:
           description: Keep only entries with a line on this account.
           schema:
             $ref: '#/components/schemas/Account'
+        - name: figure
+          in: query
+          required: false
+          description: |
+            Keep only entries with a line on an account that makes up this
+            headline money figure, and return each entry's signed
+            `contributionCents` plus the server-computed `sumCents` over every
+            matching entry in the range. Exclusive with `account`.
+          schema:
+            $ref: '#/components/schemas/MoneyFigure'
         - name: limit
           in: query
           required: false
@@ -510,6 +543,35 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/LedgerResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /branches/{branchId}/ledger/summary:
+    get:
+      operationId: getLedgerSummary
+      tags: [Reads]
+      summary: Profit and loss by account, and the composition of each money figure.
+      description: |
+        Returns per-account totals through the Tick and, for each headline money
+        figure, the accounts and signs that compose it, its `sumCents` computed
+        from the Ledger entries (equal to the Metrics value) and the number of
+        entries that add up to it. Use `listLedgerEntries` with `figure` to list
+        those entries.
+      parameters:
+        - $ref: '#/components/parameters/BranchId'
+        - $ref: '#/components/parameters/TickQuery'
+      responses:
+        '200':
+          description: The summary.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LedgerSummaryResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
@@ -606,6 +668,34 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/Unprocessable'
+  /branches/{branchId}/decisions:
+    get:
+      operationId: listBranchDecisions
+      tags: [Reads]
+      summary: List the per-window decision records of an AI Branch.
+      description: |
+        Returns one record for every Decision_Window an AI manager handled on
+        this Branch (not its ancestors), in window order. A window where the AI
+        proposed no Command still has a record that names its provenance. Each
+        record lists what was proposed, how many Commands the deterministic
+        validator accepted, and the rejected proposals with reason codes;
+        rejected proposals never reach the engine. Provenance `ai_rule_based`
+        is the rule-based manager, `ai_llm` an accepted LLM proposal and
+        `ai_rule_based_fallback` the rule-based manager standing in for the LLM,
+        with `fallbackReason`. The rationale is untrusted text and must be shown
+        escaped. Records are metadata: replay never reads them and no State_Hash
+        covers them. A Human Branch returns an empty list.
+      parameters:
+        - $ref: '#/components/parameters/BranchId'
+      responses:
+        '200':
+          description: The records.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DecisionsResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /branches/{branchId}/export:
     get:
       operationId: exportBranchInputs
@@ -637,10 +727,354 @@ paths:
                 $ref: '#/components/schemas/InputsFile'
         '404':
           $ref: '#/components/responses/NotFound'
+  /branches/{branchId}/progress:
+    get:
+      operationId: streamBranchProgress
+      tags: [Reads]
+      summary: Stream Tick_Frames of a Branch as server-sent events.
+      description: |
+        A read-only presentation stream. It emits Tick_Frames that are already
+        computed and never advances the simulation: the client still calls
+        `POST /branches/{branchId}/advance` to compute Ticks, and the stream
+        delivers each new frame as the Head_Tick moves. Playback speed is a
+        client concern and never changes a State_Hash.
+
+        Events, in order per Tick:
+
+        - `tick` (`id` = Tick): data is a `ProgressTickEvent`, the same
+          TickFrame object as `/tick-frames` including `metrics`, plus
+          `warnings` when the World has engine warnings.
+        - `decision_window` (`id` = Tick): sent after the `tick` event of a
+          Tick whose frame holds a decision-window marker; data is a
+          `ProgressDecisionWindowEvent`.
+        - `completed` (`id` = horizon Tick): sent once after the horizon frame;
+          data is a `ProgressCompletedEvent`. The server then ends the stream
+          and the client should close it.
+
+        A comment line `: heartbeat` is sent every 15 seconds without events.
+        Reconnect with the `Last-Event-ID` header (the last Tick received):
+        the first event is the next Tick, so `Last-Event-ID: 10` starts at
+        Tick 11. Without the header, `fromTick` (default 0) is the first Tick
+        streamed. The `Last-Event-ID` header wins when both are given. A
+        client that reconnects with the horizon Tick receives `completed`
+        again. A start Tick above the horizon plus one is a 422.
+
+        At most 4 streams are open per client IP address; the fifth gets 429
+        (`rate-limited`) with `Retry-After`, and the slot frees when a stream
+        closes. This limit is separate from the request rate limit.
+      parameters:
+        - $ref: '#/components/parameters/BranchId'
+        - name: fromTick
+          in: query
+          required: false
+          description: First Tick to stream when `Last-Event-ID` is absent. Defaults to 0.
+          schema:
+            $ref: '#/components/schemas/Tick'
+        - name: Last-Event-ID
+          in: header
+          required: false
+          description: The last Tick the client received. The stream resumes at the next Tick.
+          schema:
+            type: string
+            pattern: '^[0-9]+$'
+      responses:
+        '200':
+          description: An event stream. Each event is described by the Progress* schemas.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                enum: [no-cache]
+            X-Accel-Buffering:
+              schema:
+                type: string
+                enum: ['no']
+          content:
+            text/event-stream:
+              schema:
+                description: |
+                  Server-sent events. This schema describes the JSON `data` of one
+                  event; the `event` field says which: `tick`, `decision_window`
+                  or `completed`.
+                oneOf:
+                  - $ref: '#/components/schemas/ProgressTickEvent'
+                  - $ref: '#/components/schemas/ProgressDecisionWindowEvent'
+                  - $ref: '#/components/schemas/ProgressCompletedEvent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /duels:
+    post:
+      operationId: createDuel
+      tags: [Duels]
+      summary: Create a World and a Duel on it.
+      description: |
+        Creates a new World (flagship scenario and demo seed 2026 unless given)
+        and two sibling Branches forked from its root Branch at `forkTick`
+        (default 0): the human Branch (label "You") and the AI Branch. Both
+        see the same seed, Scenario, potential customer arrivals and
+        Disruptions, and receive Decision_Windows at the same Ticks with the
+        same Observation fields, Command budget and lead times. `aiKind` is
+        `ai_rule_based` (default) or `ai_llm`. An LLM AI with no configured
+        provider plays as the Rule-based AI and is labelled as such.
+        Results are synthetic.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDuelRequest'
+      responses:
+        '201':
+          description: The World, the Duel and its status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateDuelResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /duels/{duelId}:
+    get:
+      operationId: getDuel
+      tags: [Duels]
+      summary: Read a Duel and its status.
+      description: |
+        The status says where both Branches are, the Comparison_Tick (the lower
+        head Tick) and whom the Duel waits on: `human` while the human's
+        Decision_Window at the head is open and not ended, otherwise `none`.
+        The AI never holds the Duel.
+      parameters:
+        - $ref: '#/components/parameters/DuelId'
+      responses:
+        '200':
+          description: The Duel.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DuelResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /duels/{duelId}/advance:
+    post:
+      operationId: advanceDuel
+      tags: [Duels]
+      summary: Advance both sides of a Duel in lockstep.
+      description: |
+        Without `runToTick` both Branches stop at the next Decision_Window or
+        the horizon. With `runToTick` the human's intervening windows end with
+        no Commands, the AI decides at each window it passes, and both stop at
+        `runToTick`, the horizon or the next Disruption onset. While the human's
+        window at the head is open, the request fails with `duel-window-open`.
+        `expectedHeadTick` is checked against the human Branch head.
+      parameters:
+        - $ref: '#/components/parameters/DuelId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdvanceRequest'
+      responses:
+        '200':
+          description: Where both sides stopped.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdvanceDuelResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /duels/{duelId}/commands:
+    post:
+      operationId: submitDuelCommands
+      tags: [Duels]
+      summary: Submit the human manager's Commands.
+      description: |
+        Same rules as `submitCommands`, always on the human Branch of the Duel.
+        There is no way to submit Commands for the AI side.
+      parameters:
+        - $ref: '#/components/parameters/DuelId'
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: Client-chosen key, 1 to 128 printable ASCII characters.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+            pattern: '^[\x21-\x7E]+$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitCommandsRequest'
+      responses:
+        '200':
+          description: Accepted Inputs and rejected Commands.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmitCommandsResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /duels/{duelId}/decision-window/end:
+    post:
+      operationId: endDuelWindow
+      tags: [Duels]
+      summary: End the human manager's Decision_Window.
+      description: |
+        Closes the human's window at the head so the Duel can advance. The AI
+        Manager has already decided at that window.
+      parameters:
+        - $ref: '#/components/parameters/DuelId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EndWindowRequest'
+      responses:
+        '204':
+          description: The window is closed.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+  /duels/{duelId}/disruptions:
+    post:
+      operationId: injectDuelDisruption
+      tags: [Duels]
+      summary: Inject one Disruption into both sides of a Duel.
+      description: |
+        Appends the same Disruption with the same start Tick to both Branches,
+        so both realities face it identically. Ranges and errors follow
+        `injectDisruption`.
+      parameters:
+        - $ref: '#/components/parameters/DuelId'
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: Client-chosen key, 1 to 128 printable ASCII characters.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+            pattern: '^[\x21-\x7E]+$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InjectDisruptionRequest'
+      responses:
+        '200':
+          description: The recorded Input of each side.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DuelInjectResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /duels/{duelId}/score:
+    get:
+      operationId: getDuelScore
+      tags: [Duels]
+      summary: Read the Duel score at the Comparison_Tick.
+      description: |
+        Scores both sides at the lower of their head Ticks. `provisional` is
+        true while either side is below the horizon: `outcome` is then the
+        standing at that Tick, not a declared winner. The score is a 100-point
+        composite held as integer hundredths (0 to 10000): financial,
+        fulfilment and on-time components in basis points, each scaled by its
+        weight. The financial component is normalized against the Scenario's
+        profit floor and target, never against the opponent. Raw metrics are
+        returned next to the score. A difference of at most
+        `tieToleranceHundredths` is a draw.
+        Results are synthetic and carry the disclaimer.
+      parameters:
+        - $ref: '#/components/parameters/DuelId'
+      responses:
+        '200':
+          description: The score.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DuelScore'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /duels/{duelId}/decisions:
+    get:
+      operationId: listDuelDecisions
+      tags: [Duels]
+      summary: List the AI side's decision records.
+      description: |
+        One record per Decision_Window the AI handled, with provenance, model,
+        fallback reason, accepted and rejected Commands with reason codes, and
+        the rationale as untrusted text to be shown escaped. While the human's
+        window at the Comparison_Tick is open, the AI's record for that window
+        is withheld, so the human cannot read the opponent's move before
+        committing their own. The human's own Commands are Inputs, read through
+        the export of the human Branch.
+      parameters:
+        - $ref: '#/components/parameters/DuelId'
+      responses:
+        '200':
+          description: The records.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DuelDecisionsResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
 components:
   parameters:
     WorldId:
       name: worldId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Uuid'
+    DuelId:
+      name: duelId
       in: path
       required: true
       schema:
@@ -675,7 +1109,7 @@ components:
       description: |
         The request conflicts with the Branch state. Types: `history-immutable`,
         `not-yet-simulated`, `stale-head`, `window-not-open`, `branch-limit`,
-        `horizon-reached`, `engine-version-mismatch` (a mutation of a World recorded
+        `horizon-reached`, `duel-branch` (a direct mutation of a Branch that belongs to a Duel; use the duel endpoints), `duel-window-open`, `duel-diverged`, `engine-version-mismatch` (a mutation of a World recorded
         under another engine version; its reads still work and carry a warning).
       content:
         application/problem+json:
@@ -745,6 +1179,32 @@ components:
       type: string
       enum: [human, ai_rule_based, ai_llm]
       description: Who manages the Branch. Recorded metadata. The engine never reads it.
+    ManagerInfo:
+      type: object
+      required: [kind, name, description, available]
+      properties:
+        kind:
+          $ref: '#/components/schemas/ManagerKind'
+        name:
+          type: string
+        description:
+          type: string
+        available:
+          type: boolean
+        model:
+          type: string
+          description: The model identifier of the LLM AI. Present only when available. Never the API key or endpoint.
+        unavailableReason:
+          type: string
+          description: Why the Manager kind is unavailable (for example not configured). Present only when unavailable.
+    ManagerList:
+      type: object
+      required: [managers]
+      properties:
+        managers:
+          type: array
+          items:
+            $ref: '#/components/schemas/ManagerInfo'
     Provenance:
       type: string
       enum: [human, ai_rule_based, ai_llm, ai_rule_based_fallback, scenario, injected]
@@ -792,7 +1252,7 @@ components:
       description: |
         URI that identifies the problem type. Status codes: history-immutable 409,
         not-yet-simulated 409, stale-head 409, window-not-open 409, branch-limit 409,
-        horizon-reached 409, engine-version-mismatch 409, budget-exceeded 422, validation 422, invalid-tick 422,
+        horizon-reached 409, duel-branch 409, duel-window-open 409, duel-diverged 409, engine-version-mismatch 409, budget-exceeded 422, validation 422, invalid-tick 422,
         invalid-scenario 400, invalid-name 400, bad-request 400, not-found 404,
         payload-too-large 413, rate-limited 429, unavailable 503, internal 500.
         An unknown route gives not-found 404. A wrong method gives bad-request with status 405.
@@ -806,6 +1266,9 @@ components:
         - urn:parallel:problem:branch-limit
         - urn:parallel:problem:horizon-reached
         - urn:parallel:problem:engine-version-mismatch
+        - urn:parallel:problem:duel-branch
+        - urn:parallel:problem:duel-window-open
+        - urn:parallel:problem:duel-diverged
         - urn:parallel:problem:invalid-tick
         - urn:parallel:problem:invalid-scenario
         - urn:parallel:problem:invalid-name
@@ -1012,7 +1475,7 @@ components:
     World:
       type: object
       additionalProperties: false
-      required: [id, name, seed, engineVersion, scenarioHash, createdAt, currency, scenario, assumptions]
+      required: [id, name, seed, engineVersion, scenarioHash, createdAt, currency, scenario, assumptions, llmAvailable, llmCallsMade, llmCallsRemaining, llmTokensUsed, llmTokensRemaining]
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
@@ -1022,6 +1485,31 @@ components:
           $ref: '#/components/schemas/Seed'
         engineVersion:
           type: string
+        llmAvailable:
+          type: boolean
+          description: |
+            True when the server has an LLM configuration (base URL, key and
+            model), so `ai_llm` Branches can ask the provider. When false the
+            counters below are 0 and the Rule-based AI is offered instead.
+        llmModel:
+          type: string
+          description: The configured model identifier. Present only when `llmAvailable`. The API key and endpoint are never returned.
+        llmCallsMade:
+          type: integer
+          minimum: 0
+          description: LLM requests this World has made, across all its Branches.
+        llmCallsRemaining:
+          type: integer
+          minimum: 0
+          description: Requests left before Decision_Windows fall back with reason `budget_exhausted`.
+        llmTokensUsed:
+          type: integer
+          minimum: 0
+          description: Prompt plus completion tokens the provider reported for this World.
+        llmTokensRemaining:
+          type: integer
+          minimum: 0
+          description: Tokens left before the per-World token cap is reached.
         scenarioHash:
           type: string
           pattern: '^[0-9a-f]{64}$'
@@ -1409,6 +1897,55 @@ components:
         duplicate:
           type: boolean
           description: True when the Idempotency-Key repeated an earlier submission. Nothing was appended.
+    DecisionRecord:
+      type: object
+      additionalProperties: false
+      required: [windowTick, managerKind, provenance, rationale, proposed, acceptedCount, rejected, createdAt]
+      properties:
+        windowTick:
+          $ref: '#/components/schemas/Tick'
+        managerKind:
+          $ref: '#/components/schemas/ManagerKind'
+        provenance:
+          $ref: '#/components/schemas/Provenance'
+        model:
+          type: string
+          description: Model name of an LLM proposal. Omitted otherwise.
+        fallbackReason:
+          type: string
+          description: Why the rule-based manager stood in, with provenance `ai_rule_based_fallback`. Omitted otherwise.
+        rationale:
+          type: string
+          description: Untrusted display text. Empty when the manager gave none.
+        proposed:
+          type: array
+          description: The Commands the manager proposed, in priority order.
+          items:
+            $ref: '#/components/schemas/Command'
+        acceptedCount:
+          type: integer
+          minimum: 0
+          description: How many proposals the validator accepted and stored as Inputs.
+        rejected:
+          type: array
+          description: Proposals the validator refused. They were stored nowhere.
+          items:
+            $ref: '#/components/schemas/ValidationResult'
+        createdAt:
+          type: string
+          format: date-time
+          description: Server wall-clock time. Metadata, excluded from every State_Hash.
+    DecisionsResponse:
+      type: object
+      additionalProperties: false
+      required: [branchId, decisions]
+      properties:
+        branchId:
+          $ref: '#/components/schemas/Uuid'
+        decisions:
+          type: array
+          items:
+            $ref: '#/components/schemas/DecisionRecord'
     TickFramesResponse:
       type: object
       additionalProperties: false
@@ -2012,12 +2549,96 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/LedgerEntry'
+        figure:
+          $ref: '#/components/schemas/MoneyFigure'
+        sumCents:
+          type: integer
+          format: int64
+          description: Present with `figure`. Sum of the contributions of every matching entry, not only this page.
         currency:
           $ref: '#/components/schemas/Currency'
         disclaimer:
           $ref: '#/components/schemas/Disclaimer'
         warnings:
           $ref: '#/components/schemas/Warnings'
+    MoneyFigure:
+      type: string
+      enum: [cash, net_profit, net_revenue, cost_of_goods_sold, freight, labor, marketing, overhead, service_credits]
+    LedgerSummaryResponse:
+      type: object
+      additionalProperties: false
+      required: [branchId, tick, accounts, figures, currency, disclaimer]
+      properties:
+        branchId:
+          $ref: '#/components/schemas/Uuid'
+        tick:
+          $ref: '#/components/schemas/Tick'
+        accounts:
+          type: array
+          items:
+            $ref: '#/components/schemas/LedgerAccountTotal'
+        figures:
+          type: array
+          items:
+            $ref: '#/components/schemas/LedgerFigure'
+        currency:
+          $ref: '#/components/schemas/Currency'
+        disclaimer:
+          $ref: '#/components/schemas/Disclaimer'
+        warnings:
+          $ref: '#/components/schemas/Warnings'
+    LedgerAccountTotal:
+      type: object
+      additionalProperties: false
+      required: [account, normalSide, debitCents, creditCents, balanceCents, entryCount]
+      properties:
+        account:
+          $ref: '#/components/schemas/Account'
+        normalSide:
+          type: string
+          enum: [debit, credit]
+        debitCents:
+          type: integer
+          format: int64
+        creditCents:
+          type: integer
+          format: int64
+        balanceCents:
+          type: integer
+          format: int64
+          description: Balance on the account's normal side.
+        entryCount:
+          type: integer
+          minimum: 0
+    LedgerFigure:
+      type: object
+      additionalProperties: false
+      required: [figure, sumCents, entryCount, components]
+      properties:
+        figure:
+          $ref: '#/components/schemas/MoneyFigure'
+        sumCents:
+          type: integer
+          format: int64
+          description: Sum over components of sign times the account balance, computed from the Ledger entries.
+        entryCount:
+          type: integer
+          minimum: 0
+          description: Number of entries with a line on a component account.
+        components:
+          type: array
+          items:
+            $ref: '#/components/schemas/LedgerFigureComponent'
+    LedgerFigureComponent:
+      type: object
+      additionalProperties: false
+      required: [account, sign]
+      properties:
+        account:
+          $ref: '#/components/schemas/Account'
+        sign:
+          type: integer
+          enum: [-1, 1]
     LedgerEntry:
       type: object
       description: One balanced posting. Total debits equal total credits.
@@ -2042,6 +2663,10 @@ components:
           minItems: 2
           items:
             $ref: '#/components/schemas/LedgerLine'
+        contributionCents:
+          type: integer
+          format: int64
+          description: Present with the `figure` filter. The entry's signed share of that figure.
     CauseRef:
       type: object
       additionalProperties: false
@@ -2259,6 +2884,288 @@ components:
           format: int64
         valueCents:
           $ref: '#/components/schemas/Cents'
+    CreateDuelRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          $ref: '#/components/schemas/Name'
+        seed:
+          $ref: '#/components/schemas/Seed'
+        scenario:
+          type: object
+          description: A scenario document. Omit it to use the flagship scenario.
+          additionalProperties: true
+        overrides:
+          type: object
+          description: Assumption dotted path to new integer value.
+          additionalProperties:
+            type: integer
+            format: int64
+        forkTick:
+          $ref: '#/components/schemas/Tick'
+        aiKind:
+          type: string
+          enum: [ai_rule_based, ai_llm]
+          default: ai_rule_based
+    DuelBranch:
+      type: object
+      additionalProperties: false
+      required: [branch, managerLabel]
+      properties:
+        branch:
+          $ref: '#/components/schemas/Branch'
+        managerLabel:
+          type: string
+          description: 'Plain label: "You", "Rule-based AI", "LLM AI (<model>)" or "Rule-based AI (LLM fallback: <reason>)".'
+    Duel:
+      type: object
+      additionalProperties: false
+      required: [id, worldId, parentBranchId, aiKind, forkTick, comparisonPolicy, createdAt, human, ai]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        worldId:
+          $ref: '#/components/schemas/Uuid'
+        parentBranchId:
+          $ref: '#/components/schemas/Uuid'
+        aiKind:
+          $ref: '#/components/schemas/ManagerKind'
+        forkTick:
+          $ref: '#/components/schemas/Tick'
+        comparisonPolicy:
+          type: string
+          description: How the Comparison_Tick is chosen. `min_head_tick` is the lower head Tick of the two sides.
+        createdAt:
+          type: string
+          format: date-time
+        human:
+          $ref: '#/components/schemas/DuelBranch'
+        ai:
+          $ref: '#/components/schemas/DuelBranch'
+    DuelStatus:
+      type: object
+      additionalProperties: false
+      required: [duelId, humanHeadTick, aiHeadTick, comparisonTick, horizonTick, finished, windowOpen, windowReasons, waitingOn]
+      properties:
+        duelId:
+          $ref: '#/components/schemas/Uuid'
+        humanHeadTick:
+          $ref: '#/components/schemas/Tick'
+        aiHeadTick:
+          $ref: '#/components/schemas/Tick'
+        comparisonTick:
+          $ref: '#/components/schemas/Tick'
+        horizonTick:
+          $ref: '#/components/schemas/Tick'
+        finished:
+          type: boolean
+          description: True when both sides are at the horizon.
+        windowOpen:
+          type: boolean
+          description: A Decision_Window is open for the human at its head.
+        windowReasons:
+          type: array
+          items:
+            $ref: '#/components/schemas/WindowReason'
+        waitingOn:
+          type: string
+          enum: [human, none]
+          description: '`human` while the human window is open and not ended; neither side advances then.'
+        warnings:
+          $ref: '#/components/schemas/Warnings'
+    DuelResponse:
+      type: object
+      additionalProperties: false
+      required: [duel, status]
+      properties:
+        duel:
+          $ref: '#/components/schemas/Duel'
+        status:
+          $ref: '#/components/schemas/DuelStatus'
+    CreateDuelResponse:
+      type: object
+      additionalProperties: false
+      required: [world, duel, status]
+      properties:
+        world:
+          $ref: '#/components/schemas/World'
+        duel:
+          $ref: '#/components/schemas/Duel'
+        status:
+          $ref: '#/components/schemas/DuelStatus'
+    AdvanceDuelResult:
+      type: object
+      additionalProperties: false
+      required: [headTick, paused, windowReasons, status, currency, disclaimer]
+      properties:
+        headTick:
+          $ref: '#/components/schemas/Tick'
+        paused:
+          $ref: '#/components/schemas/PauseReason'
+        windowReasons:
+          type: array
+          items:
+            $ref: '#/components/schemas/WindowReason'
+        human:
+          $ref: '#/components/schemas/AdvanceResult'
+        ai:
+          $ref: '#/components/schemas/AdvanceResult'
+        status:
+          $ref: '#/components/schemas/DuelStatus'
+        currency:
+          $ref: '#/components/schemas/Currency'
+        disclaimer:
+          $ref: '#/components/schemas/Disclaimer'
+    DuelInjectResult:
+      type: object
+      additionalProperties: false
+      required: [human, ai]
+      properties:
+        human:
+          $ref: '#/components/schemas/InjectDisruptionResult'
+        ai:
+          $ref: '#/components/schemas/InjectDisruptionResult'
+    DuelScoreComponents:
+      type: object
+      additionalProperties: false
+      required: [financialBps, fulfilmentRateBps, onTimeBps, compositeHundredths]
+      properties:
+        financialBps:
+          $ref: '#/components/schemas/Bps'
+        fulfilmentRateBps:
+          $ref: '#/components/schemas/Bps'
+        onTimeBps:
+          $ref: '#/components/schemas/Bps'
+        compositeHundredths:
+          type: integer
+          format: int64
+          description: Composite score in hundredths of a point, 0 to 10000.
+    DuelWeightedComponents:
+      type: object
+      additionalProperties: false
+      required: [financialHundredths, fulfilmentHundredths, onTimeHundredths]
+      description: Each component times its weight, rounded half to even, in hundredths of a point. They can differ from the composite by at most one hundredth.
+      properties:
+        financialHundredths:
+          type: integer
+          format: int64
+        fulfilmentHundredths:
+          type: integer
+          format: int64
+        onTimeHundredths:
+          type: integer
+          format: int64
+    DuelBranchScore:
+      type: object
+      additionalProperties: false
+      required: [branchId, managerKind, managerLabel, score, weighted, metrics, cancelledOrders]
+      properties:
+        branchId:
+          $ref: '#/components/schemas/Uuid'
+        managerKind:
+          $ref: '#/components/schemas/ManagerKind'
+        managerLabel:
+          type: string
+        score:
+          $ref: '#/components/schemas/DuelScoreComponents'
+        weighted:
+          $ref: '#/components/schemas/DuelWeightedComponents'
+        metrics:
+          $ref: '#/components/schemas/Metrics'
+        cancelledOrders:
+          type: integer
+          format: int64
+    DuelScore:
+      type: object
+      additionalProperties: false
+      required: [duelId, comparisonTick, horizonTick, provisional, outcome, human, ai, weights, profitFloorCents, profitTargetCents, tieToleranceHundredths, currency, disclaimer]
+      properties:
+        duelId:
+          $ref: '#/components/schemas/Uuid'
+        comparisonTick:
+          $ref: '#/components/schemas/Tick'
+        horizonTick:
+          $ref: '#/components/schemas/Tick'
+        provisional:
+          type: boolean
+          description: True while either side is below the horizon. The outcome is then a standing, not a declared winner.
+        outcome:
+          type: string
+          enum: [human_wins, ai_wins, draw]
+        human:
+          $ref: '#/components/schemas/DuelBranchScore'
+        ai:
+          $ref: '#/components/schemas/DuelBranchScore'
+        weights:
+          $ref: '#/components/schemas/ScoreWeights'
+        profitFloorCents:
+          $ref: '#/components/schemas/Cents'
+        profitTargetCents:
+          $ref: '#/components/schemas/Cents'
+        tieToleranceHundredths:
+          type: integer
+          format: int64
+        currency:
+          $ref: '#/components/schemas/Currency'
+        disclaimer:
+          $ref: '#/components/schemas/Disclaimer'
+        warnings:
+          $ref: '#/components/schemas/Warnings'
+    DuelDecision:
+      type: object
+      additionalProperties: false
+      required: [managerLabel, windowTick, managerKind, provenance, rationale, proposed, acceptedCount, rejected, createdAt]
+      properties:
+        managerLabel:
+          type: string
+          description: 'Plain provenance label, for example "Rule-based AI" or "Rule-based AI (LLM fallback: timeout)".'
+        windowTick:
+          $ref: '#/components/schemas/Tick'
+        managerKind:
+          $ref: '#/components/schemas/ManagerKind'
+        provenance:
+          $ref: '#/components/schemas/Provenance'
+        model:
+          type: string
+          description: Model name of an LLM proposal. Omitted otherwise.
+        fallbackReason:
+          type: string
+          description: Why the rule-based manager stood in, with provenance `ai_rule_based_fallback`. Omitted otherwise.
+        rationale:
+          type: string
+          description: Untrusted display text. Empty when the manager gave none.
+        proposed:
+          type: array
+          description: The Commands the manager proposed, in priority order.
+          items:
+            $ref: '#/components/schemas/Command'
+        acceptedCount:
+          type: integer
+          minimum: 0
+          description: How many proposals the validator accepted and stored as Inputs.
+        rejected:
+          type: array
+          description: Proposals the validator refused. They were stored nowhere.
+          items:
+            $ref: '#/components/schemas/ValidationResult'
+        createdAt:
+          type: string
+          format: date-time
+          description: Server wall-clock time. Metadata, excluded from every State_Hash.
+    DuelDecisionsResponse:
+      type: object
+      additionalProperties: false
+      required: [duelId, branchId, decisions]
+      properties:
+        duelId:
+          $ref: '#/components/schemas/Uuid'
+        branchId:
+          $ref: '#/components/schemas/Uuid'
+        decisions:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuelDecision'
     CreateDemoRequest:
       type: object
       additionalProperties: false
@@ -2322,3 +3229,37 @@ components:
           type: integer
           format: int64
           minimum: 1
+    ProgressTickEvent:
+      description: Data of a `tick` event of the progress stream. A TickFrame plus optional `warnings`.
+      allOf:
+        - $ref: '#/components/schemas/TickFrame'
+        - type: object
+          properties:
+            warnings:
+              $ref: '#/components/schemas/Warnings'
+    ProgressDecisionWindowEvent:
+      type: object
+      description: Data of a `decision_window` event of the progress stream.
+      additionalProperties: false
+      required: [tick, reasons]
+      properties:
+        tick:
+          $ref: '#/components/schemas/Tick'
+        reasons:
+          type: array
+          items:
+            $ref: '#/components/schemas/WindowReason'
+    ProgressCompletedEvent:
+      type: object
+      description: Data of the `completed` event of the progress stream, sent once the horizon frame is out.
+      additionalProperties: false
+      required: [tick, stateHash, currency, disclaimer]
+      properties:
+        tick:
+          $ref: '#/components/schemas/Tick'
+        stateHash:
+          $ref: '#/components/schemas/StateHash'
+        currency:
+          $ref: '#/components/schemas/Currency'
+        disclaimer:
+          $ref: '#/components/schemas/Disclaimer'

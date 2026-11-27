@@ -30,6 +30,8 @@ import {
   type SpriteTexture,
 } from "./drawing";
 import { fitScale, project, SCENE_H, SCENE_W, zIndex, type Pt } from "./iso";
+import { layoutBanners, layoutLabels } from "./labelLayout";
+import { buildSceneLabels } from "./sceneLabels";
 import {
   BENCH_D,
   benchOrigin,
@@ -92,9 +94,6 @@ interface RackView {
   back: Graphics;
   front: Graphics;
   boxes: Sprite[];
-  sign: Tag;
-  waiting: Tag;
-  more: Tag;
   style: number;
 }
 
@@ -135,12 +134,11 @@ export class WorldScene {
   private readonly zoneFlash = new Map<ZoneName, Graphics>();
   private readonly zoneOutline = new Map<ZoneName, Graphics>();
   private readonly barrier = new Graphics();
-  private readonly warnIcons: Graphics[] = [];
-  private readonly tags: Record<
-    "dock" | "orders" | "packing" | "outbound" | "training" | "absent" | "peopleMore" | "ticketsMore" | "vansMore" | "syncing" | "moves",
-    Tag
-  >;
-  private readonly disruptionTags: Tag[] = [];
+  private readonly leaders = new Graphics();
+  private readonly measurer: Tag;
+  private readonly labelPool: Tag[] = [];
+  private readonly bannerTags: Tag[] = [];
+  private readonly bannerIcons: Graphics[] = [];
   private lightsCrisis = false;
   private stationLit: boolean[] = [];
   private disruptionZones = new Set<ZoneName>();
@@ -168,35 +166,8 @@ export class WorldScene {
     };
 
     this.buildFixtures();
-    const T = (): Tag => new Tag(fontFamily);
-    this.tags = {
-      dock: T(),
-      orders: T(),
-      packing: T(),
-      outbound: T(),
-      training: T(),
-      absent: T(),
-      peopleMore: T(),
-      ticketsMore: T(),
-      vansMore: T(),
-      syncing: T(),
-      moves: T(),
-    };
-    for (const t of Object.values(this.tags)) {
-      t.visible = false;
-      this.labels.addChild(t);
-    }
-    for (let i = 0; i < 3; i++) {
-      const t = T();
-      t.visible = false;
-      this.disruptionTags.push(t);
-      const w = new Graphics();
-      drawWarning(w, PALETTE.clay);
-      w.visible = false;
-      this.warnIcons.push(w);
-      this.labels.addChild(t, w);
-    }
-
+    this.measurer = new Tag(fontFamily);
+    this.labels.addChild(this.leaders);
     this.flyers = new Pool<Sprite>(24, () => {
       const s = new Sprite(this.boxTex[0]?.texture);
       s.visible = false;
@@ -379,9 +350,6 @@ export class WorldScene {
       r.back.destroy();
       r.front.destroy();
       for (const b of r.boxes) b.destroy();
-      r.sign.destroy({ children: true });
-      r.waiting.destroy({ children: true });
-      r.more.destroy({ children: true });
     }
     this.racks = [];
     for (let k = 0; k < n; k++) {
@@ -408,19 +376,7 @@ export class WorldScene {
         this.world.addChild(s);
         boxes.push(s);
       }
-      const sign = new Tag(this.fontFamily);
-      const sp = project(o.gx + RACK_W / 2, o.gy + RACK_D + 0.55, 0.1);
-      sign.position.set(sp.x, sp.y);
-      const waiting = new Tag(this.fontFamily, 11);
-      const wp = project(o.gx + RACK_W / 2, o.gy, 3.5);
-      waiting.position.set(wp.x, wp.y);
-      waiting.visible = false;
-      const more = new Tag(this.fontFamily, 11);
-      const mp = project(o.gx + RACK_W, o.gy + 0.2, 3.1);
-      more.position.set(mp.x, mp.y);
-      more.visible = false;
-      this.labels.addChild(sign, waiting, more);
-      this.racks.push({ back, front, boxes, sign, waiting, more, style: -1 });
+      this.racks.push({ back, front, boxes, style: -1 });
     }
   }
 
@@ -442,11 +398,6 @@ export class WorldScene {
         v.style = style;
       }
       v.boxes.forEach((s, i) => (s.visible = i < r.boxes));
-      v.sign.set(`${r.name}  ${r.onHand} in stock`);
-      v.waiting.visible = r.waitingForInventory > 0;
-      if (r.waitingForInventory > 0) v.waiting.set(`Waiting for inventory: ${r.waitingForInventory}`, "crisis");
-      v.more.visible = r.moreBoxes > 0;
-      if (r.moreBoxes > 0) v.more.set(`+${r.moreBoxes} more boxes`, "muted");
     });
 
     // People at stations.
@@ -528,89 +479,63 @@ export class WorldScene {
     });
   }
 
-  private place(tag: Tag, gx: number, gy: number, gz: number): void {
-    const p = project(gx, gy, gz);
-    tag.position.set(p.x, p.y);
+  private measure = (text: string, size: number): { w: number; h: number } => {
+    this.measurer.set(text, "normal", size);
+    return { w: this.measurer.boxW, h: this.measurer.boxH };
+  };
+
+  private poolTag(list: Tag[], i: number): Tag {
+    let t = list[i];
+    if (t === undefined) {
+      t = new Tag(this.fontFamily);
+      this.labels.addChild(t);
+      list.push(t);
+    }
+    return t;
   }
 
+  /** Banners in a column along the top edge, then every other label through the collision-free layout. */
   private applyTags(m: SceneModel): void {
-    const t = this.tags;
-    t.dock.visible = true;
-    this.place(t.dock, 4.6, 1.6, 2.4);
-    if (m.dock.closed) t.dock.set("Dock closed: supplier outage", "crisis");
-    else if (m.dock.openPOs > 0) t.dock.set(`Deliveries on the way: ${m.dock.openPOs}`);
-    else t.dock.set("No deliveries on order", "muted");
+    const specs = buildSceneLabels(m);
+    const banners = layoutBanners(specs.banners, this.measure);
+    this.bannerTags.forEach((t) => (t.visible = false));
+    this.bannerIcons.forEach((g) => (g.visible = false));
+    banners.forEach((b, i) => {
+      const tag = this.poolTag(this.bannerTags, i);
+      tag.set(b.text, "crisis");
+      tag.position.set(b.textX + tag.boxW / 2, b.rect.y + tag.boxH);
+      tag.visible = true;
+      let icon = this.bannerIcons[i];
+      if (icon === undefined) {
+        icon = new Graphics();
+        drawWarning(icon, PALETTE.clay);
+        this.labels.addChild(icon);
+        this.bannerIcons.push(icon);
+      }
+      icon.position.set(b.iconCenter.x, b.iconCenter.y);
+      icon.visible = true;
+    });
 
-    t.orders.visible = true;
-    this.place(t.orders, 19.2, 9.7, 3.3);
-    t.orders.set(`Orders waiting: ${m.queue.length}`, m.disruptions.some((d) => d.kind === "demand_surge") ? "crisis" : "normal");
-    t.ticketsMore.visible = m.queue.more > 0;
-    if (m.queue.more > 0) {
-      this.place(t.ticketsMore, 21.4, 9.7, 3.0);
-      t.ticketsMore.set(`+${m.queue.more} more orders`, "muted");
-    }
-
-    t.packing.visible = m.bottlenecks.waitingForCapacityOrders > 0;
-    if (t.packing.visible) {
-      this.place(t.packing, 11, 10, 2.4);
-      t.packing.set(`Waiting for packing capacity: ${m.bottlenecks.waitingForCapacityOrders}`, "crisis");
-    }
-
-    t.outbound.visible = true;
-    this.place(t.outbound, 19.5, 1, 1.4);
-    t.outbound.set(
-      m.outbound.shippedOrders > 0 ? `Shipped this hour: ${m.outbound.shippedOrders} orders` : "Nothing shipped this hour",
-      "muted",
+    const bounds = { x: 4, y: 4, w: SCENE_W - 8, h: SCENE_H - 8 };
+    const result = layoutLabels(
+      specs.labels,
+      this.measure,
+      bounds,
+      banners.map((b) => b.rect),
     );
-    t.vansMore.visible = m.outbound.hiddenVans > 0;
-    if (m.outbound.hiddenVans > 0) {
-      this.place(t.vansMore, 20.5, 8.6, 1.4);
-      t.vansMore.set(`+${m.outbound.hiddenVans} more vans`, "muted");
-    }
-
-    t.training.visible = m.people.onboarding > 0;
-    if (t.training.visible) {
-      this.place(t.training, 2.2, 10.45, 1.6);
-      t.training.set(`In training: ${m.people.onboarding}`, "muted");
-    }
-    const absent = m.people.absent ?? 0;
-    t.absent.visible = absent > 0;
-    if (absent > 0) {
-      this.place(t.absent, 2.2, 11.95, 1.6);
-      t.absent.set(`Absent: ${absent}`, "crisis");
-    }
-    t.peopleMore.visible = m.people.hiddenOnFloor > 0;
-    if (m.people.hiddenOnFloor > 0) {
-      this.place(t.peopleMore, 15, 12.4, 1.2);
-      t.peopleMore.set(`+${m.people.hiddenOnFloor} more people`, "muted");
-    }
-
-    t.syncing.visible = m.syncing;
-    if (m.syncing) {
-      const sp = project(11, 14, 0);
-      t.syncing.position.set(sp.x, sp.y + 28);
-      t.syncing.set("Catching up…", "muted");
-    }
-
-    const moves = m.interventions;
-    t.moves.visible = moves.length > 0;
-    if (moves.length > 0) {
-      this.place(t.moves, 11, 0.2, 3.8);
-      t.moves.set(`Your move takes effect: ${moves.map((i) => i.text).join("; ")}`.slice(0, 90), "good");
-    }
-
-    // Disruption captions (three at most).
-    this.disruptionTags.forEach((tag, i) => {
-      const d = m.disruptions[i];
-      const icon = this.warnIcons[i];
-      tag.visible = d !== undefined;
-      if (icon !== undefined) icon.visible = d !== undefined;
-      if (d === undefined || icon === undefined) return;
-      const z = ZONES[ZONE_OF[d.zone]];
-      const anchor = project(z.gx + z.w / 2, z.gy + z.h - 0.4 - i * 0.2, 0.2);
-      tag.position.set(anchor.x + 10, anchor.y - 30 * (i + 1) + 14);
-      icon.position.set(anchor.x - tag.width / 2 + 2, anchor.y - 30 * (i + 1) - 4);
-      tag.set(`${d.title}: ${d.text}`, "crisis");
+    this.labelPool.forEach((t) => (t.visible = false));
+    this.leaders.clear();
+    result.placed.forEach((p, i) => {
+      const tag = this.poolTag(this.labelPool, i);
+      tag.set(p.text, p.tone, p.fontSize);
+      tag.position.set(p.rect.x + p.rect.w / 2, p.rect.y + p.rect.h);
+      tag.visible = true;
+      if (p.leaderTo !== null) {
+        const cx = Math.min(Math.max(p.leaderTo.x, p.rect.x), p.rect.x + p.rect.w);
+        const cy = Math.min(Math.max(p.leaderTo.y, p.rect.y), p.rect.y + p.rect.h);
+        this.leaders.moveTo(cx, cy).lineTo(p.leaderTo.x, p.leaderTo.y).stroke({ width: 1, color: PALETTE.ivoryDim, alpha: 0.8 });
+        this.leaders.circle(p.leaderTo.x, p.leaderTo.y, 1.8).fill({ color: PALETTE.ivoryDim, alpha: 0.9 });
+      }
     });
   }
 

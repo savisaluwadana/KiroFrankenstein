@@ -135,6 +135,26 @@
 - **Known issues:** the vulnerabilities above; high per-replay allocation; SSE (5.1) and the diff view are not built.
 - **Learning / next action:** Finish the remaining M4 tasks (SSE, ledger drill-down, assumptions endpoint, disruption injection), then M5.
 
+### 2026-11-27 — M4/M5 implementation
+
+- **Kiro surface/version:** Kiro IDE agent orchestrating spec-task-execution subagents
+- **Goal:** Finish the M4 studio work and implement M5 (rule-based and LLM AI managers, Human vs AI duel) from `tasks.md`.
+- **Inputs:** `.kiro/specs/parallel-simulation-mvp/tasks.md`, `design.md`, steering files.
+- **What Kiro actually did:**
+  - Executed tasks 5.1, 5.2, 5.3, 5.5, 5.6 and 6.1 to 6.11 (6.12 is this checkpoint). Tasks 5.4 and 5.7 were not completed and remain open.
+  - A label-collision fix in the studio scene (`labelLayout.ts`) and the security patch (commit `a102b29`: pgx and x/text upgrades, Go 1.25 floor, pinned CI tool versions).
+  - Checkpoint 6.12: ran every check below, gofmt'd `internal/policy/rulebased/rulebased_test.go` (the only fix needed), reconciled `tasks.md`, and added the README section on configuring the AI manager.
+- **Interruptions:** none recorded in this session.
+- **What I reviewed or corrected:** The orchestrator opened the duel screenshot and checked it; it kept 5.4 and 5.7 unticked and recorded what remains for each.
+- **Commands and verification outcomes (checkpoint 6.12):**
+  - `govulncheck@v1.10.0 ./...`: "No vulnerabilities found". staticcheck v0.8.2: no output. `gofmt -l`: only `rulebased_test.go`, fixed. `npm audit --audit-level=high`: 0 vulnerabilities. `go vet` clean.
+  - Test database at migration version 4. `go test ./... -count=1` passed in every package, 476 passing test lines and 0 failures, 0 SKIPs (Postgres tests ran): `cmd/parallel-sim` 1.6 s, `internal/app` 82.6 s, `internal/app/demoplan` 82.4 s, `internal/archtest` 2.1 s, `internal/httpapi` 14.5 s, `internal/policy/llm` 3.8 s, `internal/policy/rulebased` 4.6 s, `internal/sim` 35.3 s, `internal/sim/inputsfile` 4.2 s, `internal/simtest` 8.3 s, `internal/store/memory` 4.3 s, `internal/store/postgres` 12.4 s.
+  - `go test -race`: `internal/app` (`TestLLM|TestAIWindow|TestDuel|TestConcurrent|TestNoLLMConfiguration`) 36.1 s, `internal/httpapi` 64.8 s, `internal/policy/llm` 1.8 s and `internal/policy/rulebased` 11.3 s all passed. `TestNoLLMConfiguration` passed with the three LLM variables unset (2.3 s).
+  - Determinism: seed 2026 hash `4c6d0dd0...ab99e`, engine version 2 (no change under `backend/internal/sim`); demo-fork verify MATCH (`a51c195a...e2a5`); demo-duel human (`a51c195a...e2a5`) and AI (`e9f19296...284aa`) verifies MATCH.
+  - Web: `tsc` clean, `eslint` clean, vitest 27 files and 222 tests passed, `next build` passed. Playwright e2e passed 16 passed, 0 failed, 6 skipped in 4.7 minutes immediately before this checkpoint; it was not re-run because no web file changed.
+- **Known issues:** tasks 5.4 and 5.7 are open; live LLM provider verification is PENDING (stub providers only); LLM deciders hold the service mutex during provider calls; the Branch_Tree has no AI provenance labels; rule-based rationale is jargon-heavy; SSE event ids are shared across a World's Branches.
+- **Learning / next action:** Finish 5.4 and 5.7, then M6 (branch diff, ensembles).
+
 Use this template after each real Kiro session:
 
 ### YYYY-MM-DD — session title

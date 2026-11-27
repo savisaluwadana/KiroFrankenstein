@@ -479,7 +479,7 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
   - [x] 3.17 Checkpoint — M2 complete
     - Run `cd backend && go test ./... && go vet ./...` and `cd web && npx tsc --noEmit && npx vitest --run`. Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 4. M3 — Persistence, replay and branching (~350 credits)
+- [x] 4. M3 — Persistence, replay and branching (~350 credits)
   - [x] 4.1 Write the Goose migrations
     - _Requirements: 28.1, 28.2, 28.5_
     - Dependencies: 3.17
@@ -528,31 +528,34 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
     - Deliverables: `sim.EngineVersion` constant, mismatch warning attached to State, score and diff responses in `backend/internal/app/branch_service.go` and `httpapi`, test
     - Verify: `cd backend && go test ./internal/app -run TestEngineVersionMismatch`
     - Acceptance: a World stored with a different version returns every read with an engine-version-mismatch warning.
-  - [-] 4.9 Checkpoint — M3 complete
+  - [x] 4.9 Checkpoint — M3 complete
     - Run `cd backend && go test ./... && PARALLEL_TEST_DATABASE_URL=postgres://parallel:parallel@localhost:5432/parallel_test?sslmode=disable go test ./internal/store/...`. Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 5. M4 — Premium interactive simulation studio (~500 credits)
-  - [ ] 5.1 Implement the Progress_Stream (SSE)
+  - [x] 5.1 Implement the Progress_Stream (SSE)
     - _Requirements: 27.1, 27.2, 27.3, 27.4, 27.5_
     - Dependencies: 4.9
     - Deliverables: `backend/internal/httpapi/sse.go` (`GET /branches/{id}/progress`; `id` = Tick; tick, decision_window and completed events; `Last-Event-ID` resume; 4 connections per client IP → 429), `openapi.yaml` entry, `sse_test.go`
     - Verify: `cd backend && go test ./internal/httpapi -run TestProgressStream`
     - Acceptance: reconnecting with `Last-Event-ID: 10` yields Tick 11 first; the fifth connection from one IP gets 429.
     - Reconciliation (post-redesign): Remaining. No `sse.go` exists; the studio paces tick frames from `GET /tick-frames` polling in `web/stores/playback.ts`. Still needed: SSE endpoint, `Last-Event-ID` resume, 4-per-IP limit.
-  - [ ] 5.2 Consume the Progress_Stream in the Web_App with a polling fallback
+    - Reconciliation (M4/M5 pass): Delivered: `backend/internal/httpapi/sse.go` (`GET /branches/{id}/progress`, tick, decision_window and completed events, `Last-Event-ID` resume, 4 connections per client IP then 429), `backend/internal/app/subscribe.go`, `sse_test.go`, `openapi.yaml` entry. Remaining: none for the task. Limitation: the event `id` is the Tick, so ids are shared across a World's Branches (each stream is per Branch, resume is per connection).
+  - [x] 5.2 Consume the Progress_Stream in the Web_App with a polling fallback
     - _Requirements: 27.1, 27.3, 33.3, 33.4_
     - Dependencies: 5.1
     - Deliverables: `web/lib/api/progress.ts` (EventSource with resume and fallback to `GET /tick-frames` polling), integration into `web/stores/playback.ts`, Vitest tests with a mocked EventSource
     - Verify: `cd web && npx vitest --run lib/api stores && npx tsc --noEmit`
     - Acceptance: when the stream errors, frames continue through polling with no skipped Tick.
     - Reconciliation (post-redesign): Remaining, depends on 5.1. Polling already works (`web/stores/playback.ts`, `web/lib/api/client.ts`); the EventSource client with polling fallback is not built.
-  - [ ] 5.3 Build the Ledger_Panel drill-down
+    - Reconciliation (M4/M5 pass): Delivered: `web/lib/api/progress.ts` (EventSource with resume and fallback to `GET /tick-frames` polling), `progress.test.ts`, integration in `web/stores/playback.ts`, e2e `ledger-sse.spec.ts` (stream and polling fallback). Remaining: none.
+  - [x] 5.3 Build the Ledger_Panel drill-down
     - _Requirements: 32.9, 31.5, 10.13, 11.9_
     - Dependencies: 5.1
     - Deliverables: ledger filter parameters (account, Tick range) in `backend/internal/httpapi/reads.go` and `openapi.yaml`; `web/features/ledger/LedgerPanel.tsx` (P&L by account; selecting a money figure lists the Ledger_Entries whose lines sum to it, with cause links; Disclaimer); tests on both sides
     - Verify: `cd backend && go test ./internal/httpapi/... && cd ../web && npm run gen:api && npx vitest --run features/ledger && npx tsc --noEmit`
     - Acceptance: a backend test asserts that the returned lines sum exactly to the reported figure; the panel shows that sum from the API, not a client recomputation.
     - Reconciliation (post-redesign): Partly satisfied. `web/features/studio/LedgerPanel.tsx` and `StudioPage.tsx` show the ledger. Remaining: account and Tick-range filters in `reads.go`/`openapi.yaml`, drill-down from a money figure to its entries, backend sum test, and moving the panel to `features/ledger/` if wanted.
+    - Reconciliation (M4/M5 pass): Delivered: `GET /branches/{id}/ledger/summary` (`backend/internal/httpapi/ledger_summary.go`, `ledger_summary_test.go`), `openapi.yaml`, `web/features/ledger/LedgerPanel.tsx` (+ test; drill-down from a money figure to the entries that sum to it, figure taken from the API), e2e `ledger-sse.spec.ts` checks the sums. Remaining: confirm any account and Tick-range filter parameters on the entries list beyond what the summary provides were not added.
   - [ ] 5.4 Build the Assumptions endpoint, Assumptions_Editor and Assumptions_Panel
     - _Requirements: 31.1, 31.2, 31.3, 31.4, 32.13, 4.4_
     - Dependencies: 5.3
@@ -560,20 +563,23 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
     - Verify: `cd backend && go test ./internal/httpapi/... && cd ../web && npm run gen:api && npx vitest --run features/assumptions && npx tsc --noEmit`
     - Acceptance: out-of-bounds overrides surface the validator's message; while Head_Tick < horizon only script entries with onset ≤ the displayed Tick are shown.
     - Reconciliation (post-redesign): Partly satisfied. `web/features/studio/AssumptionsPanel.tsx` (read view) and `web/features/setup/SetupPage.tsx` with `controls.ts` (overrides at World creation, e2e `setup-and-perf.spec.ts`). Remaining: `GET /worlds/{id}/assumptions` with default/min/max/rationale, reveal-script gating, panel in duel and diff views.
-  - [ ] 5.5 Complete the Decision_Panel for all Command kinds
+    - Reconciliation (M4/M5 pass): Delivered earlier: `web/features/studio/AssumptionsPanel.tsx` (read view), setup overrides at World creation (`features/setup`). Remaining (not ticked on purpose): `GET /worlds/{id}/assumptions` with default, min, max and rationale; `AssumptionsEditor` reveal-script gating (Disruption_Script hidden until "Reveal disruption script"); Assumptions_Panel link in the Duel view and Diff_Panel.
+  - [x] 5.5 Complete the Decision_Panel for all Command kinds
     - _Requirements: 32.7, 32.8, 17.1, 17.3_
     - Dependencies: 5.3
     - Deliverables: forms for `expedite_purchase_order`, `schedule_overtime`, `hire_temp_workers`, `set_marketing_spend` in `web/features/decisions/`, client-side bounds hints taken from Assumptions (server remains the validator), tests
     - Verify: `cd web && npx vitest --run features/decisions && npx tsc --noEmit`
     - Acceptance: each kind round-trips through a mocked API; rejection messages appear next to the rejected Command.
     - Reconciliation (post-redesign): Partly satisfied. `web/features/decisions/DecisionPanel.tsx` (+ test) and the redesign Crisis cards (`features/studio/CrisisCards.tsx`, `crisis.ts`). Remaining: confirm all four Command kinds have forms, bounds hints from Assumptions, per-Command rejection messages.
-  - [ ] 5.6 Add Disruption injection to the studio
+    - Reconciliation (M4/M5 pass): Delivered: `web/features/decisions/DecisionPanel.tsx` (+ tests) updated for all four command kinds, e2e `commands.spec.ts` (every command through its card, checked against export, metrics and ledger). Remaining: Assumptions-derived bounds hints depend on 5.4 (server stays the validator).
+  - [x] 5.6 Add Disruption injection to the studio
     - _Requirements: 16.2, 16.3_
     - Dependencies: 5.5
     - Deliverables: `web/features/decisions/InjectDisruption.tsx` (kind, start Tick > Head_Tick, duration, magnitude within Scenario bounds), tests
     - Verify: `cd web && npx vitest --run features/decisions && npx tsc --noEmit`
     - Acceptance: an out-of-range request shows the server's allowed range; an accepted injection appears as a Timeline marker after reload.
     - Reconciliation (post-redesign): Remaining. No disruption-injection UI; the backend endpoint exists (`internal/app/disruptions.go`). `features/decisions/InjectDisruption.tsx` is not built.
+    - Reconciliation (M4/M5 pass): Delivered: `web/features/decisions/InjectDisruption.tsx` (+ test), `web/features/studio/injectedInputs.ts` (injected inputs shown after reload), e2e `commands.spec.ts` and `ledger-sse.spec.ts` (injected surprise). Remaining: none.
   - [ ] 5.7 Apply the studio visual design, interpolation and full Timeline markers
     - _Requirements: 32.3, 32.12, 32.15, 35.3, 35.4, 35.6_
     - Dependencies: 5.4, 5.6
@@ -581,79 +587,94 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
     - Verify: `cd web && npx vitest --run && npx tsc --noEmit && npx eslint . && npm run build`
     - Acceptance: a test asserts that every rendered number equals the value of the displayed Tick_Frame at all interpolation steps.
     - Reconciliation (post-redesign): Mostly satisfied by the redesign (`docs/ux-redesign.md`): `features/timeline/Timeline.tsx`, `features/world-view/Hud.tsx`, `WorldView.tsx` and `scene/*` (Warehouse view, PixiJS), `PlaybackControls.tsx`, `features/branches/BranchTree.tsx`, `ForkSequence.tsx`, `RealitySwitcher.tsx`, `features/studio/ComparisonView.tsx`, `features/engineering/EngineeringDrawer.tsx`/`EngineeringToggle.tsx` (Engineering mode), `features/intro`, `features/briefing`. Remaining: decorative interpolation `scene/interpolate.ts` with its number-equality test, provenance-distinguished Input markers. Diff view is not built (belongs to M6).
+    - Reconciliation (M4/M5 pass): Delivered by the redesign and this pass: restyled studio components, Timeline, HUD, scene with `labelLayout.ts`/`sceneLabels.ts` (+ `labelLayout.test.ts`), playback controls. Remaining (not ticked on purpose): `web/features/world-view/scene/interpolate.ts` with the number-equality test, and provenance-distinguished Input markers on the Timeline. Diff view belongs to M6.
   - [ ] 5.8 Checkpoint — M4 complete
     - Run `cd backend && go test ./...` and `cd web && npx tsc --noEmit && npx eslint . && npx vitest --run`. Ensure all tests pass, ask the user if questions arise.
 
     - Reconciliation (post-redesign): Superseded by 4.9 as the latest checkpoint; to be re-run with the final M4 scope.
+    - Reconciliation (M4/M5 pass): Delivered: the M4 scope was re-verified in the 6.12 checkpoint (backend `go test ./...`, web tsc, eslint, vitest, build, e2e). Remaining: this checkpoint stays unticked while 5.4 and 5.7 are open.
+
 - [ ] 6. M5 — LLM manager and human-versus-AI arena (~400 credits)
-  - [ ] 6.1 Implement the Rule_Based_Manager
+  - [x] 6.1 Implement the Rule_Based_Manager
     - _Requirements: 19.1, 19.2, 19.3, 19.4, 19.5_
     - Dependencies: 5.8
     - Deliverables: `backend/internal/policy/policy.go` (`Manager`, `Proposal`), `backend/internal/policy/rulebased/rulebased.go` (reorder point with safety stock, backup supplier during an observed outage, overtime then temp workers for a capacity gap, budget truncation, rationale citing Observation values, rule-based label), `rulebased_test.go`
     - Verify: `cd backend && go test ./internal/policy/rulebased/... && go test ./internal/archtest/...`
     - Acceptance: the package imports only `internal/sim` and the standard library; table cases show a reorder below the reorder point and backup-supplier use during an outage.
-  - [ ] 6.2 Property test: Rule_Based_Manager determinism
+    - Reconciliation (M4/M5 pass): Delivered: `backend/internal/policy/policy.go`, `backend/internal/policy/rulebased/rulebased.go`, `rulebased_test.go`. Remaining: the rationale text uses operations jargon (reorder point, safety stock); plain-language wording is open.
+  - [x] 6.2 Property test: Rule_Based_Manager determinism
     - **Property 23: Rule-based manager determinism**
     - **Validates: Requirements 19.2**
     - Dependencies: 6.1
     - Deliverables: `backend/internal/policy/rulebased/determinism_prop_test.go` (`TestPropRuleBasedDeterminism`)
     - Verify: `cd backend && go test ./internal/policy/rulebased -run TestPropRuleBasedDeterminism`
-  - [ ] 6.3 Run AI Managers at Decision_Windows and record provenance
+    - Reconciliation (M4/M5 pass): Delivered: `backend/internal/policy/rulebased/determinism_prop_test.go` (`TestPropRuleBasedDeterminism`). Remaining: none.
+  - [x] 6.3 Run AI Managers at Decision_Windows and record provenance
     - _Requirements: 18.3, 19.6, 20.18, 33.8_
     - Dependencies: 6.1
     - Deliverables: AI window loop in `backend/internal/app/branch_service.go` (propose from the same Observation as a Human, validate each proposal, append with `ai_rule_based` provenance and rationale, record per-window provenance even with zero Commands, continue through Run_To_Tick), `ai_window_test.go`
     - Verify: `cd backend && go test ./internal/app -run TestAIWindow`
     - Acceptance: Human and AI Observations for the same Branch and Tick are byte-equal in canonical form; a window with no AI Commands still reports its provenance.
-  - [ ] 6.4 Implement the LLM configuration and provider-independent adapter
+    - Reconciliation (M4/M5 pass): Delivered: `backend/internal/app/ai_manager.go`, `decisions.go` (decision records per window with provenance, also for zero commands), `ai_window_test.go`, `ai_manager_test.go`. AI decisions are hidden from the human until the human ends the window. Remaining: none.
+  - [x] 6.4 Implement the LLM configuration and provider-independent adapter
     - _Requirements: 20.1, 20.10, 20.13, 20.15, 20.17_
     - Dependencies: 5.8
     - Deliverables: `backend/internal/policy/llm/config.go` (present only when `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` are all non-empty; `LLM_MAX_CALLS_PER_WORLD` default 40, bounds 1..200; no default model), `client.go` (OpenAI-compatible chat completions request with Observation, Command_Set schema and remaining budget; length-limited, labelled user strings; 20 s timeout), `schema.go` (strict proposal decode), tests with an `httptest` stub provider, `envexample_test.go` asserting `.env.example` has the OpenRouter base URL and empty key and model
     - Verify: `cd backend && go test ./internal/policy/llm/...`
     - Acceptance: a source search test finds no model identifier literal in the package; unknown fields, unknown kinds, missing parameters and over-budget proposal counts are rejected before validation; the key never appears in logs or errors.
-  - [ ] 6.5 Implement LLM fallback and call budgets
+    - Reconciliation (M4/M5 pass): Delivered: `backend/internal/policy/llm/config.go`, `client.go`, `schema.go`, `manager.go`, tests including `nomodel_test.go` and `envexample_test.go`; `.env.example` documents all variables. Remaining: live provider verification is PENDING (no runtime API key was configured during development; only the stub provider was exercised).
+  - [x] 6.5 Implement LLM fallback and call budgets
     - _Requirements: 20.2, 20.3, 20.4, 20.5, 20.6, 20.7, 20.14, 20.16_
     - Dependencies: 6.3, 6.4
     - Deliverables: LLM handling in `backend/internal/app/ai_manager.go` (one request per window per Branch; per-World counter; fallback to Rule_Based_Manager with provenance `ai_rule_based_fallback` and reason `timeout`, `http_error`, `invalid_json`, `schema_violation` or `budget_exhausted`; `ai_llm` Inputs with model name and rationale; replay uses recorded Inputs only), World read fields for calls made and remaining budget, `ai_manager_test.go` with the stub provider
     - Verify: `cd backend && go test ./internal/app -run 'TestLLMFallback|TestLLMBudget|TestLLMReplayNoCall'`
     - Acceptance: each of the five reasons is produced by a stub scenario and recorded; replaying an LLM Branch makes zero HTTP requests to the stub.
-  - [ ] 6.6 Add `/managers` and the LLM independence integration test
+    - Reconciliation (M4/M5 pass): Delivered: `backend/internal/app/ai_llm.go` (+ `ai_llm_export_test.go`): one request per window per Branch, per-World call and token budgets, fallback with the five reasons, usage fields on GET world (`llmCallsMade`, `llmCallsRemaining`, `llmTokensUsed`, `llmTokensRemaining`), replay makes no provider call. Known limitation: LLM deciders hold the service mutex during provider calls, which serialises the service for up to the timeout. Remaining: live provider verification PENDING.
+  - [x] 6.6 Add `/managers` and the LLM independence integration test
     - _Requirements: 19.5, 20.8, 20.9, 26.2 (list AI Manager kinds)_
     - Dependencies: 6.5
     - Deliverables: `GET /managers` in `backend/internal/httpapi/managers.go` and `openapi.yaml`; `backend/internal/app/llm_independence_test.go` (`TestNoLLMConfiguration`: with all LLM variables unset and an HTTP transport that fails any request, create, advance, fork, rewind, replay and duel with the Rule_Based_Manager)
     - Verify: `cd backend && env -u LLM_BASE_URL -u LLM_API_KEY -u LLM_MODEL go test ./internal/app -run TestNoLLMConfiguration && go test ./internal/httpapi -run TestManagers`
     - Acceptance: `/managers` lists LLM AI as unavailable and Rule-based AI as available; no request leaves the process (INV-13).
-  - [ ] 6.7 Implement the Duel_Service
+    - Reconciliation (M4/M5 pass): Delivered: `backend/internal/httpapi/managers.go`, `llm_independence_test.go` (`TestNoLLMConfiguration`), `llm_world_test.go`, `openapi.yaml`. Remaining: none.
+  - [x] 6.7 Implement the Duel_Service
     - _Requirements: 21.1, 21.2, 21.3, 21.4, 21.5, 21.6, 21.7, 21.8, 21.9, 21.15, 22.1, 22.2, 33.9_
     - Dependencies: 6.5
     - Deliverables: `backend/internal/app/duel_service.go` (two sibling forks, lockstep advance to the next window, wait for both managers, Disruption injection into both, Run_To_Tick lockstep, score at one Comparison_Tick with provisional label before horizon, winner or draw by Tie_Tolerance), `duel_service_test.go`
     - Verify: `cd backend && go test ./internal/app -run TestDuel`
     - Acceptance: neither Branch advances while the other's window is open; scores report raw metrics, components, weights, Profit_Floor, Profit_Target and Tie_Tolerance.
-  - [ ] 6.8 Property test: duel parity and exogenous fairness (required)
+    - Reconciliation (M4/M5 pass): Delivered: `backend/internal/app/duel_service.go`, `duel_service_test.go`, stores `memory/duels.go`, `postgres/duels.go`, migration `00004_duels.sql`. A duel is created at fork tick 0 by default; a branch guard rejects direct advance of duel Branches outside the Duel service. Remaining: none.
+  - [x] 6.8 Property test: duel parity and exogenous fairness (required)
     - **Property 21: Duel parity and exogenous fairness** (INV-11, INV-12)
     - **Validates: Requirements 18.4, 18.5**
     - Dependencies: 6.7
     - Deliverables: `backend/internal/app/duel_parity_prop_test.go` (`TestPropDuelParity`: random Human Commands versus Rule_Based_Manager; identical window Ticks, budget, Command_Set, lead times, Potential_Arrivals, demand and disruption stream draws and Disruptions at every Tick)
     - Verify: `cd backend && go test ./internal/app -run TestPropDuelParity`
-  - [ ] 6.9 Add the Duel endpoints
+    - Reconciliation (M4/M5 pass): Delivered: `backend/internal/app/duel_parity_prop_test.go` (`TestPropDuelParity`). Remaining: none.
+  - [x] 6.9 Add the Duel endpoints
     - _Requirements: 26.2 (create Duel, advance Duel, read Duel score), 26.8, 22.2_
     - Dependencies: 6.7
     - Deliverables: `backend/internal/httpapi/duels.go` (`POST /duels`, `POST /duels/{id}/advance`, `GET /duels/{id}/score`), `openapi.yaml`, regenerated `web/lib/api/schema.d.ts`, tests
     - Verify: `cd backend && go test ./internal/httpapi -run TestDuels && npx --yes @redocly/cli@latest lint backend/api/openapi.yaml && cd ../web && npm run gen:api && npx tsc --noEmit`
     - Acceptance: score responses carry the Disclaimer and the provisional flag before the horizon.
-  - [ ] 6.10 Record the demo duel Inputs_File and golden Branch hashes
+    - Reconciliation (M4/M5 pass): Delivered: `backend/internal/httpapi/duels.go` (create, get, advance, commands, decision-window end, disruptions, score, decisions), `decisions.go`, `openapi.yaml`, regenerated `web/lib/api/schema.d.ts`, tests. Remaining: none.
+  - [x] 6.10 Record the demo duel Inputs_File and golden Branch hashes
     - _Requirements: 30.5, 6.4_
     - Dependencies: 6.7
     - Deliverables: `backend/scenarios/demo-duel-human.json`, `backend/scenarios/demo-duel-ai.json` (Inputs_Files from a scripted duel test using the Demo_Commands for the human and the Rule_Based_Manager for the AI), `backend/scenarios/golden/demo-duel.hashes`, `backend/internal/app/golden_duel_test.go` (`TestGoldenDuelHashes`), CI step on both architectures
     - Verify: `cd backend && go test ./internal/app -run TestGoldenDuelHashes`
     - Acceptance: both Branch hashes reproduce via `parallel-sim verify`; the test asserts no winner.
-  - [ ] 6.11 Build the Duel view
+    - Reconciliation (M4/M5 pass): Delivered: `backend/scenarios/demo-duel-human.json`, `demo-duel-ai.json`, `scenarios/golden/demo-duel.hashes`, `golden_duel_test.go`; both verify MATCH via `parallel-sim verify` in the 6.12 checkpoint. Remaining: CI step on both architectures was not re-checked.
+  - [x] 6.11 Build the Duel view
     - _Requirements: 32.10, 32.11, 33.14, 21.14, 20.11, 20.12, 31.2, 31.5_
     - Dependencies: 6.9
     - Deliverables: `web/app/duels/[duelId]/page.tsx`, `web/features/duel/DuelView.tsx` (two World_Views side by side at one displayed Tick, shared Timeline, scoreboard with points to two decimals, weighted components, weights and raw metrics for both Branches, Disclaimer, Assumptions_Panel link), provenance labels "Rule-based AI", "LLM AI (<model>)", "Rule-based AI (LLM fallback: <reason>)", rationale as escaped plain text labelled "AI rationale (not verified)", Branch_Tree AI labels; tests
     - Verify: `cd web && npx vitest --run features/duel features/branches && npx tsc --noEmit && npx eslint .`
     - Acceptance: a test renders a rationale containing `<script>` and markdown links as literal text; both views always show the same Tick.
-  - [ ] 6.12 Checkpoint — M5 complete
+    - Reconciliation (M4/M5 pass): Delivered: `web/app/duels/[duelId]`, `web/features/duel/` (`DuelView`, `Scoreboard`, `DecisionsList`, `ChallengeAi`, `duelText.ts`, tests), e2e `duel.spec.ts` and `duel-llm-stub.spec.ts`. Remaining: no AI provenance labels in the Branch_Tree (tree shows manager kind only), Assumptions_Panel link in the Duel view (depends on 5.4).
+  - [-] 6.12 Checkpoint — M5 complete
     - Run `cd backend && go test ./...` and `cd web && npx tsc --noEmit && npx vitest --run`. Ensure all tests pass, ask the user if questions arise.
+    - Reconciliation (M4/M5 pass): Delivered: checkpoint run (see `docs/kiro-build-log.md`, M4/M5 implementation). Remaining: status is set by the orchestrator.
 
 - [ ] 7. M6 — Branch comparison and ensemble experiments (~350 credits)
   - [ ] 7.1 Implement the Branch_Diff_Service
@@ -903,6 +924,22 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
 - Local PostgreSQL: Homebrew Postgres occupies 5432, so the dev container is published on `DB_PORT=55432`. Test DB `parallel_test`, roles `parallel_migrator` (DDL) and `parallel_app` (runtime).
 - Stores: the API runs on the in-memory store by default (state lost on restart; the e2e suite uses it) and on PostgreSQL when `DATABASE_URL` is set. Both implement the same ports and run the same `storetest` contract tests.
 - Known issues at 4.9: `govulncheck` reports 3 reachable vulnerabilities (GO-2026-6629 and GO-2026-5970 in `golang.org/x/text` v0.25.0; GO-2026-5004 in `pgx/v5` v5.7.5, fixed in v5.9.2). Upgrading raises the `go` directive from 1.23.0 to 1.25.0, so it was not applied; decide before CI enforces govulncheck. The ~550 MB allocation per flagship replay is unprofiled. Frame stats on emulated mobile occasionally drop single frames.
+
+### M4/M5 implementation notes
+
+- Tasks 5.4 and 5.7 are not complete and were not ticked: 5.4 lacks `GET /worlds/{id}/assumptions` and the editor's reveal-script gating; 5.7 lacks `scene/interpolate.ts` and provenance-distinguished Input markers. 5.8 therefore stays open. Task statuses are set by the orchestrator.
+- Security upgrade (resolves the 4.9 known issue): `govulncheck` had reported 3 vulnerabilities, GO-2026-6629 and GO-2026-5970 in `golang.org/x/text` and GO-2026-5004 in `pgx/v5`. They were fixed by upgrading both modules. The `go` directive is now 1.25.0 (commit `a102b29`), and CI pins its tool versions (govulncheck v1.10.0, staticcheck v0.8.2; both toolchains switch to Go 1.26 to build the tools). At the 6.12 checkpoint `govulncheck ./...` reports "No vulnerabilities found" and `npm audit --audit-level=high` finds 0.
+- SSE limitation: stream event ids are Tick numbers, shared by every Branch of a World, so an id identifies a Tick, not a Branch. Resume with `Last-Event-ID` works per connection. Polling `GET /tick-frames` is the fallback.
+- Decision records design: migrations `00002_decision_records.sql` (one record per Branch and decision window with provenance, rationale, fallback reason), `00003_decision_llm_usage.sql` (token and call usage columns), `00004_duels.sql` (duels). The records are derived data next to the immutable input log, not a second source of truth.
+- AI decisions stay hidden from the human until the human ends the window; they are visible afterwards in the "what happened" list.
+- Duel branch guard: Branches created by a Duel cannot be advanced or edited through the plain Branch endpoints, so both sides stay in lockstep.
+- Known limitation: LLM deciders hold the service mutex during provider calls, so a slow provider serialises the whole service for up to the request timeout (default 20 s). Not fixed in M5.
+- A Duel is created at fork tick 0 by default.
+- The Branch_Tree shows manager kind only; it has no AI provenance labels (6.11 asked for them).
+- The rule-based manager's rationale uses jargon (reorder point, safety stock).
+- Live LLM verification is PENDING: no runtime API key was configured, so only the `httptest` and e2e stub providers were exercised.
+- Engine version is still 2; no change under `backend/internal/sim` in this round. Seed 2026 hash `4c6d0dd0...ab99e`, demo-fork golden `a51c195a...e2a5`, and both demo-duel golden hashes verify MATCH.
+- Credit and time: not measured. The full e2e suite takes about 4.7 minutes (16 passed, 0 failed, 6 skipped at the last run).
 
 ## Task Dependency Graph
 

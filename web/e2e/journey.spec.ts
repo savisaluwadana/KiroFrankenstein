@@ -133,6 +133,7 @@ test("first-time journey on the real backend", async ({ page }, info) => {
   await scrubTo(page, 4);
 
   // 9. Explore another future from the rewound hour: the split sequence plays.
+  const rootBeforeFork = branchIdOf(page);
   await openMoves(page);
   await page.locator("#explore-future").click();
   const seq = page.getByTestId("fork-sequence");
@@ -147,6 +148,8 @@ test("first-time journey on the real backend", async ({ page }, info) => {
   const switcher = page.getByRole("group", { name: "Which future you are looking at" });
   await expect(switcher.getByRole("button")).toHaveCount(2);
   await expect(switcher.getByRole("button", { name: /Original path/ })).toBeVisible();
+  await expect(switcher.getByRole("button", { name: /Original path/ })).toHaveAttribute("aria-pressed", "false");
+  await page.waitForURL((u) => u.searchParams.get("branch") !== rootBeforeFork);
   const altBranch = branchIdOf(page);
 
   // 11. Advance the alternative a little, then compare side by side.

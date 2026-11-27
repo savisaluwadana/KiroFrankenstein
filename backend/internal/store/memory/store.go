@@ -22,6 +22,8 @@ type Store struct {
 	keys      map[app.BranchID]map[string]int // key -> index in inputs
 	snapshots map[app.BranchID][]app.Snapshot // sorted by tick
 	summaries map[app.BranchID]map[sim.Tick]app.TickSummary
+	decisions map[app.BranchID][]app.DecisionRecord
+	duels     map[app.DuelID]app.Duel
 }
 
 var _ app.Store = (*Store)(nil)
@@ -36,6 +38,8 @@ func New() *Store {
 		keys:      map[app.BranchID]map[string]int{},
 		snapshots: map[app.BranchID][]app.Snapshot{},
 		summaries: map[app.BranchID]map[sim.Tick]app.TickSummary{},
+		decisions: map[app.BranchID][]app.DecisionRecord{},
+		duels:     map[app.DuelID]app.Duel{},
 	}
 }
 

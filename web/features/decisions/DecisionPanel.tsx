@@ -13,8 +13,11 @@ import {
   ApiError,
   endDecisionWindow,
   submitCommands,
+  type Assumption,
   type Command,
+  type EndWindowRequest,
   type Observation,
+  type SubmitCommandsRequest,
   type SubmitCommandsResult,
 } from "@/lib/api/client";
 import {
@@ -38,7 +41,7 @@ type Role = "primary" | "backup";
 export interface Prefill {
   /** Changes on every request so the same request can be repeated. */
   nonce: number;
-  kind: "order" | "price";
+  kind: "order" | "price" | "overtime" | "hire";
   skuIndex: number;
   role?: Role;
 }
@@ -60,11 +63,19 @@ export interface DecisionPanelProps {
   /** Scenario start label, to show effective times as clock times. */
   startClock: string;
   suggestion?: Suggestion | null;
+  /** The world's effective assumptions: source of fees, wages and limits shown as hints. The server validates. */
+  assumptions?: readonly Assumption[];
   prefill?: Prefill | null;
   /** Called with the server response after each submit. */
   onSubmitted?: (result: SubmitCommandsResult) => void;
   /** Called after the server confirms the window ended. */
   onWindowEnded?: () => void;
+  /**
+   * Replaces the endpoints used to submit Commands and end the window. The Duel view points them at the
+   * Duel endpoints; the Branch endpoints answer 409 for a Branch that belongs to a Duel.
+   */
+  submitCommandsFn?: (body: SubmitCommandsRequest, idempotencyKey: string) => Promise<SubmitCommandsResult>;
+  endWindowFn?: (body: EndWindowRequest) => Promise<void>;
 }
 
 /** Parses a dollar string such as "12", "12.5" or "12.50" into integer cents without floating point. */
@@ -82,6 +93,8 @@ interface Pending {
   text: string;
   /** "arriving in about N hours" for orders. */
   arrival?: string;
+  /** Past-tense text for the "Locked in" list; defaults to the text with "Order" turned into "Ordered". */
+  done?: string;
   rejection?: { code: string; message: string };
 }
 
@@ -102,6 +115,50 @@ const button =
   "inline-flex min-h-11 items-center justify-center rounded-[4px] border border-hairline bg-surface px-3 text-sm text-ivory transition-colors duration-150 ease-out hover:border-amber disabled:opacity-40 motion-reduce:transition-none";
 const primary = `${button} border-amber text-amber`;
 const card = "space-y-3 rounded-[8px] border border-hairline bg-surface p-3";
+
+/** Parses a small whole number ("0", "12"); null for anything else. */
+function parseSmallInt(input: string): number | null {
+  return /^\d{1,3}$/.test(input.trim()) ? Number(input.trim()) : null;
+}
+
+function Stepper(props: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  min: number;
+  max: number;
+}) {
+  const n = parseSmallInt(props.value);
+  return (
+    <div className="flex items-end gap-2">
+      <button
+        type="button"
+        className={`${button} min-w-11`}
+        aria-label={`Decrease ${props.label.toLowerCase()}`}
+        onClick={() => props.onChange(String(Math.max(props.min, (n ?? props.min) - 1)))}
+      >
+        −
+      </button>
+      <label className="flex flex-col gap-1">
+        {props.label}
+        <input
+          className={`${field} w-24 text-center`}
+          inputMode="numeric"
+          value={props.value}
+          onChange={(e) => props.onChange(e.target.value)}
+        />
+      </label>
+      <button
+        type="button"
+        className={`${button} min-w-11`}
+        aria-label={`Increase ${props.label.toLowerCase()}`}
+        onClick={() => props.onChange(String(Math.min(props.max, (n ?? props.min) + 1)))}
+      >
+        +
+      </button>
+    </div>
+  );
+}
 
 function supplierWord(role: Role): string {
   return supplierRoleName(role).toLowerCase();
@@ -128,6 +185,11 @@ export function DecisionPanel(props: DecisionPanelProps) {
   const [poQty, setPoQty] = useState(String(DEFAULT_QTY));
   const [prSku, setPrSku] = useState<number>(skus[0]?.sku ?? 0);
   const [prPrice, setPrPrice] = useState("");
+  const [rushPo, setRushPo] = useState("");
+  const [otHours, setOtHours] = useState("1");
+  const [hireCount, setHireCount] = useState("1");
+  const [mkSku, setMkSku] = useState<number>(skus[0]?.sku ?? 0);
+  const [mkSpend, setMkSpend] = useState("");
 
   const [total] = useState(observation.window.commandBudget);
   const [remaining, setRemaining] = useState(budgetRemaining);
@@ -144,17 +206,24 @@ export function DecisionPanel(props: DecisionPanelProps) {
     if (prefill.kind === "order") {
       setPoSku(prefill.skuIndex);
       if (prefill.role !== undefined) setPoRole(prefill.role);
+    } else if (prefill.kind === "overtime") {
+      setOtHours("1");
+    } else if (prefill.kind === "hire") {
+      setHireCount("1");
     } else {
       setPrSku(prefill.skuIndex);
     }
   }
   const orderCardRef = useRef<HTMLElement | null>(null);
   const priceCardRef = useRef<HTMLElement | null>(null);
+  const overtimeCardRef = useRef<HTMLElement | null>(null);
+  const hireCardRef = useRef<HTMLElement | null>(null);
   const prefillNonce = prefill?.nonce;
   const prefillKind = prefill?.kind;
   useEffect(() => {
     if (prefillNonce === undefined) return;
-    (prefillKind === "price" ? priceCardRef : orderCardRef).current?.focus();
+    const refs = { price: priceCardRef, overtime: overtimeCardRef, hire: hireCardRef, order: orderCardRef };
+    refs[prefillKind ?? "order"].current?.focus();
   }, [prefillNonce, prefillKind]);
 
   const poSkuObs = skus.find((s) => s.sku === poSku);
@@ -165,8 +234,35 @@ export function DecisionPanel(props: DecisionPanelProps) {
   const estimate = supplier !== undefined && qty !== null ? qty * supplier.unitCostCents : null;
   const prSkuObs = skus.find((s) => s.sku === prSku);
 
-  function addPending(command: Command, text: string, arrival?: string) {
-    setPending((p) => [...p, { key: seq, command, text, ...(arrival !== undefined ? { arrival } : {}) }]);
+  const av = (path: string): number | undefined => props.assumptions?.find((a) => a.path === path)?.value;
+  const rejectionFor = (kind: Command["kind"]) => pending.find((p) => p.command.kind === kind && p.rejection !== undefined);
+
+  const expediteFee = av("costs.expediteFeeCents");
+  const expediteReduction = av("costs.expediteReductionTicks");
+  const purchaseOrders = observation.purchaseOrders ?? [];
+  const rushSel = purchaseOrders.find((o) => String(o.id) === rushPo) ?? purchaseOrders[0];
+
+  const maxOvertime = av("workforce.maxOvertimePerWorker");
+  const overtimeWage = av("wages.overtimePerHourCents");
+  const regularWorkers = observation.workforce?.regular ?? av("workforce.regularWorkers");
+  const otN = parseSmallInt(otHours);
+
+  const maxTemps = av("workforce.maxTempWorkers");
+  const tempWage = av("wages.tempPerHourCents");
+  const onboardingTicks = av("workforce.tempOnboardingTicks");
+  const contracted = (observation.workforce?.tempsOnShift ?? 0) + (observation.workforce?.tempsOnboarding ?? 0);
+  const headroom = maxTemps === undefined ? undefined : Math.max(0, maxTemps - contracted);
+  const hireN = parseSmallInt(hireCount);
+
+  const maxMarketing = av("demand.maxMarketingSpendCentsPerHour");
+  const mkSkuObs = skus.find((s) => s.sku === mkSku);
+  const mkCents = parseDollarsToCents(mkSpend);
+
+  function addPending(command: Command, text: string, arrival?: string, done?: string) {
+    setPending((p) => [
+      ...p,
+      { key: seq, command, text, ...(arrival !== undefined ? { arrival } : {}), ...(done !== undefined ? { done } : {}) },
+    ]);
     setSeq((n) => n + 1);
     setFormError(null);
   }
@@ -201,6 +297,69 @@ export function DecisionPanel(props: DecisionPanelProps) {
     setPrPrice("");
   }
 
+  function addRush() {
+    if (rushSel === undefined) {
+      setFormError(rejectionMessage("unknown_purchase_order"));
+      return;
+    }
+    const what = `${formatCount(rushSel.qty)} ${nameOfSku(rushSel.sku)} from the ${supplierWord(rushSel.supplier)}`;
+    addPending(
+      { kind: "expedite_purchase_order", poRef: rushSel.id },
+      `Rush the delivery of ${what}`,
+      expediteReduction !== undefined ? `arriving about ${formatHours(expediteReduction)} sooner` : undefined,
+      `Rushed the delivery of ${what}`,
+    );
+  }
+
+  function addOvertime() {
+    if (otN === null || (maxOvertime !== undefined && otN > maxOvertime)) {
+      setFormError(rejectionMessage("overtime_exceeds_limit"));
+      return;
+    }
+    addPending(
+      { kind: "schedule_overtime", qty: otN },
+      otN === 0 ? "Stop overtime" : `Schedule ${formatHours(otN)} of overtime per worker`,
+      undefined,
+      otN === 0 ? "Stopped overtime" : `Scheduled ${formatHours(otN)} of overtime per worker`,
+    );
+  }
+
+  function addHire() {
+    if (hireN === null || hireN < 1) {
+      setFormError(rejectionMessage("invalid_quantity"));
+      return;
+    }
+    if (headroom !== undefined && hireN > headroom) {
+      setFormError(rejectionMessage("too_many_temp_workers"));
+      return;
+    }
+    addPending(
+      { kind: "hire_temp_workers", qty: hireN },
+      `Hire ${formatCount(hireN)} temporary ${hireN === 1 ? "worker" : "workers"}`,
+      undefined,
+      `Hired ${formatCount(hireN)} temporary ${hireN === 1 ? "worker" : "workers"}`,
+    );
+  }
+
+  function addMarketing() {
+    if (mkCents === null) {
+      setFormError("Enter an amount in dollars per hour, for example 25 (0 stops it).");
+      return;
+    }
+    if (maxMarketing !== undefined && mkCents > maxMarketing) {
+      setFormError(rejectionMessage("marketing_exceeds_limit"));
+      return;
+    }
+    const name = nameOfSku(mkSku);
+    addPending(
+      { kind: "set_marketing_spend", sku: mkSku, amountCents: mkCents },
+      mkCents === 0 ? `Stop marketing ${name}` : `Spend ${formatMoney(mkCents)} an hour marketing ${name}`,
+      undefined,
+      mkCents === 0 ? `Stopped marketing ${name}` : `Now spending ${formatMoney(mkCents)} an hour marketing ${name}`,
+    );
+    setMkSpend("");
+  }
+
   function addSuggestion(s: Suggestion) {
     const lead = skus.find((x) => x.sku === s.skuIndex)?.suppliers.find((x) => x.role === s.role)?.leadTimeTicks;
     addPending(
@@ -216,11 +375,15 @@ export function DecisionPanel(props: DecisionPanelProps) {
     setFormError(null);
     const batch = pending;
     try {
-      const result = await submitCommands(
-        branchId,
-        { windowTick, commands: batch.map((p) => p.command), expectedHeadTick: observation.tick },
-        crypto.randomUUID(),
-      );
+      const body: SubmitCommandsRequest = {
+        windowTick,
+        commands: batch.map((p) => p.command),
+        expectedHeadTick: observation.tick,
+      };
+      const key = crypto.randomUUID();
+      const result = props.submitCommandsFn
+        ? await props.submitCommandsFn(body, key)
+        : await submitCommands(branchId, body, key);
       const rejectedBy = new Map(result.rejected.map((r) => [r.index, r]));
       const acceptedQueue = [...result.accepted];
       const stillPending: Pending[] = [];
@@ -238,7 +401,7 @@ export function DecisionPanel(props: DecisionPanelProps) {
         if (acc !== undefined) {
           newlySent.push({
             key: p.key,
-            text: p.text.replace(/^Order /, "Ordered "),
+            text: p.done ?? p.text.replace(/^Order /, "Ordered "),
             ...(p.arrival !== undefined ? { arrival: p.arrival } : {}),
             effectiveTick: acc.effectiveTick,
           });
@@ -260,7 +423,9 @@ export function DecisionPanel(props: DecisionPanelProps) {
     setBusy(true);
     setFormError(null);
     try {
-      await endDecisionWindow(branchId, { windowTick, expectedHeadTick: observation.tick });
+      const body: EndWindowRequest = { windowTick, expectedHeadTick: observation.tick };
+      if (props.endWindowFn) await props.endWindowFn(body);
+      else await endDecisionWindow(branchId, body);
       setEnded(true);
       onWindowEnded?.();
     } catch (e) {
@@ -385,6 +550,7 @@ export function DecisionPanel(props: DecisionPanelProps) {
             <button type="button" className={button} onClick={addOrder}>
               Add to my moves
             </button>
+            <CardRejection p={rejectionFor("place_purchase_order")} engineering={engineering} />
           </>
         ) : (
           <p className="text-ivory-dim">No supplier can deliver this product right now.</p>
@@ -430,7 +596,143 @@ export function DecisionPanel(props: DecisionPanelProps) {
         <button type="button" className={button} onClick={addPrice}>
           Add to my moves
         </button>
+        <CardRejection p={rejectionFor("set_price")} engineering={engineering} />
       </section>
+
+      {expediteFee !== undefined && expediteReduction !== undefined ? (
+        <section aria-labelledby="rush-card-title" className={card}>
+          <h3 id="rush-card-title" className="font-medium">
+            Rush a delivery
+          </h3>
+          {purchaseOrders.length === 0 ? (
+            <p className="text-ivory-dim">No deliveries are on the way right now.</p>
+          ) : (
+            <>
+              <label className="flex flex-col gap-1">
+                Delivery to rush
+                <select className={field} value={rushSel?.id ?? ""} onChange={(e) => setRushPo(e.target.value)}>
+                  {purchaseOrders.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {`${formatCount(o.qty)} ${nameOfSku(o.sku)} from the ${supplierWord(o.supplier)}, due ${formatSimTime(Math.floor(o.dueAt / 60), startClock)}${o.expedited ? " (already rushed)" : ""}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 tabular-nums">
+                <dt className="flex items-center gap-1 text-ivory-dim">
+                  Estimated cost
+                  <InfoPopover label="rush fee">A flat fee for each delivery you rush, charged when the move takes effect.</InfoPopover>
+                </dt>
+                <dd data-testid="rush-fee">{formatMoney(expediteFee)}</dd>
+                <dt className="text-ivory-dim">Arrives</dt>
+                <dd>about {formatHours(expediteReduction)} sooner</dd>
+              </dl>
+              {rushSel?.expedited === true ? (
+                <p className="text-ivory-dim">This delivery has already been rushed once.</p>
+              ) : null}
+              <button type="button" className={button} onClick={addRush}>
+                Add to my moves
+              </button>
+            </>
+          )}
+          <CardRejection p={rejectionFor("expedite_purchase_order")} engineering={engineering} />
+        </section>
+      ) : null}
+
+      {maxOvertime !== undefined && overtimeWage !== undefined && regularWorkers !== undefined ? (
+        <section ref={overtimeCardRef} tabIndex={-1} aria-labelledby="overtime-card-title" className={card}>
+          <h3 id="overtime-card-title" className="font-medium">
+            Schedule overtime
+          </h3>
+          <Stepper label="Overtime hours per worker" value={otHours} onChange={setOtHours} min={0} max={maxOvertime} />
+          <p className="text-ivory-dim">
+            Each worker can do up to {formatHours(maxOvertime)} of overtime an hour. It applies every hour until you
+            change it. Choose 0 hours to stop overtime.
+          </p>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 tabular-nums">
+            <dt className="text-ivory-dim">Estimated extra wages per hour</dt>
+            <dd data-testid="overtime-estimate">
+              {otN !== null && otN <= maxOvertime ? formatMoney(regularWorkers * otN * overtimeWage) : `Choose 0 to ${maxOvertime} hours`}
+            </dd>
+          </dl>
+          <button type="button" className={button} onClick={addOvertime}>
+            Add to my moves
+          </button>
+          <CardRejection p={rejectionFor("schedule_overtime")} engineering={engineering} />
+        </section>
+      ) : null}
+
+      {headroom !== undefined && tempWage !== undefined && onboardingTicks !== undefined ? (
+        <section ref={hireCardRef} tabIndex={-1} aria-labelledby="hire-card-title" className={card}>
+          <h3 id="hire-card-title" className="font-medium">
+            Hire temporary staff
+          </h3>
+          {headroom === 0 ? (
+            <p className="text-ivory-dim">You already have as many temporary workers as the business allows.</p>
+          ) : (
+            <>
+              <Stepper label="Temporary workers" value={hireCount} onChange={setHireCount} min={1} max={headroom} />
+              <p className="text-ivory-dim">
+                You can add up to {formatCount(headroom)} more. They get paid from day one but only start packing after{" "}
+                {formatHours(onboardingTicks)} of training.
+              </p>
+              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 tabular-nums">
+                <dt className="text-ivory-dim">Estimated wages per hour</dt>
+                <dd data-testid="hire-estimate">
+                  {hireN !== null && hireN >= 1 && hireN <= headroom ? formatMoney(hireN * tempWage) : `Choose 1 to ${formatCount(headroom)}`}
+                </dd>
+              </dl>
+              <button type="button" className={button} onClick={addHire}>
+                Add to my moves
+              </button>
+            </>
+          )}
+          <CardRejection p={rejectionFor("hire_temp_workers")} engineering={engineering} />
+        </section>
+      ) : null}
+
+      {maxMarketing !== undefined ? (
+        <section aria-labelledby="marketing-card-title" className={card}>
+          <h3 id="marketing-card-title" className="font-medium">
+            Marketing push
+          </h3>
+          <div className="flex flex-wrap gap-3">
+            <label className="flex flex-col gap-1">
+              Product to promote
+              <select className={field} value={mkSku} onChange={(e) => setMkSku(Number(e.target.value))}>
+                {skus.map((s) => (
+                  <option key={s.sku} value={s.sku}>
+                    {productName(s.id)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1">
+              Spend per hour (USD)
+              <input
+                className={`${field} w-28`}
+                inputMode="decimal"
+                value={mkSpend}
+                onChange={(e) => setMkSpend(e.target.value)}
+              />
+            </label>
+          </div>
+          <p className="text-ivory-dim tabular-nums">
+            {mkSkuObs !== undefined ? `Now ${formatMoney(mkSkuObs.marketingCents)} an hour. ` : ""}
+            You can spend up to {formatMoney(maxMarketing)} an hour. It continues until you change it. Enter 0 to stop.
+          </p>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 tabular-nums">
+            <dt className="text-ivory-dim">Estimated cost per hour</dt>
+            <dd data-testid="marketing-estimate">
+              {mkCents !== null && mkCents <= maxMarketing ? formatMoney(mkCents) : "Enter an amount"}
+            </dd>
+          </dl>
+          <button type="button" className={button} onClick={addMarketing}>
+            Add to my moves
+          </button>
+          <CardRejection p={rejectionFor("set_marketing_spend")} engineering={engineering} />
+        </section>
+      ) : null}
 
       {formError !== null && (
         <p role="alert" className="text-clay">
@@ -497,6 +799,17 @@ export function DecisionPanel(props: DecisionPanelProps) {
       </div>
       {ended ? <p className="text-ivory-dim">Done for now. Press Play to carry on.</p> : null}
     </section>
+  );
+}
+
+/** The server's rejection of a move, shown next to the card that made it. */
+function CardRejection({ p, engineering }: { p: Pending | undefined; engineering: boolean }) {
+  if (p?.rejection === undefined) return null;
+  return (
+    <p role="alert" data-testid="card-rejection" className="text-clay">
+      {rejectionMessage(p.rejection.code)}
+      {engineering ? ` (server: ${p.rejection.code}: ${p.rejection.message})` : ""}
+    </p>
   );
 }
 

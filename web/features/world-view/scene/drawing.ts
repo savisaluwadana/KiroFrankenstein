@@ -331,6 +331,10 @@ export class Tag extends Container {
   private readonly text: Text;
   private current = "";
   private tone = "";
+  private fontSize = 0;
+  /** Size of the pill in scene pixels after the last set(). */
+  boxW = 0;
+  boxH = 0;
   constructor(
     private readonly fontFamily: string,
     private readonly size = 12,
@@ -341,16 +345,20 @@ export class Tag extends Container {
     this.text.position.set(8, 4);
     this.addChild(this.bg, this.text);
   }
-  set(text: string, tone: "normal" | "crisis" | "good" | "muted" = "normal"): void {
-    if (text === this.current && tone === this.tone) return;
+  set(text: string, tone: "normal" | "crisis" | "good" | "muted" = "normal", size = this.size): void {
+    if (text === this.current && tone === this.tone && size === this.fontSize) return;
     this.current = text;
     this.tone = tone;
+    this.fontSize = size;
     const fill = tone === "crisis" ? PALETTE.ink : tone === "muted" ? PALETTE.ivoryDim : tone === "good" ? PALETTE.ink : PALETTE.ivory;
     const back = tone === "crisis" ? PALETTE.clay : tone === "good" ? PALETTE.sage : PALETTE.surface;
     this.text.text = text;
+    this.text.style.fontSize = size;
     this.text.style.fill = fill;
     const w = Math.ceil(this.text.width) + 16;
     const h = Math.ceil(this.text.height) + 8;
+    this.boxW = w;
+    this.boxH = h;
     this.bg.clear();
     this.bg.roundRect(0, 0, w, h, 8).fill({ color: back, alpha: 0.94 }).stroke({ width: 1, color: tone === "crisis" ? PALETTE.clay : PALETTE.hairline });
     this.pivot.set(w / 2, h);

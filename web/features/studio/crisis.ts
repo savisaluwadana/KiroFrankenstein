@@ -14,7 +14,7 @@ export type SupplierRole = "primary" | "backup";
 export interface CrisisAction {
   id: string;
   label: string;
-  kind: "order" | "price";
+  kind: "order" | "price" | "overtime" | "hire";
   skuIndex: number;
   role?: SupplierRole;
 }
@@ -170,7 +170,10 @@ export function deriveCrisisCards(input: CrisisInput): CrisisCard[] {
       what: `${orders(capacityBound)} ${capacityBound === 1 ? "is" : "are"} ready but the team can't pack them all this hour.`,
       why: `The team can only pack ${formatCount(frame.report.capacity)} items an hour.`,
       affected: "",
-      actions: [],
+      actions: [
+        { id: "hire-temps", label: "Hire temporary staff", kind: "hire", skuIndex: 0 },
+        { id: "schedule-overtime", label: "Schedule overtime", kind: "overtime", skuIndex: 0 },
+      ],
     });
   }
 

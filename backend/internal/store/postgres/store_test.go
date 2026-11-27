@@ -149,11 +149,44 @@ func (a mapped) LoadLatestSnapshot(ctx context.Context, id app.BranchID, t sim.T
 	return s, ok, err
 }
 
+func (a mapped) AppendDecision(ctx context.Context, d app.DecisionRecord) error {
+	d.BranchID = app.BranchID(a.m.to(string(d.BranchID)))
+	return a.s.(app.DecisionRepo).AppendDecision(ctx, d)
+}
+func (a mapped) DecisionsForBranch(ctx context.Context, id app.BranchID) ([]app.DecisionRecord, error) {
+	l, err := a.s.(app.DecisionRepo).DecisionsForBranch(ctx, app.BranchID(a.m.to(string(id))))
+	for i := range l {
+		l[i].BranchID = id
+	}
+	return l, err
+}
+
+func (a mapped) CreateDuel(ctx context.Context, d app.Duel) error {
+	d.ID = app.DuelID(a.m.to(string(d.ID)))
+	d.WorldID = app.WorldID(a.m.to(string(d.WorldID)))
+	d.ParentBranchID = app.BranchID(a.m.to(string(d.ParentBranchID)))
+	d.HumanBranchID = app.BranchID(a.m.to(string(d.HumanBranchID)))
+	d.AIBranchID = app.BranchID(a.m.to(string(d.AIBranchID)))
+	return a.s.(app.DuelRepo).CreateDuel(ctx, d)
+}
+func (a mapped) GetDuel(ctx context.Context, id app.DuelID) (app.Duel, error) {
+	d, err := a.s.(app.DuelRepo).GetDuel(ctx, app.DuelID(a.m.to(string(id))))
+	d.ID = app.DuelID(a.m.from(string(d.ID)))
+	d.WorldID = app.WorldID(a.m.from(string(d.WorldID)))
+	d.ParentBranchID = app.BranchID(a.m.from(string(d.ParentBranchID)))
+	d.HumanBranchID = app.BranchID(a.m.from(string(d.HumanBranchID)))
+	d.AIBranchID = app.BranchID(a.m.from(string(d.AIBranchID)))
+	return d, err
+}
+
 func TestContract(t *testing.T) {
 	pool := testPool(t)
-	storetest.Run(t, func(*testing.T) app.Store {
+	factory := func(*testing.T) app.Store {
 		return mapped{s: postgres.New(pool), m: newIDMap()}
-	})
+	}
+	storetest.Run(t, factory)
+	storetest.RunDecisions(t, factory)
+	storetest.RunDuels(t, factory)
 }
 
 func TestSeedRoundTrip(t *testing.T) {
@@ -176,6 +209,11 @@ func TestSeedRoundTrip(t *testing.T) {
 func TestRuntimeRoleCannotMutateInputLog(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
+	for _, q := range []string{`UPDATE decision_records SET rationale = rationale`, `DELETE FROM decision_records`, `TRUNCATE decision_records`} {
+		if _, err := pool.Exec(ctx, q); err == nil {
+			t.Fatalf("runtime role must not run %q", q)
+		}
+	}
 	if _, err := pool.Exec(ctx, `UPDATE input_log SET payload = payload`); err == nil {
 		t.Fatal("runtime role must not UPDATE input_log")
 	}

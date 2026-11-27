@@ -45,7 +45,7 @@ var ErrNotMigrated = errors.New("postgres: schema not migrated")
 // CheckMigrated verifies that every table the store needs exists. It uses
 // to_regclass, which needs no privilege on the tables themselves.
 func CheckMigrated(ctx context.Context, pool *pgxpool.Pool) error {
-	for _, t := range []string{"worlds", "branches", "input_log", "snapshots", "tick_summaries"} {
+	for _, t := range []string{"worlds", "branches", "input_log", "snapshots", "tick_summaries", "decision_records", "duels"} {
 		var reg *string
 		if err := pool.QueryRow(ctx, `SELECT to_regclass($1)::text`, "public."+t).Scan(&reg); err != nil {
 			return fmt.Errorf("postgres: check table %s: %w", t, err)

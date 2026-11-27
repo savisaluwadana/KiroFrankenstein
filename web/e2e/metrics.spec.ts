@@ -44,6 +44,8 @@ test("header figures equal the live API at several hours, and comparisons equal 
   await openMoves(page);
   await page.locator("#explore-future").click();
   await page.getByTestId("fork-sequence").getByRole("button", { name: /Skip/ }).click();
+  // The studio switches to the new reality (and its URL) once its frames are loaded.
+  await page.waitForURL((u) => u.searchParams.get("branch") !== root);
   const alt = branchIdOf(page);
   await closeSheetOnPhone(page);
   await playTo(page, 72);

@@ -108,8 +108,9 @@ function toWire(b: FakeBranch): Branch {
   return wire as Branch;
 }
 
-function makeFakeApi() {
+function makeFakeApi(opts: { mismatch?: boolean } = {}) {
   const calls: Call[] = [];
+  const injectedInputs: unknown[] = [];
   const branches = new Map<string, FakeBranch>();
   const iso = "2026-01-01T00:00:00Z";
   branches.set("r1", {
@@ -144,6 +145,9 @@ function makeFakeApi() {
       ],
       scoreWeights: {},
     },
+    ...(opts.mismatch === true
+      ? { warnings: [{ code: "engine-version-mismatch", message: "Recorded under another version." }] }
+      : {}),
     assumptions: [
       { path: "demand.baseUnits", value: 10, unit: "units/h", default: 10, min: 1, max: 100, rationale: "synthetic", overridden: false },
     ],
@@ -276,6 +280,37 @@ function makeFakeApi() {
         budgetRemaining: 4,
         duplicate: false,
       });
+    }
+    if (method === "POST" && sub === "disruptions") {
+      const req = body as { kind: string; startTick: number; durationTicks: number; magnitudeBps?: number; target: number };
+      if (req.startTick > HORIZON) {
+        return json(422, {
+          type: "urn:parallel:problem:validation",
+          title: "Validation failed",
+          status: 422,
+          issues: [{ field: "startTick", message: `Choose an hour from ${b.headTick + 1} to ${HORIZON}.` }],
+        });
+      }
+      injectedInputs.push({
+        effectiveTick: req.startTick,
+        seq: injectedInputs.length + 1,
+        kind: "disruption",
+        disruption: { kind: req.kind, target: req.target, role: 0, durationTicks: req.durationTicks, magnitudeBps: req.magnitudeBps ?? 0 },
+        provenance: "injected",
+      });
+      return json(200, {
+        seq: injectedInputs.length,
+        effectiveTick: req.startTick,
+        kind: req.kind,
+        durationTicks: req.durationTicks,
+        magnitudeBps: req.magnitudeBps ?? 0,
+        target: req.target,
+        provenance: "injected",
+        duplicate: false,
+      });
+    }
+    if (method === "GET" && sub === "export") {
+      return json(200, { scenarioHash: "abc", seed: 2026, engineVersion: "1", inputs: injectedInputs });
     }
     if (method === "POST" && sub === "decision-window/end") {
       b.windowOpen = false;
@@ -638,5 +673,61 @@ describe("studio flow", () => {
       expect(screen.queryByTestId("not-simulated-r1")).toBeNull();
       expect(screen.getAllByTestId("worldview").map((n) => n.getAttribute("data-tick"))).toEqual(["9", "9"]);
     });
+  });
+
+  it("adds a surprise, shows it as a time-strip marker, and keeps it after a reload", async () => {
+    const api = makeFakeApi();
+    vi.stubGlobal("fetch", vi.fn(api.fetchImpl));
+    const view = render(<StudioPage worldId={WORLD_ID} branchId="r1" />);
+    await settle();
+    expect(document.querySelector('[data-provenance="injected"]')).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add a surprise" }));
+    fireEvent.change(screen.getByLabelText("Starts at"), { target: { value: "6" } });
+    fireEvent.change(screen.getByLabelText("Lasts (hours)"), { target: { value: "3" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add this surprise" }));
+    await settle();
+    const call = api.calls.find((c) => c.path === "/branches/r1/disruptions");
+    expect(call?.body).toMatchObject({ kind: "supplier_outage", startTick: 6, durationTicks: 3, role: "primary", expectedHeadTick: 0 });
+    expect(screen.getByTestId("inject-confirmation").textContent).toContain("supplier outage");
+    await settle();
+    expect(screen.getByLabelText(/Surprise you added, takes effect at/)).toBeTruthy();
+
+    // Reload: the marker comes back from the exported inputs.
+    view.unmount();
+    render(<StudioPage worldId={WORLD_ID} branchId="r1" />);
+    await settle();
+    expect(screen.getByLabelText(/Surprise you added, takes effect at/)).toBeTruthy();
+  });
+
+  it("shows a read-only banner and hides mutation controls for a version-mismatched world", async () => {
+    const api = makeFakeApi({ mismatch: true });
+    vi.stubGlobal("fetch", vi.fn(api.fetchImpl));
+    render(<StudioPage worldId={WORLD_ID} branchId="r1" />);
+    await settle();
+    expect(screen.getByTestId("engine-version-banner").textContent).toContain("older version of the simulator");
+    expect(screen.getByTestId("engine-version-banner").textContent).toContain("Read only");
+    expect(screen.queryByTestId("engine-versions")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Play" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Next moment" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Explore another future" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add a surprise" })).toBeNull();
+    expect(screen.getByTestId("read-only")).toBeTruthy();
+    // Looking back stays available.
+    expect(screen.getByRole("button", { name: "Previous moment" })).toBeTruthy();
+    press(" ");
+    press("ArrowRight");
+    await settle();
+    expect(advanceCalls(api.calls)).toHaveLength(0);
+  });
+
+  it("shows no banner and keeps the controls for a matching world", async () => {
+    const api = makeFakeApi();
+    vi.stubGlobal("fetch", vi.fn(api.fetchImpl));
+    render(<StudioPage worldId={WORLD_ID} branchId="r1" />);
+    await settle();
+    expect(screen.queryByTestId("engine-version-banner")).toBeNull();
+    expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add a surprise" })).toBeTruthy();
   });
 });

@@ -98,6 +98,43 @@ func TestSimImportsAllowlist(t *testing.T) {
 	}
 }
 
+// TestPolicyDoesNotImportOuterLayers: policy packages may import sim and
+// policy but never app, store or httpapi (dependency direction points inward).
+func TestPolicyDoesNotImportOuterLayers(t *testing.T) {
+	const base = "github.com/savisaluwadana/KiroFrankenstein/backend/internal/"
+	forbidden := []string{base + "app", base + "store", base + "httpapi"}
+	var checked int
+	err := filepath.WalkDir(filepath.Join("..", "policy"), func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		checked++
+		f, perr := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+		if perr != nil {
+			t.Errorf("%s: parse: %v", path, perr)
+			return nil
+		}
+		for _, imp := range f.Imports {
+			p, _ := strconv.Unquote(imp.Path.Value)
+			for _, bad := range forbidden {
+				if p == bad || strings.HasPrefix(p, bad+"/") {
+					t.Errorf("%s imports %q; internal/policy must not depend on it", path, p)
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if checked == 0 {
+		t.Fatal("no policy files found")
+	}
+}
+
 func TestForbiddenImportDetected(t *testing.T) {
 	tests := []struct {
 		name string
@@ -124,5 +161,40 @@ func TestForbiddenImportDetected(t *testing.T) {
 				t.Fatalf("got %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+const modulePath = "github.com/savisaluwadana/KiroFrankenstein/backend/"
+
+// TestRuleBasedImportsOnly asserts internal/policy/rulebased (non-test files)
+// imports only internal/sim, internal/policy and the standard library.
+func TestRuleBasedImportsOnly(t *testing.T) {
+	dir := filepath.Join("..", "policy", "rulebased")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var checked int
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		checked++
+		f, err := parser.ParseFile(token.NewFileSet(), filepath.Join(dir, name), nil, parser.ImportsOnly)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, imp := range f.Imports {
+			p, _ := strconv.Unquote(imp.Path.Value)
+			switch {
+			case p == modulePath+"internal/sim", p == modulePath+"internal/policy":
+			case strings.Contains(strings.SplitN(p, "/", 2)[0], "."):
+				t.Errorf("%s imports %q: only internal/sim, internal/policy and stdlib are allowed", name, p)
+			}
+		}
+	}
+	if checked == 0 {
+		t.Fatal("no non-test Go files found in internal/policy/rulebased")
 	}
 }

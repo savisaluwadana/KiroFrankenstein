@@ -314,6 +314,15 @@ type worldDTO struct {
 	Scenario      scenarioSummaryDTO `json:"scenario"`
 	Assumptions   []assumptionDTO    `json:"assumptions"`
 	Warnings      []warningDTO       `json:"warnings,omitempty"`
+
+	// LLM availability and per-World usage (Req 20.8, 20.16). The model
+	// identifier may be shown; the API key and URL never are.
+	LLMAvailable       bool   `json:"llmAvailable"`
+	LLMModel           string `json:"llmModel,omitempty"`
+	LLMCallsMade       int    `json:"llmCallsMade"`
+	LLMCallsRemaining  int    `json:"llmCallsRemaining"`
+	LLMTokensUsed      int    `json:"llmTokensUsed"`
+	LLMTokensRemaining int    `json:"llmTokensRemaining"`
 }
 
 func worldToDTO(w app.World, sc sim.Scenario) worldDTO {
@@ -675,6 +684,8 @@ type ledgerEntryDTO struct {
 	Description string          `json:"description"`
 	Cause       causeRefDTO     `json:"cause"`
 	Lines       []ledgerLineDTO `json:"lines"`
+	// ContributionCents is the entry's signed share of the requested figure.
+	ContributionCents *int64 `json:"contributionCents,omitempty"`
 }
 
 func ledgerEntryToDTO(index int, e sim.LedgerEntry) ledgerEntryDTO {

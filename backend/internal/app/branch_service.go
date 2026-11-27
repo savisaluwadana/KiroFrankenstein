@@ -93,6 +93,10 @@ type BranchService struct {
 	ended     map[BranchID]sim.Tick  // tick of the window ended explicitly
 	hooks     SnapshotHooks
 	proj      ProjectionRepo // optional: set when the store implements it
+	ai        aiState
+	llm       *LLMProvider // nil unless WithLLM is applied
+	subMu     sync.Mutex   // guards subs; never held while taking mu
+	subs      map[BranchID]map[chan struct{}]struct{}
 }
 
 // NewBranchService returns a service over store. newID and now may be nil
@@ -110,12 +114,21 @@ func NewBranchService(store Store, newID func() string, now func() time.Time, op
 		scenarios:     map[WorldID]sim.Scenario{},
 		heads:         map[BranchID]*replayed{},
 		ended:         map[BranchID]sim.Tick{},
+		ai: aiState{
+			factories: map[ManagerKind]AIDeciderFactory{ManagerAIRuleBased: RuleBasedDecider},
+			deciders:  map[deciderKey]AIDecider{},
+		},
 	}
 	for _, o := range opts {
 		o(s)
 	}
 	if p, ok := store.(ProjectionRepo); ok {
 		s.proj = p
+	}
+	if d, ok := store.(DecisionRepo); ok {
+		s.ai.dec = d
+	} else {
+		s.ai.dec = &memDecisions{m: map[BranchID][]DecisionRecord{}}
 	}
 	return s
 }
@@ -180,6 +193,9 @@ func (s *BranchService) CreateWorld(ctx context.Context, req CreateWorldRequest)
 		return World{}, Branch{}, fmt.Errorf("create root branch: %w", err)
 	}
 	s.scenarios[w.ID] = *sc
+	if isAIManager(mgr) {
+		s.decideAtHead(ctx, b.ID)
+	}
 	return w, b, nil
 }
 
@@ -294,6 +310,13 @@ func (s *BranchService) Advance(ctx context.Context, req AdvanceRequest) (Advanc
 			target = *req.RunToTick
 		}
 	}
+	ai := isAIManager(c.b.ManagerKind)
+	if ai {
+		// The AI never waits for a human: decide at an open window at the head.
+		if err := s.decideLocked(ctx, c); err != nil {
+			return AdvanceResult{}, err
+		}
+	}
 	inputs, err := s.engineInputs(ctx, req.Branch, horizon)
 	if err != nil {
 		return AdvanceResult{}, err
@@ -314,10 +337,19 @@ func (s *BranchService) Advance(ctx context.Context, req AdvanceRequest) (Advanc
 		tick := st.Tick()
 		s.saveSnapshot(ctx, c.sc, c.b, st)
 		open, reasons := windowAt(c.sc, c.b, st)
+		if ai && open && tick < horizon {
+			bc := branchCtx{b: c.b, w: c.w, sc: c.sc, head: &replayed{state: st, base: tick}}
+			if err := s.decideLocked(ctx, bc); err != nil {
+				return AdvanceResult{}, err
+			}
+			if inputs, err = s.engineInputs(ctx, req.Branch, horizon); err != nil {
+				return AdvanceResult{}, err
+			}
+		}
 		switch {
 		case tick >= horizon:
 			res.Paused = PauseHorizon
-		case runTo && open && hasReason(reasons, sim.WindowDisruptionOnset):
+		case runTo && open && !ai && hasReason(reasons, sim.WindowDisruptionOnset):
 			res.Paused, res.WindowReasons = PauseWindow, reasons
 		case runTo && tick >= target:
 			res.Paused = PauseRunTo
@@ -339,8 +371,14 @@ func (s *BranchService) Advance(ctx context.Context, req AdvanceRequest) (Advanc
 	frames := append(append([]sim.TickFrame(nil), c.head.frames...), res.Frames...)
 	s.heads[req.Branch] = &replayed{state: st, base: c.head.base, frames: frames}
 	delete(s.ended, req.Branch)
+	if ai && st.Tick() < horizon {
+		if open, _ := windowAt(c.sc, c.b, st); open {
+			s.ended[req.Branch] = st.Tick() // decided on arrival
+		}
+	}
 	res.HeadTick = st.Tick()
 	res.Hash = sim.Hash(st)
+	s.notifyHead(req.Branch)
 	return res, nil
 }
 
@@ -370,6 +408,13 @@ func (s *BranchService) SubmitCommands(ctx context.Context, req SubmitRequest) (
 	if err != nil {
 		return SubmitResult{}, err
 	}
+	return s.submitLocked(ctx, c, req)
+}
+
+// submitLocked is the one gate every Command passes, Human or AI: window,
+// budget and idempotency checks, then sim.Validate against the Observation at
+// the head. Caller holds s.mu; c is the Branch context at its head.
+func (s *BranchService) submitLocked(ctx context.Context, c branchCtx, req SubmitRequest) (SubmitResult, error) {
 	head := c.head.state.Tick()
 	if err := checkExpected(req.ExpectedHeadTick, head); err != nil {
 		return SubmitResult{}, err
@@ -582,8 +627,6 @@ func (s *BranchService) ObservationAt(ctx context.Context, id BranchID, t sim.Ti
 	if err != nil {
 		return sim.Observation{}, err
 	}
-	obs := sim.Observe(c.sc, st)
-	open, reasons := windowAt(c.sc, c.b, st)
-	obs.Window.Open, obs.Window.Reasons = open, reasons
+	obs := observeWindow(c.sc, c.b, st)
 	return obs, nil
 }

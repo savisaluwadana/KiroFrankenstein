@@ -48,6 +48,9 @@ var problemSpecs = map[string]problemSpec{
 	"branch-limit":            {http.StatusConflict, "Branch limit reached"},
 	"horizon-reached":         {http.StatusConflict, "Horizon reached"},
 	"engine-version-mismatch": {http.StatusConflict, "Engine version mismatch"},
+	"duel-branch":             {http.StatusConflict, "Branch belongs to a duel"},
+	"duel-window-open":        {http.StatusConflict, "Duel is waiting for the human manager"},
+	"duel-diverged":           {http.StatusConflict, "Duel branches have diverged"},
 	"budget-exceeded":         {http.StatusUnprocessableEntity, "Command budget exceeded"},
 	"validation":              {http.StatusUnprocessableEntity, "Validation failed"},
 	"invalid-tick":            {http.StatusUnprocessableEntity, "Invalid tick"},
@@ -101,6 +104,12 @@ func problemFor(err error) *Problem {
 				"the engine cannot guarantee identical outcomes, so the world is read-only", em.Stored, em.Running)
 		}
 		return newProblem("engine-version-mismatch", detail)
+	case errors.Is(err, app.ErrDuelWindowOpen):
+		return newProblem("duel-window-open", "the duel is waiting for you to end the decision window; neither side advances until you do")
+	case errors.Is(err, app.ErrDuelDiverged):
+		return newProblem("duel-diverged", "the two duel branches are at different ticks; advance the duel to bring them back together")
+	case errors.Is(err, app.ErrInvalidAIKind):
+		return newProblem("bad-request", "the duel opponent must be ai_rule_based or ai_llm", issue("aiKind", "must be ai_rule_based or ai_llm"))
 	case errors.Is(err, app.ErrNotFound):
 		return newProblem("not-found", "the world or branch does not exist")
 	case errors.Is(err, app.ErrHistoryImmutable):

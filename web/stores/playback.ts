@@ -8,6 +8,7 @@ import { create } from "zustand";
 import * as api from "@/lib/api/client";
 import { ApiError } from "@/lib/api/client";
 import type { AdvanceRequest, AdvanceResult, TickFrame } from "@/lib/api/client";
+import { openProgress, type ProgressHandle, type ProgressStatus } from "@/lib/api/progress";
 import { useStudioStore, type StudioStore } from "./studio";
 
 export type PlaybackSpeed = 1 | 4 | 16;
@@ -39,7 +40,12 @@ export interface PlaybackDeps {
   client: PlaybackClient;
   studio: StudioStore;
   scheduler: Scheduler;
+  /** Progress_Stream opener; defaults to the real EventSource consumer with polling fallback. */
+  progress: typeof openProgress;
 }
+
+/** Replaces the server call that advances the active Branch (the Duel view advances both sides through the Duel endpoint). */
+export type Advancer = (branchId: string, body: AdvanceRequest) => Promise<AdvanceResult>;
 
 export interface PlaybackState {
   playing: boolean;
@@ -50,7 +56,15 @@ export interface PlaybackState {
   pauseReason: PlaybackPauseReason | null;
   /** True while a load or advance request started by the controller is in flight. */
   busy: boolean;
+  /** Progress_Stream connection status; null while not watching. Shown in Engineering Mode only. */
+  progressStatus: ProgressStatus | null;
 
+  /**
+   * Starts receiving newly computed frames of the active Branch from the
+   * Progress_Stream (switching with the active Branch). It never advances the
+   * simulation. Returns a function that stops watching.
+   */
+  watchProgress(): () => void;
   play(speed?: PlaybackSpeed): void;
   pause(): void;
   setSpeed(speed: PlaybackSpeed): void;
@@ -67,6 +81,8 @@ export interface PlaybackState {
   selectTick(tick: number): Promise<void>;
   /** Call when a World is opened: pauses and restores the default Auto_Pause_Mode. */
   resetForWorld(): void;
+  /** Sets or clears the advance override. Playback pacing is unchanged. */
+  setAdvancer(advancer: Advancer | null): void;
 }
 
 function hasMarker(frame: TickFrame | undefined, kind: "decision_window" | "disruption_onset"): boolean {
@@ -81,9 +97,11 @@ export function createPlaybackStore(deps: Partial<PlaybackDeps> = {}) {
   const client: PlaybackClient = deps.client ?? api;
   const studio: StudioStore = deps.studio ?? useStudioStore;
   const scheduler: Scheduler = deps.scheduler ?? defaultScheduler;
+  const progress = deps.progress ?? openProgress;
 
   let handle: unknown = null;
   let inFlight = false;
+  let advancer: Advancer | null = null;
 
   const store = create<PlaybackState>()((set, get) => {
     function stopTimer(): void {
@@ -122,12 +140,14 @@ export function createPlaybackStore(deps: Partial<PlaybackDeps> = {}) {
     }
 
     function fail(e: unknown): void {
+      if (e instanceof ApiError && e.type === "engine-version-mismatch") studio.getState().setEngineMismatch(true);
       studio.getState().setError(message(e));
       pauseWith("error");
     }
 
     async function loadFrames(branchId: string, from: number, to: number): Promise<void> {
       const res = await client.listTickFrames(branchId, { from, to });
+      if (api.hasEngineMismatch(res.warnings)) studio.getState().setEngineMismatch(true);
       studio.getState().addFrames(branchId, res.frames);
     }
 
@@ -180,7 +200,7 @@ export function createPlaybackStore(deps: Partial<PlaybackDeps> = {}) {
       const body: AdvanceRequest = { expectedHeadTick: c.head };
       if (runToTick !== undefined) body.runToTick = runToTick;
       try {
-        const result = await client.advanceBranch(branchId, body);
+        const result = advancer ? await advancer(branchId, body) : await client.advanceBranch(branchId, body);
         const after = studio.getState();
         if (after.activeBranchId !== branchId) return null;
         after.addFrames(branchId, result.frames);
@@ -263,6 +283,54 @@ export function createPlaybackStore(deps: Partial<PlaybackDeps> = {}) {
       autoPauseMode: "every_decision_window",
       pauseReason: "user",
       busy: false,
+      progressStatus: null,
+
+      watchProgress() {
+        let handle: ProgressHandle | null = null;
+        let watched: string | null = null;
+        let stopped = false;
+
+        const close = (): void => {
+          handle?.close();
+          handle = null;
+          watched = null;
+        };
+
+        const open = (branchId: string | null): void => {
+          if (branchId === watched) return;
+          close();
+          if (stopped || branchId === null) {
+            set({ progressStatus: null });
+            return;
+          }
+          const s = studio.getState();
+          const loaded = Object.keys(s.framesByBranch[branchId] ?? {}).map(Number);
+          const fromTick = loaded.length === 0 ? 0 : Math.max(...loaded) + 1;
+          watched = branchId;
+          handle = progress(branchId, {
+            fromTick,
+            onStatus: (status) => {
+              if (watched === branchId) set({ progressStatus: status });
+            },
+            onFrame: (frame) => {
+              if (watched !== branchId) return;
+              const st = studio.getState();
+              st.addFrames(branchId, [frame]);
+              const b = st.branches.find((x) => x.id === branchId);
+              if (b && frame.tick > b.headTick) st.setBranchHead(branchId, frame.tick);
+            },
+          });
+        };
+
+        open(studio.getState().activeBranchId);
+        const unsubscribe = studio.subscribe((s) => open(s.activeBranchId));
+        return () => {
+          stopped = true;
+          unsubscribe();
+          close();
+          set({ progressStatus: null });
+        };
+      },
 
       play(speed) {
         if (speed !== undefined) set({ speed });
@@ -288,6 +356,10 @@ export function createPlaybackStore(deps: Partial<PlaybackDeps> = {}) {
 
       setAutoPauseMode(mode) {
         set({ autoPauseMode: mode });
+      },
+
+      setAdvancer(next) {
+        advancer = next;
       },
 
       resetForWorld() {

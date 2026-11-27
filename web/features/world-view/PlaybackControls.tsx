@@ -50,12 +50,13 @@ function isActivatable(target: EventTarget | null): boolean {
 }
 
 /** Installs Space, Left/Right, Shift+Left/Right and Shift+D at document level. Ignored while typing. */
-export function usePlaybackKeybindings(): void {
+export function usePlaybackKeybindings(readOnly = false): void {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent): void {
       if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
       if (isEditable(e.target)) return;
       const pb = usePlaybackStore.getState();
+      if (readOnly && (e.key === " " || e.key === "ArrowRight" || e.key === "D" || e.key === "d")) return;
       switch (e.key) {
         case " ":
           // A focused button keeps its own Space activation.
@@ -84,10 +85,11 @@ export function usePlaybackKeybindings(): void {
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [readOnly]);
 }
 
-export function PlaybackControls() {
+/** `readOnly` (an engine-version mismatch) removes every control that would compute new hours. */
+export function PlaybackControls({ readOnly = false }: { readOnly?: boolean } = {}) {
   const playing = usePlaybackStore((s) => s.playing);
   const speed = usePlaybackStore((s) => s.speed);
   const mode = usePlaybackStore((s) => s.autoPauseMode);
@@ -97,6 +99,7 @@ export function PlaybackControls() {
 
   return (
     <section aria-label="Playback controls" className="flex flex-wrap items-center gap-2">
+      {readOnly ? null : (
       <button
         type="button"
         className={`${btn} border-amber text-amber`}
@@ -106,7 +109,9 @@ export function PlaybackControls() {
         {playing ? <Pause aria-hidden size={18} /> : <Play aria-hidden size={18} />}
         {playing ? "Pause" : "Play"}
       </button>
+      )}
 
+      {readOnly ? null : (
       <div role="group" aria-label="Speed" className="flex gap-1">
         {SPEEDS.map((s) => (
           <button
@@ -121,26 +126,32 @@ export function PlaybackControls() {
           </button>
         ))}
       </div>
+      )}
 
       <div role="group" aria-label="Move through time" className="flex flex-wrap gap-1">
         <button type="button" className={btn} onClick={() => void pb().stepBack()}>
           <StepBack aria-hidden size={18} />
           Previous moment
         </button>
-        <button type="button" className={btn} onClick={() => void pb().stepForward()}>
-          <StepForward aria-hidden size={18} />
-          Next moment
-        </button>
-        <button type="button" className={btn} onClick={() => void pb().fastForwardToDecisionWindow()}>
-          <FastForward aria-hidden size={18} />
-          Skip to next move
-        </button>
-        <button type="button" className={btn} onClick={() => void pb().fastForwardToDisruptionOnset()}>
-          <TriangleAlert aria-hidden size={18} />
-          Skip to next surprise
-        </button>
+        {readOnly ? null : (
+          <>
+            <button type="button" className={btn} onClick={() => void pb().stepForward()}>
+              <StepForward aria-hidden size={18} />
+              Next moment
+            </button>
+            <button type="button" className={btn} onClick={() => void pb().fastForwardToDecisionWindow()}>
+              <FastForward aria-hidden size={18} />
+              Skip to next move
+            </button>
+            <button type="button" className={btn} onClick={() => void pb().fastForwardToDisruptionOnset()}>
+              <TriangleAlert aria-hidden size={18} />
+              Skip to next surprise
+            </button>
+          </>
+        )}
       </div>
 
+      {readOnly ? null : (
       <label className="flex items-center gap-2 text-xs text-ivory-dim">
         Pause automatically at
         <select
@@ -156,6 +167,7 @@ export function PlaybackControls() {
           <option value="disruption_onsets_only">surprises only</option>
         </select>
       </label>
+      )}
 
       <span role="status" className="text-sm text-ivory-dim" data-testid="playback-status">
         {playing ? `Playing (${SPEEDS.find((s) => s.speed === speed)?.label ?? ""})` : reason !== null ? PAUSE_TEXT[reason] : "Paused"}

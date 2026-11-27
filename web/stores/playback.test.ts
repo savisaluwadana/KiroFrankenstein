@@ -233,3 +233,27 @@ describe("playback controller", () => {
     expect(t.studio.getState().framesByBranch[BRANCH]?.[5]).toBeDefined();
   });
 });
+
+describe("progress stream watching", () => {
+  it("adds streamed frames to the studio, resumes after loaded frames and stops on unwatch", () => {
+    const { studio } = setup({ head: 4, loaded: [0, 4] });
+    const close = vi.fn();
+    let opts: Parameters<typeof import("@/lib/api/progress").openProgress>[1] | undefined;
+    const progress = vi.fn((_id: string, o: NonNullable<typeof opts>) => {
+      opts = o;
+      return { close, status: "live" as const, lastTick: 4 };
+    });
+    const playback = createPlaybackStore({ studio, progress: progress as never });
+    const stop = playback.getState().watchProgress();
+    expect(progress.mock.calls[0]?.[0]).toBe(BRANCH);
+    expect(opts?.fromTick).toBe(5);
+    opts?.onStatus?.("polling");
+    expect(playback.getState().progressStatus).toBe("polling");
+    opts?.onFrame(frame(5));
+    expect(studio.getState().framesByBranch[BRANCH]?.[5]?.tick).toBe(5);
+    expect(studio.getState().branches[0]?.headTick).toBe(5);
+    stop();
+    expect(close).toHaveBeenCalled();
+    expect(playback.getState().progressStatus).toBeNull();
+  });
+});

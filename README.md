@@ -6,7 +6,7 @@ A new project repository for the **Kiroween 2026** hackathon, **Frankenstein** c
 
 **Concept approved: Parallel.** *Reality has no undo button. We built one.* A playable, forkable simulation of an e-commerce business in a Black Friday crisis, where a human and an AI manager compete under identical conditions.
 
-**M0 to M3 are implemented and tested:** the vertical slice, the complete engine and ledger (engine version 2, flagship hash `4c6d0dd0...ab99e`), and PostgreSQL persistence with snapshots, replay and engine-version mismatch flags. M4 (studio polish, SSE progress stream) and later milestones are partly or not started; the studio UI has been redesigned ahead of M4 (see `docs/ux-redesign.md`). Steering lives in `.kiro/steering/` and the spec (requirements, design, tasks) in `.kiro/specs/parallel-simulation-mvp/`.
+**M0 to M5 are implemented and tested, except as noted below:** the vertical slice, the complete engine and ledger (engine version 2, flagship hash `4c6d0dd0...ab99e`), PostgreSQL persistence with snapshots, replay and engine-version mismatch flags, the studio with an SSE progress stream, ledger drill-down, command forms and disruption injection (M4), and the rule-based and LLM AI managers with the Human vs AI duel view (M5). Not complete: tasks 5.4 (assumptions endpoint and editor) and 5.7 (scene interpolation, provenance-distinguished timeline markers). M6 (branch diff, ensembles) and later are not started. **Live LLM provider verification: PENDING** (see below). The Go module requires Go 1.25. Steering lives in `.kiro/steering/` and the spec (requirements, design, tasks) in `.kiro/specs/parallel-simulation-mvp/`; the studio redesign is described in `docs/ux-redesign.md`.
 
 ## Run locally
 
@@ -31,6 +31,9 @@ Tests:
 - `cd backend && go test ./...`
 - `cd web && npx tsc --noEmit && npx eslint . && npx vitest --run`
 - `cd web && npm run e2e` runs the real-browser suite (Playwright, chromium, desktop 1440x900 and phone 390x844) against the real Go API and a production build of the web app. It starts both servers itself on ports 18080 and 3199 and writes screenshots to `docs/screenshots/`. One-time setup: `npx playwright install chromium`.
+  - Specs: `journey`, `metrics`, `setup-and-perf` (studio), `commands` (every management command through its card, checked against export, metrics and ledger), `ledger-sse` (ledger drill-down sums, SSE stream, polling fallback, injected surprise), `duel` (Human vs Rule-based AI to the horizon, every scoreboard number checked against `GET /duels/{id}/score` and branch metrics) and `duel-llm-stub`.
+  - `duel-llm-stub.spec.ts` checks the LLM path against a **stub provider**: a local OpenAI-compatible server on `127.0.0.1` (random port) and a second API instance started by the spec with `LLM_BASE_URL=http://127.0.0.1:<port>/v1`, `LLM_API_KEY=stub-key-not-secret`, `LLM_MODEL=stub-model` (all fake). The web build is pointed at that API with a Playwright route rewrite. It covers valid proposals, the `invalid_json` and `http_error` fallbacks, escaped rationale, usage counters, that the key appears in no response, DOM or console output, and that reloading makes zero provider calls.
+  - **Live LLM verification is pending:** no runtime API key is configured, so no test has called a real provider (OpenRouter or other).
 
 PostgreSQL store tests (`backend/internal/store/postgres`) run the shared repository contract suite and `TestRestartRebuild` (a cold service over the same database must rebuild every branch with hashes equal to the stored `tick_summaries`). They are skipped unless `PARALLEL_TEST_DATABASE_URL` is set. A Homebrew PostgreSQL on port 5432 can shadow the container, so publish the container on another port with `DB_PORT`:
 
@@ -64,12 +67,56 @@ DATABASE_URL='postgres://parallel_app:app_dev_password@127.0.0.1:55432/parallel?
 
 If the schema is missing the server exits with an error telling you to run `migrate up`. The `tick_summaries` table is a derived cache written on each advance; its hashes are checked against replayed hashes and never used as the source of state.
 
+### Configuring the AI manager (OpenRouter)
+
+The rule-based AI manager needs no configuration. The LLM AI manager is optional and appears only when `LLM_BASE_URL`, `LLM_API_KEY` and `LLM_MODEL` are all set. The project hardcodes no model: pick a model id from the provider's catalogue (for OpenRouter, https://openrouter.ai/models) and set it yourself. Providers bill runtime usage; it is independent of Kiro credits.
+
+| Variable | Meaning | Default and bounds |
+|---|---|---|
+| `LLM_BASE_URL` | OpenAI-compatible chat completions base URL | `https://openrouter.ai/api/v1` (set in `.env.example`) |
+| `LLM_API_KEY` | Provider API key | none |
+| `LLM_MODEL` | Model id from the provider catalogue | none (required) |
+| `LLM_REQUEST_TIMEOUT_SECONDS` | Real-time limit per provider call | 20, range 1..120 |
+| `LLM_MAX_CALLS_PER_WORLD` | Provider calls allowed per world | 40, range 1..200 |
+| `LLM_MAX_TOKENS_PER_CALL` | Sent as `max_tokens` | 1024, range 64..8192 |
+| `LLM_MAX_TOTAL_TOKENS_PER_WORLD` | Provider-reported token budget per world | 200000, range 1000..5000000 |
+| `LLM_HTTP_REFERER` | Optional OpenRouter attribution header | empty |
+| `LLM_APP_TITLE` | Optional OpenRouter attribution header | empty |
+
+The API reads these from the process environment only; it does not load `.env` itself. Either export them in the shell or load an untracked `.env` (copied from `.env.example`, never committed):
+
+```
+cp .env.example .env     # then edit LLM_API_KEY and LLM_MODEL
+cd backend
+set -a; source ../.env; set +a
+go run ./cmd/parallel-api
+```
+
+An out-of-range numeric value stops the server at start-up with an error that names the variable and never prints the key.
+
+Where keys live: only in the API server's environment. The key and endpoint are never sent to the web app, never returned by the API and never logged. The web app talks only to `/api/v1`.
+
+How to verify it is on:
+
+- `GET /api/v1/managers` lists "LLM AI" as available and names the model (never the key or URL). Without configuration it lists LLM AI as unavailable.
+- In the studio, the "Challenge the AI manager" dialog offers "LLM AI".
+- `GET /api/v1/worlds/{id}` returns `llmAvailable`, `llmModel`, `llmCallsMade`, `llmCallsRemaining`, `llmTokensUsed` and `llmTokensRemaining`.
+
+Failures and budgets: at most one provider call per decision window per branch. If the call times out, returns an HTTP error, returns invalid JSON, violates the proposal schema, or the call or token budget is exhausted, the rule-based manager takes the window and the decision is labelled "Rule-based AI (LLM fallback: <reason>)" (`timeout`, `http_error`, `invalid_json`, `schema_violation`, `budget_exhausted`). Proposals pass the same validator as human commands. The rationale is shown as escaped plain text, labelled "AI rationale (not verified)".
+
+Replay never calls the provider: accepted LLM proposals are recorded as inputs, and replay and verification use only those. With no LLM variables set, everything else works (`TestNoLLMConfiguration`).
+
+Tests use a stub provider only: Go `httptest` servers in `internal/policy/llm` and `internal/app`, and a local OpenAI-compatible stub in the Playwright spec `duel-llm-stub.spec.ts` (fake key and model).
+
+**Live provider verification: PENDING — no runtime API key was configured during development.**
+
 ### Known limitations
 
 - No authentication; worlds are protected only by unguessable IDs.
 - Assumptions are synthetic and uncalibrated.
 - Results are not predictions or guarantees.
-- No LLM manager yet.
+- The LLM manager has only been tested against a stub provider (see below). While it waits for a provider response it holds the service lock, so other requests wait up to the request timeout.
+- The Branch tree shows manager kind only, without AI provenance labels.
 - The studio is browser-tested with Playwright in headless Chromium only (see `docs/ux-redesign.md`, Verification results); other browsers and real touch devices are untested.
 
 ## First steps

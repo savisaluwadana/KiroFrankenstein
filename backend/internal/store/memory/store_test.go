@@ -10,4 +10,6 @@ import (
 
 func TestContract(t *testing.T) {
 	storetest.Run(t, func(*testing.T) app.Store { return memory.New() })
+	storetest.RunDecisions(t, func(*testing.T) app.Store { return memory.New() })
+	storetest.RunDuels(t, func(*testing.T) app.Store { return memory.New() })
 }

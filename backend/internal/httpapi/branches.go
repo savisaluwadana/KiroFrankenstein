@@ -75,6 +75,10 @@ func (s *Server) forkBranch(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	if err := s.guardDuelBranch(r, id); err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	var req forkRequest
 	if err := decodeBody(w, r, &req, false); err != nil {
 		s.fail(w, r, err)
@@ -118,6 +122,10 @@ type advanceResultDTO struct {
 func (s *Server) advanceBranch(w http.ResponseWriter, r *http.Request) {
 	id, err := pathID(r, "branchId")
 	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	if err := s.guardDuelBranch(r, id); err != nil {
 		s.fail(w, r, err)
 		return
 	}
@@ -166,6 +174,10 @@ func validIdempotencyKey(k string) bool {
 func (s *Server) submitCommands(w http.ResponseWriter, r *http.Request) {
 	id, err := pathID(r, "branchId")
 	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	if err := s.guardDuelBranch(r, id); err != nil {
 		s.fail(w, r, err)
 		return
 	}
@@ -236,6 +248,10 @@ func (s *Server) endDecisionWindow(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	if err := s.guardDuelBranch(r, id); err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	var req endWindowRequest
 	if err := decodeBody(w, r, &req, false); err != nil {
 		s.fail(w, r, err)
@@ -287,6 +303,10 @@ func disruptionKindCode(name string) (uint8, bool) {
 func (s *Server) injectDisruption(w http.ResponseWriter, r *http.Request) {
 	id, err := pathID(r, "branchId")
 	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	if err := s.guardDuelBranch(r, id); err != nil {
 		s.fail(w, r, err)
 		return
 	}
@@ -352,10 +372,18 @@ func (s *Server) injectDisruption(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, s.stale(r.Context(), err, app.BranchID(id), req.ExpectedHeadTick))
 		return
 	}
-	d, err := sim.DecodeDisruptionInput(res.Input.Payload)
+	out, err := injectResultToDTO(res)
 	if err != nil {
 		s.fail(w, r, err)
 		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func injectResultToDTO(res app.InjectResult) (injectDisruptionResponse, error) {
+	d, err := sim.DecodeDisruptionInput(res.Input.Payload)
+	if err != nil {
+		return injectDisruptionResponse{}, err
 	}
 	out := injectDisruptionResponse{
 		Seq: res.Input.Seq, EffectiveTick: int64(res.Input.EffectiveTick), Kind: disruptionKindName(d.Kind),
@@ -368,7 +396,7 @@ func (s *Server) injectDisruption(w http.ResponseWriter, r *http.Request) {
 			out.Role = "backup"
 		}
 	}
-	writeJSON(w, http.StatusOK, out)
+	return out, nil
 }
 
 type tickFramesResponse struct {
@@ -520,15 +548,19 @@ func (s *Server) getBranchMetrics(w http.ResponseWriter, r *http.Request) {
 }
 
 type ledgerResponse struct {
-	BranchID   string           `json:"branchId"`
-	From       int64            `json:"from"`
-	To         int64            `json:"to"`
-	Total      int              `json:"total"`
-	Offset     int64            `json:"offset"`
-	Entries    []ledgerEntryDTO `json:"entries"`
-	Currency   string           `json:"currency"`
-	Disclaimer string           `json:"disclaimer"`
-	Warnings   []warningDTO     `json:"warnings,omitempty"`
+	BranchID string           `json:"branchId"`
+	From     int64            `json:"from"`
+	To       int64            `json:"to"`
+	Total    int              `json:"total"`
+	Offset   int64            `json:"offset"`
+	Entries  []ledgerEntryDTO `json:"entries"`
+	// Figure and SumCents are set when the figure filter is used. SumCents is
+	// the sum of the contributions of every matching entry, not only the page.
+	Figure     string       `json:"figure,omitempty"`
+	SumCents   *int64       `json:"sumCents,omitempty"`
+	Currency   string       `json:"currency"`
+	Disclaimer string       `json:"disclaimer"`
+	Warnings   []warningDTO `json:"warnings,omitempty"`
 }
 
 func (s *Server) listLedgerEntries(w http.ResponseWriter, r *http.Request) {
@@ -550,6 +582,20 @@ func (s *Server) listLedgerEntries(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		account = a
+	}
+	var figure moneyFigure
+	hasFigure := false
+	if name := r.URL.Query().Get("figure"); name != "" {
+		f, ok := figureByName(name)
+		if !ok {
+			s.fail(w, r, badRequest("unknown figure", issue("figure", "must be a headline money figure, for example net_profit")))
+			return
+		}
+		if account != 0 {
+			s.fail(w, r, badRequest("account and figure are exclusive", issue("figure", "use either account or figure")))
+			return
+		}
+		figure, hasFigure = f, true
 	}
 	limit, present, err := queryInt(r, "limit", false)
 	if err != nil {
@@ -586,14 +632,33 @@ func (s *Server) listLedgerEntries(w http.ResponseWriter, r *http.Request) {
 		Warnings: warn, BranchID: id, From: from, To: to, Offset: offset, Entries: make([]ledgerEntryDTO, 0),
 		Currency: Currency, Disclaimer: sim.Disclaimer,
 	}
+	var sum int64
 	for i, e := range st.Ledger.Entries {
 		if int64(e.Tick) < from || int64(e.Tick) > to || (account != 0 && !hasAccount(e, account)) {
 			continue
 		}
+		var contrib int64
+		if hasFigure {
+			c, ok := figure.contribution(e)
+			if !ok {
+				continue
+			}
+			contrib = c
+			sum += c
+		}
 		if int64(out.Total) >= offset && int64(len(out.Entries)) < limit {
-			out.Entries = append(out.Entries, ledgerEntryToDTO(i, e))
+			d := ledgerEntryToDTO(i, e)
+			if hasFigure {
+				c := contrib
+				d.ContributionCents = &c
+			}
+			out.Entries = append(out.Entries, d)
 		}
 		out.Total++
+	}
+	if hasFigure {
+		out.Figure = figure.name
+		out.SumCents = &sum
 	}
 	writeJSON(w, http.StatusOK, out)
 }

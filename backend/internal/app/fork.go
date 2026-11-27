@@ -51,6 +51,9 @@ func (s *BranchService) ForkBranch(ctx context.Context, parent BranchID, atTick 
 	if err := s.store.CreateBranch(ctx, child); err != nil {
 		return Branch{}, fmt.Errorf("create child branch: %w", err)
 	}
+	if isAIManager(manager) {
+		s.decideAtHead(ctx, child.ID)
+	}
 	return child, nil
 }
 

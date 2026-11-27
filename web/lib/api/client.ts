@@ -27,12 +27,18 @@ export type LedgerEntry = Schemas["LedgerEntry"];
 export type LedgerLine = Schemas["LedgerLine"];
 export type LedgerResponse = Schemas["LedgerResponse"];
 export type Account = Schemas["Account"];
+export type MoneyFigure = Schemas["MoneyFigure"];
+export type LedgerSummaryResponse = Schemas["LedgerSummaryResponse"];
+export type LedgerAccountTotal = Schemas["LedgerAccountTotal"];
+export type LedgerFigure = Schemas["LedgerFigure"];
 export type Assumption = Schemas["Assumption"];
 export type ScenarioSummary = Schemas["ScenarioSummary"];
 export type DemoResponse = Schemas["DemoResponse"];
 export type DemoPlan = Schemas["DemoPlan"];
 export type Health = Schemas["Health"];
 export type ManagerKind = Schemas["ManagerKind"];
+export type ManagerInfo = Schemas["ManagerInfo"];
+export type ManagerList = Schemas["ManagerList"];
 export type Problem = Schemas["Problem"];
 export type ProblemIssue = Schemas["ProblemIssue"];
 export type ProblemType = Schemas["ProblemType"];
@@ -43,6 +49,24 @@ export type ForkRequest = Schemas["ForkRequest"];
 export type AdvanceRequest = Schemas["AdvanceRequest"];
 export type SubmitCommandsRequest = Schemas["SubmitCommandsRequest"];
 export type EndWindowRequest = Schemas["EndWindowRequest"];
+export type InjectDisruptionRequest = Schemas["InjectDisruptionRequest"];
+export type InjectDisruptionResult = Schemas["InjectDisruptionResult"];
+export type DisruptionKind = Schemas["DisruptionKind"];
+export type InputsFile = Schemas["InputsFile"];
+export type InputsFileInput = Schemas["InputsFileInput"];
+export type Warning = Schemas["Warning"];
+export type CreateDuelRequest = Schemas["CreateDuelRequest"];
+export type CreateDuelResponse = Schemas["CreateDuelResponse"];
+export type Duel = Schemas["Duel"];
+export type DuelBranch = Schemas["DuelBranch"];
+export type DuelStatus = Schemas["DuelStatus"];
+export type DuelResponse = Schemas["DuelResponse"];
+export type AdvanceDuelResult = Schemas["AdvanceDuelResult"];
+export type DuelInjectResult = Schemas["DuelInjectResult"];
+export type DuelScore = Schemas["DuelScore"];
+export type DuelBranchScore = Schemas["DuelBranchScore"];
+export type DuelDecision = Schemas["DuelDecision"];
+export type DuelDecisionsResponse = Schemas["DuelDecisionsResponse"];
 
 const PROBLEM_PREFIX = "urn:parallel:problem:";
 
@@ -285,7 +309,7 @@ export function getBranchMetrics(branchId: string, tick: number, opts: CallOptio
 
 export function listLedgerEntries(
   branchId: string,
-  query: { from: number; to: number; account?: Account; limit?: number; offset?: number },
+  query: { from: number; to: number; account?: Account; figure?: MoneyFigure; limit?: number; offset?: number },
   opts: CallOptions = {},
 ): Promise<LedgerResponse> {
   return requestJson<LedgerResponse>({
@@ -295,9 +319,122 @@ export function listLedgerEntries(
       from: query.from,
       to: query.to,
       account: query.account,
+      figure: query.figure,
       limit: query.limit,
       offset: query.offset,
     },
     signal: opts.signal,
   });
+}
+
+export function getLedgerSummary(branchId: string, tick: number, opts: CallOptions = {}): Promise<LedgerSummaryResponse> {
+  return requestJson<LedgerSummaryResponse>({
+    method: "GET",
+    path: `/branches/${id(branchId)}/ledger/summary`,
+    query: { tick },
+    signal: opts.signal,
+  });
+}
+
+/** True when `warnings` carries the engine-version-mismatch caveat. */
+export function hasEngineMismatch(warnings: readonly Warning[] | undefined): boolean {
+  return warnings?.some((w) => w.code === "engine-version-mismatch") ?? false;
+}
+
+/** Sends the optional Idempotency-Key header when `idempotencyKey` is given. */
+export function injectDisruption(
+  branchId: string,
+  body: InjectDisruptionRequest,
+  idempotencyKey?: string,
+  opts: CallOptions = {},
+): Promise<InjectDisruptionResult> {
+  return requestJson<InjectDisruptionResult>({
+    method: "POST",
+    path: `/branches/${id(branchId)}/disruptions`,
+    body,
+    headers: idempotencyKey !== undefined ? { "Idempotency-Key": idempotencyKey } : {},
+    signal: opts.signal,
+  });
+}
+
+/** The Inputs_File of a Branch, with the server's mismatch header surfaced as a boolean. */
+export async function exportBranchInputs(
+  branchId: string,
+  opts: CallOptions = {},
+): Promise<{ file: InputsFile; engineMismatch: boolean }> {
+  const res = await request({ method: "GET", path: `/branches/${id(branchId)}/export`, signal: opts.signal });
+  const raw: unknown = await res.json();
+  if (!isRecord(raw) || !Array.isArray(raw.inputs) || typeof raw.engineVersion !== "string") {
+    throw new ApiError({ status: 200, type: "unknown", title: "Unexpected export format" });
+  }
+  const engineMismatch = (res.headers?.get("X-Parallel-Warnings") ?? "").includes("engine-version-mismatch");
+  return { file: raw as unknown as InputsFile, engineMismatch };
+}
+
+/** The kinds of manager this server can play (Rule-based AI is always available; LLM AI only when configured). */
+export function listManagers(opts: CallOptions = {}): Promise<ManagerList> {
+  return requestJson<ManagerList>({ method: "GET", path: "/managers", signal: opts.signal });
+}
+
+// ---- Duels ----
+
+export function createDuel(body?: CreateDuelRequest, opts: CallOptions = {}): Promise<CreateDuelResponse> {
+  return requestJson<CreateDuelResponse>({ method: "POST", path: "/duels", body, signal: opts.signal });
+}
+
+export function getDuel(duelId: string, opts: CallOptions = {}): Promise<DuelResponse> {
+  return requestJson<DuelResponse>({ method: "GET", path: `/duels/${id(duelId)}`, signal: opts.signal });
+}
+
+export function advanceDuel(duelId: string, body?: AdvanceRequest, opts: CallOptions = {}): Promise<AdvanceDuelResult> {
+  return requestJson<AdvanceDuelResult>({
+    method: "POST",
+    path: `/duels/${id(duelId)}/advance`,
+    body,
+    signal: opts.signal,
+  });
+}
+
+/** Submits the human manager's Commands. Sends the optional Idempotency-Key header when given. */
+export function submitDuelCommands(
+  duelId: string,
+  body: SubmitCommandsRequest,
+  idempotencyKey?: string,
+  opts: CallOptions = {},
+): Promise<SubmitCommandsResult> {
+  return requestJson<SubmitCommandsResult>({
+    method: "POST",
+    path: `/duels/${id(duelId)}/commands`,
+    body,
+    headers: idempotencyKey !== undefined ? { "Idempotency-Key": idempotencyKey } : {},
+    signal: opts.signal,
+  });
+}
+
+export async function endDuelWindow(duelId: string, body: EndWindowRequest, opts: CallOptions = {}): Promise<void> {
+  await request({ method: "POST", path: `/duels/${id(duelId)}/decision-window/end`, body, signal: opts.signal });
+}
+
+/** Injects one Disruption into both sides of the Duel. */
+export function injectDuelDisruption(
+  duelId: string,
+  body: InjectDisruptionRequest,
+  idempotencyKey?: string,
+  opts: CallOptions = {},
+): Promise<DuelInjectResult> {
+  return requestJson<DuelInjectResult>({
+    method: "POST",
+    path: `/duels/${id(duelId)}/disruptions`,
+    body,
+    headers: idempotencyKey !== undefined ? { "Idempotency-Key": idempotencyKey } : {},
+    signal: opts.signal,
+  });
+}
+
+export function getDuelScore(duelId: string, opts: CallOptions = {}): Promise<DuelScore> {
+  return requestJson<DuelScore>({ method: "GET", path: `/duels/${id(duelId)}/score`, signal: opts.signal });
+}
+
+export function getDuelDecisions(duelId: string, opts: CallOptions = {}): Promise<DuelDecisionsResponse> {
+  return requestJson<DuelDecisionsResponse>({ method: "GET", path: `/duels/${id(duelId)}/decisions`, signal: opts.signal });
 }

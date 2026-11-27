@@ -62,7 +62,7 @@ const PROVENANCE_LABEL: Record<InputProvenance, string> = {
   ai_llm: "Move by LLM AI",
   ai_rule_based_fallback: "Move by Rule-based AI (LLM fallback)",
   scenario: "Scheduled event",
-  injected: "Injected event",
+  injected: "Surprise you added",
 };
 
 /** Flattens loaded Tick_Frames into marker records, sorted by Tick. */

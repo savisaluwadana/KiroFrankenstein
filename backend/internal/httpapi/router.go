@@ -22,6 +22,8 @@ import (
 type Options struct {
 	// Service is the application service. Required.
 	Service *app.BranchService
+	// Duels runs Duels. Optional: when nil, one is built over Service.
+	Duels *app.DuelService
 	// FlagshipScenario is the scenario document used by POST /demo and by
 	// POST /worlds when the request omits `scenario`. Required.
 	FlagshipScenario []byte
@@ -36,6 +38,11 @@ type Options struct {
 	Now func() time.Time
 	// Logger receives server-side error details (default slog.Default()).
 	Logger *slog.Logger
+	// SSEHeartbeat is the idle interval between heartbeat comments on the
+	// progress stream (default 15 s). SSEPollInterval is the fallback head
+	// poll interval of the stream (default 250 ms).
+	SSEHeartbeat    time.Duration
+	SSEPollInterval time.Duration
 }
 
 // Rate limit defaults: 50 requests per second per IP with a burst of 100.
@@ -47,6 +54,7 @@ const (
 // Server holds the handlers' dependencies.
 type Server struct {
 	svc       *app.BranchService
+	duels     *app.DuelService
 	flagship  []byte
 	webOrigin string
 	log       *slog.Logger
@@ -54,6 +62,11 @@ type Server struct {
 
 	planMu sync.Mutex
 	plan   *demoplan.Plan
+
+	sseHeartbeat time.Duration
+	ssePoll      time.Duration
+	sseMu        sync.Mutex
+	sseConns     map[string]int // open progress streams per client IP
 }
 
 // New builds a Server. It validates the flagship scenario so a bad document
@@ -81,9 +94,19 @@ func New(o Options) (*Server, error) {
 	if o.RateBurst <= 0 {
 		o.RateBurst = DefaultRateBurst
 	}
+	if o.SSEHeartbeat <= 0 {
+		o.SSEHeartbeat = DefaultSSEHeartbeat
+	}
+	if o.SSEPollInterval <= 0 {
+		o.SSEPollInterval = DefaultSSEPollInterval
+	}
+	if o.Duels == nil {
+		o.Duels = app.NewDuelService(o.Service, nil)
+	}
 	return &Server{
-		svc: o.Service, flagship: o.FlagshipScenario, webOrigin: o.WebOrigin, log: o.Logger,
-		limiter: newLimiter(o.RatePerSecond, o.RateBurst, o.Now),
+		svc: o.Service, duels: o.Duels, flagship: o.FlagshipScenario, webOrigin: o.WebOrigin, log: o.Logger,
+		limiter:      newLimiter(o.RatePerSecond, o.RateBurst, o.Now),
+		sseHeartbeat: o.SSEHeartbeat, ssePoll: o.SSEPollInterval, sseConns: map[string]int{},
 	}, nil
 }
 
@@ -103,6 +126,7 @@ func (s *Server) Handler() http.Handler {
 	})
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Get("/health", s.getHealth)
+		r.Get("/managers", s.listManagers)
 		r.Post("/worlds", s.createWorld)
 		r.Get("/worlds/{worldId}", s.getWorld)
 		r.Get("/worlds/{worldId}/branches", s.listBranches)
@@ -117,9 +141,20 @@ func (s *Server) Handler() http.Handler {
 		r.Get("/branches/{branchId}/state", s.getBranchState)
 		r.Get("/branches/{branchId}/metrics", s.getBranchMetrics)
 		r.Get("/branches/{branchId}/ledger", s.listLedgerEntries)
+		r.Get("/branches/{branchId}/ledger/summary", s.getLedgerSummary)
 		r.Get("/branches/{branchId}/journal", s.listJournal)
 		r.Get("/branches/{branchId}/end-of-horizon", s.getEndOfHorizon)
 		r.Get("/branches/{branchId}/export", s.exportBranch)
+		r.Get("/branches/{branchId}/decisions", s.listDecisions)
+		r.Get("/branches/{branchId}/progress", s.progressStream)
+		r.Post("/duels", s.createDuel)
+		r.Get("/duels/{duelId}", s.getDuel)
+		r.Post("/duels/{duelId}/advance", s.advanceDuel)
+		r.Post("/duels/{duelId}/commands", s.submitDuelCommands)
+		r.Post("/duels/{duelId}/decision-window/end", s.endDuelWindow)
+		r.Post("/duels/{duelId}/disruptions", s.injectDuelDisruption)
+		r.Get("/duels/{duelId}/score", s.getDuelScore)
+		r.Get("/duels/{duelId}/decisions", s.listDuelDecisions)
 	})
 	return r
 }
@@ -169,7 +204,7 @@ func (s *Server) cors(next http.Handler) http.Handler {
 			if allowed {
 				h := w.Header()
 				h.Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-				h.Set("Access-Control-Allow-Headers", "Content-Type, Idempotency-Key")
+				h.Set("Access-Control-Allow-Headers", "Content-Type, Idempotency-Key, Last-Event-ID")
 				h.Set("Access-Control-Max-Age", "600")
 			}
 			w.WriteHeader(http.StatusNoContent)

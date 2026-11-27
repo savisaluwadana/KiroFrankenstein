@@ -43,6 +43,11 @@ jobs:
         run: |
           go test ./internal/sim -run TestGoldenFlagshipHash -count=1
           go run ./cmd/parallel-sim verify --scenario scenarios/black-friday.json --seed 2026 --inputs scenarios/demo-fork-inputs.json --expect "$(cat scenarios/golden/demo-fork.hash)"
+      - name: golden demo duel hashes (both architectures)
+        run: |
+          go test ./internal/app -run TestGoldenDuelHashes -count=1
+          go run ./cmd/parallel-sim verify --scenario scenarios/black-friday.json --seed 2026 --inputs scenarios/demo-duel-human.json --expect "$(awk '$1=="human" && $2=="final" {print $3}' scenarios/golden/demo-duel.hashes)"
+          go run ./cmd/parallel-sim verify --scenario scenarios/black-friday.json --seed 2026 --inputs scenarios/demo-duel-ai.json --expect "$(awk '$1=="ai" && $2=="final" {print $3}' scenarios/golden/demo-duel.hashes)"
 
   web:
     name: web

@@ -68,6 +68,10 @@
       "status": "failed",
       "failingExample": "rapid -rapid.seed=85741351723057822 (failfile internal/sim/testdata/rapid/TestPropSnapshotResume/TestPropSnapshotResume-20261127094021-26640.fail): \"state of tick 9 changed after later ticks were computed (Advance modified its input); differing fields: [Orders]\". Earlier minimal case: flagship, horizon 24, seed 0, regularWorkers 8, headphones openingUnits 0, snapshot tick 1, no commands, 1-tick demand_surge injections; the uninterrupted run's tick-9 State is mutated by later Advance calls, so resumed tick-9 hash != stored. Root cause: State.clone() (engine.go:346-358) does not copy Orders.Settled; OrderBook.settle (orders.go:26-34) inserts by ID with append+copy, shifting entries in the backing array shared with the previous State when a cancellation of an older order follows shipments of newer ones. Fix: add `c.Orders.Settled = append([]SettledOrder(nil), s.Orders.Settled...)` in clone().",
       "lastRunTimestamp": 1795752633704
+    },
+    "6.8 Property test: duel parity and exogenous fairness (required)": {
+      "status": "passed",
+      "lastRunTimestamp": 1795760060748
     }
   },
   "executionHistory": {
@@ -1086,6 +1090,217 @@
         "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
         "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
         "timestamp": 1795753334748
+      },
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795753875527
+      }
+    ],
+    "4. M3 — Persistence, replay and branching (~350 credits)": [
+      {
+        "executionId": "cb8321e6-fe02-41dd-b632-3c83bc5e9edf",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795753875532
+      }
+    ],
+    "5.1 Implement the Progress_Stream (SSE)": [
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795755429881
+      },
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795755782176
+      }
+    ],
+    "5.5 Complete the Decision_Panel for all Command kinds": [
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795755430105
+      },
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795755782401
+      }
+    ],
+    "5.2 Consume the Progress_Stream in the Web_App with a polling fallback": [
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795755782416
+      },
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795756134634
+      }
+    ],
+    "5.3 Build the Ledger_Panel drill-down": [
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795755783074
+      },
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795756134646
+      }
+    ],
+    "5.6 Add Disruption injection to the studio": [
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795756134658
+      },
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795757461381
+      }
+    ],
+    "6.1 Implement the Rule_Based_Manager": [
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795757472395
+      },
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795757715445
+      }
+    ],
+    "6.4 Implement the LLM configuration and provider-independent adapter": [
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795757472611
+      },
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795757715718
+      }
+    ],
+    "6.2 Property test: Rule_Based_Manager determinism": [
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795757716767
+      },
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795758899232
+      }
+    ],
+    "6.3 Run AI Managers at Decision_Windows and record provenance": [
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795757717725
+      },
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795758899956
+      }
+    ],
+    "6.5 Implement LLM fallback and call budgets": [
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795758900749
+      },
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795759446229
+      }
+    ],
+    "6.6 Add `/managers` and the LLM independence integration test": [
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795759446241
+      },
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795759909696
+      }
+    ],
+    "6.7 Implement the Duel_Service": [
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795759446714
+      },
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795759909711
+      }
+    ],
+    "6.8 Property test: duel parity and exogenous fairness (required)": [
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795759909730
+      },
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795760366231
+      }
+    ],
+    "6.9 Add the Duel endpoints": [
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795759910173
+      },
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795760366243
+      }
+    ],
+    "6.10 Record the demo duel Inputs_File and golden Branch hashes": [
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795759911043
+      },
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795760366253
+      }
+    ],
+    "6.11 Build the Duel view": [
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795760366444
+      },
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795760882049
+      }
+    ],
+    "6.12 Checkpoint — M5 complete": [
+      {
+        "executionId": "f62a3ea2-a5e9-4197-8e75-6281af6b4d1f",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795766742552
       }
     ]
   }

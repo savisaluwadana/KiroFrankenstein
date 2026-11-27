@@ -12,6 +12,7 @@ import type { AcceptedCommand, Branch, DemoPlan, MetricsResponse, Observation, T
 import { BranchTree } from "@/features/branches/BranchTree";
 import { LedgerPanel } from "@/features/studio/LedgerPanel";
 import { productName } from "@/lib/glossary";
+import { usePlaybackStore } from "@/stores/playback";
 
 type Tab = "overview" | "ledger" | "events" | "plan" | "branches";
 
@@ -87,6 +88,7 @@ export function PlanHint({ plan, onGoToFork }: { plan: DemoPlan; onGoToFork: () 
 export function EngineeringDrawer(props: EngineeringDrawerProps) {
   const { world, branch, tick, frame, metrics, observation, plan } = props;
   const [tab, setTab] = useState<Tab>("overview");
+  const progressStatus = usePlaybackStore((s) => s.progressStatus);
   const startClock = world.scenario.startClock;
   const tabs: [Tab, string][] = [
     ["overview", "Overview"],
@@ -119,6 +121,9 @@ export function EngineeringDrawer(props: EngineeringDrawerProps) {
           </button>
         ))}
       </div>
+      <p data-testid="eng-progress-status" className="text-ivory-dim">
+        {progressStatus === "live" ? "Live" : progressStatus === "polling" ? "Polling" : null}
+      </p>
 
       {tab === "overview" ? (
         <div className="space-y-2">

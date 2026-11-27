@@ -21,6 +21,7 @@ import {
   getBranchMetrics,
   getBranchState,
   getWorld,
+  hasEngineMismatch,
   listBranches,
   listTickFrames,
   type AcceptedCommand,
@@ -40,9 +41,12 @@ import {
 } from "@/features/branches/forkSequenceMachine";
 import { RealityBadge, laneFor, laneIndexOf, orderBranches, realityName } from "@/features/branches/lanes";
 import { RealitySwitcher } from "@/features/branches/RealitySwitcher";
+import { InjectDisruption } from "@/features/decisions/InjectDisruption";
 import { DecisionPanel, type Prefill, type Suggestion } from "@/features/decisions/DecisionPanel";
 import { EngineeringDrawer } from "@/features/engineering/EngineeringDrawer";
 import { EngineeringToggle } from "@/features/engineering/EngineeringToggle";
+import { EngineVersionBanner } from "./EngineVersionBanner";
+import { useInjectedInputs } from "./injectedInputs";
 import { ConnectedTimeline, type TimelineInput } from "@/features/timeline/Timeline";
 import { Hud, type MoneyFigure } from "@/features/world-view/Hud";
 import { PlaybackControls, usePlaybackKeybindings } from "@/features/world-view/PlaybackControls";
@@ -140,8 +144,10 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
   const initialBranchId = useRef(branchId ?? null);
   const startClockRef = useRef("Thu 00:00");
 
-  usePlaybackKeybindings();
+  const mismatch = useStudioStore((s) => s.engineMismatch);
+  usePlaybackKeybindings(mismatch);
   const engineering = useUiStore((s) => s.engineering);
+  const markMismatch = useCallback(() => useStudioStore.getState().setEngineMismatch(true), []);
 
   const active = useStudioStore(selectActiveBranch);
   const branches = useStudioStore((s) => s.branches);
@@ -157,6 +163,7 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
   // Open the world: load it, open the studio store, reset playback, load the displayed frames.
   useEffect(() => {
     let cancelled = false;
+    let stopProgress: (() => void) | null = null;
     const studio = useStudioStore.getState();
     const playback = usePlaybackStore.getState();
     void (async () => {
@@ -173,7 +180,9 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
           activeBranchId: chosen.id,
           selectedTick: chosen.headTick,
         });
+        studio.setEngineMismatch(hasEngineMismatch(w.warnings) || hasEngineMismatch(list.warnings));
         playback.resetForWorld();
+        stopProgress = playback.watchProgress();
         await ensureFrames(chosen.id, chosen.headTick);
         if (cancelled) return;
         setWorld(w);
@@ -187,6 +196,7 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
     })();
     return () => {
       cancelled = true;
+      stopProgress?.();
       usePlaybackStore.getState().pause();
       useStudioStore.getState().reset();
     };
@@ -373,6 +383,7 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
     function onKey(e: KeyboardEvent): void {
       if (e.key !== "f" && e.key !== "F") return;
       if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+      if (useStudioStore.getState().engineMismatch) return;
       const t = e.target;
       if (t instanceof HTMLElement && (["INPUT", "TEXTAREA", "SELECT", "BUTTON", "A"].includes(t.tagName) || t.isContentEditable)) return;
       e.preventDefault();
@@ -395,12 +406,16 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
     startClockRef.current = startClock;
   }, [startClock]);
 
+  const injected = useInjectedInputs(activeBranchId, markMismatch);
   const acceptedHere = activeBranchId !== null ? (accepted[activeBranchId] ?? []) : [];
-  const inputs: TimelineInput[] = acceptedHere.map((a) => ({
-    effectiveTick: a.effectiveTick,
-    provenance: a.provenance,
-    kind: a.command.kind,
-  }));
+  const inputs: TimelineInput[] = [
+    ...acceptedHere.map((a) => ({
+      effectiveTick: a.effectiveTick,
+      provenance: a.provenance,
+      kind: a.command.kind,
+    })),
+    ...injected.inputs,
+  ];
   const interventions: Intervention[] = acceptedHere.map((a) => ({
     tick: a.effectiveTick,
     text: describeCommand(a, productNames),
@@ -416,7 +431,7 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
       ? headObs.observation
       : null;
   const atHead = active !== undefined && selectedTick === active.headTick;
-  const canAct = windowOpenHere && atHead && observation !== null;
+  const canAct = !mismatch && windowOpenHere && atHead && observation !== null;
 
   const cards = useMemo(
     () =>
@@ -601,6 +616,7 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
             </button>
           </div>
         ) : null}
+        {mismatch ? <EngineVersionBanner storedVersion={world.engineVersion} engineering={engineering} /> : null}
       </header>
 
       <div className="grid flex-1 grid-cols-1 gap-3 min-[769px]:grid-cols-[minmax(0,1fr)_22.5rem]">
@@ -685,7 +701,7 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
                 title="Where this number comes from"
                 startClock={startClock}
                 engineering={engineering}
-                {...(ledger === "cash" ? { account: "Cash" as const } : {})}
+                figure={ledger}
                 onClose={() => setLedger(null)}
               />
             ) : (
@@ -704,9 +720,14 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
                       startClock={startClock}
                       suggestion={suggestion}
                       prefill={prefill}
+                      assumptions={world.assumptions}
                       onSubmitted={onSubmitted}
                       onWindowEnded={onWindowEnded}
                     />
+                  ) : mismatch ? (
+                    <p className="text-sm text-ivory-dim" data-testid="read-only">
+                      Read only. You can look back at this world, but not make moves in it.
+                    </p>
                   ) : windowOpenHere ? (
                     <div className="space-y-2 text-sm" data-testid="window-elsewhere">
                       <p className="text-ivory-dim">
@@ -726,15 +747,29 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
                       No decision is needed right now. Press Play, or skip to your next move.
                     </p>
                   )}
-                  <ForkButton
-                    key={active.id}
-                    branchId={active.id}
-                    tick={selectedTick}
-                    headTick={active.headTick}
-                    defaultLabel={TERMS.alternativeFuture(childCount + 1)}
-                    whenLabel={formatSimTime(selectedTick, startClock)}
-                    onForked={(b) => void onForked(b)}
-                  />
+                  {mismatch ? null : (
+                    <>
+                      <ForkButton
+                        key={active.id}
+                        branchId={active.id}
+                        tick={selectedTick}
+                        headTick={active.headTick}
+                        defaultLabel={TERMS.alternativeFuture(childCount + 1)}
+                        whenLabel={formatSimTime(selectedTick, startClock)}
+                        onForked={(b) => void onForked(b)}
+                      />
+                      <InjectDisruption
+                        key={`inject-${active.id}`}
+                        branchId={active.id}
+                        headTick={active.headTick}
+                        horizonTicks={world.scenario.horizonTicks}
+                        startClock={startClock}
+                        skus={world.scenario.skus}
+                        onInjected={injected.refresh}
+                        onEngineMismatch={markMismatch}
+                      />
+                    </>
+                  )}
                 </div>
                 <div className={panelClass("model")} role="tabpanel" aria-label={TERMS.assumptions}>
                   <AssumptionsPanel world={world} />
@@ -746,7 +781,7 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
       </div>
 
       <div className="space-y-2">
-        <PlaybackControls />
+        <PlaybackControls readOnly={mismatch} />
         <ConnectedTimeline
           inputs={inputs}
           startClock={startClock}

@@ -6,6 +6,7 @@ import { useState } from "react";
 import { createDemo } from "@/lib/api/client";
 import { DISCLAIMER_FULL } from "@/lib/glossary";
 import { saveDemoPlan } from "@/features/studio/demoPlanStorage";
+import { ChallengeAi } from "@/features/duel/ChallengeAi";
 
 export function BriefingPage() {
   const router = useRouter();
@@ -88,6 +89,8 @@ export function BriefingPage() {
             {error}
           </p>
         ) : null}
+
+        <ChallengeAi />
 
         <p className="mt-8 text-sm text-ivory-dim" data-testid="disclaimer">
           {DISCLAIMER_FULL}

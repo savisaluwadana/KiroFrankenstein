@@ -35,7 +35,7 @@ func miGenMeta(t *rapid.T, label string) miMeta {
 	name := rapid.StringMatching(`[A-Za-z0-9 _\-]{1,40}`).Draw(t, label+"Name")
 	return miMeta{
 		worldName:  name,
-		manager:    rapid.SampledFrom([]app.ManagerKind{app.ManagerHuman, app.ManagerAIRuleBased, app.ManagerAILLM}).Draw(t, label+"Manager"),
+		manager:    rapid.SampledFrom([]app.ManagerKind{app.ManagerHuman}).Draw(t, label+"Manager"), // AI kinds act at windows themselves; see TestAIWindowEngineIgnoresManagerKind
 		prov:       rapid.SampledFrom([]app.Provenance{app.ProvHuman, app.ProvAIRuleBased, app.ProvAILLM, app.ProvAIRuleBasedFallback}).Draw(t, label+"Prov"),
 		idemPrefix: rapid.StringMatching(`[a-z0-9]{0,12}`).Draw(t, label+"Idem"),
 		rationale:  rapid.StringMatching(`[A-Za-z0-9 .,]{0,60}`).Draw(t, label+"Rationale"),

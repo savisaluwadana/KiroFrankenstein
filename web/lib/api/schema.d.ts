@@ -4,6 +4,29 @@
  */
 
 export interface paths {
+    "/managers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Manager kinds and their availability.
+         * @description Lists human, the rule-based AI and the LLM AI. The rule-based AI is
+         *     always available. The LLM AI is available only when the server has an
+         *     LLM configuration; the response then names the model and never the
+         *     API key or the endpoint.
+         */
+        get: operations["listManagers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -342,6 +365,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/branches/{branchId}/ledger/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Profit and loss by account, and the composition of each money figure.
+         * @description Returns per-account totals through the Tick and, for each headline money
+         *     figure, the accounts and signs that compose it, its `sumCents` computed
+         *     from the Ledger entries (equal to the Metrics value) and the number of
+         *     entries that add up to it. Use `listLedgerEntries` with `figure` to list
+         *     those entries.
+         */
+        get: operations["getLedgerSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/branches/{branchId}/journal": {
         parameters: {
             query?: never;
@@ -391,6 +438,36 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/branches/{branchId}/decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the per-window decision records of an AI Branch.
+         * @description Returns one record for every Decision_Window an AI manager handled on
+         *     this Branch (not its ancestors), in window order. A window where the AI
+         *     proposed no Command still has a record that names its provenance. Each
+         *     record lists what was proposed, how many Commands the deterministic
+         *     validator accepted, and the rejected proposals with reason codes;
+         *     rejected proposals never reach the engine. Provenance `ai_rule_based`
+         *     is the rule-based manager, `ai_llm` an accepted LLM proposal and
+         *     `ai_rule_based_fallback` the rule-based manager standing in for the LLM,
+         *     with `fallbackReason`. The rationale is untrusted text and must be shown
+         *     escaped. Records are metadata: replay never reads them and no State_Hash
+         *     covers them. A Human Branch returns an empty list.
+         */
+        get: operations["listBranchDecisions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/branches/{branchId}/export": {
         parameters: {
             query?: never;
@@ -411,6 +488,249 @@ export interface paths {
          *     response also sets the header `X-Parallel-Warnings: engine-version-mismatch`.
          */
         get: operations["exportBranchInputs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/branches/{branchId}/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream Tick_Frames of a Branch as server-sent events.
+         * @description A read-only presentation stream. It emits Tick_Frames that are already
+         *     computed and never advances the simulation: the client still calls
+         *     `POST /branches/{branchId}/advance` to compute Ticks, and the stream
+         *     delivers each new frame as the Head_Tick moves. Playback speed is a
+         *     client concern and never changes a State_Hash.
+         *
+         *     Events, in order per Tick:
+         *
+         *     - `tick` (`id` = Tick): data is a `ProgressTickEvent`, the same
+         *       TickFrame object as `/tick-frames` including `metrics`, plus
+         *       `warnings` when the World has engine warnings.
+         *     - `decision_window` (`id` = Tick): sent after the `tick` event of a
+         *       Tick whose frame holds a decision-window marker; data is a
+         *       `ProgressDecisionWindowEvent`.
+         *     - `completed` (`id` = horizon Tick): sent once after the horizon frame;
+         *       data is a `ProgressCompletedEvent`. The server then ends the stream
+         *       and the client should close it.
+         *
+         *     A comment line `: heartbeat` is sent every 15 seconds without events.
+         *     Reconnect with the `Last-Event-ID` header (the last Tick received):
+         *     the first event is the next Tick, so `Last-Event-ID: 10` starts at
+         *     Tick 11. Without the header, `fromTick` (default 0) is the first Tick
+         *     streamed. The `Last-Event-ID` header wins when both are given. A
+         *     client that reconnects with the horizon Tick receives `completed`
+         *     again. A start Tick above the horizon plus one is a 422.
+         *
+         *     At most 4 streams are open per client IP address; the fifth gets 429
+         *     (`rate-limited`) with `Retry-After`, and the slot frees when a stream
+         *     closes. This limit is separate from the request rate limit.
+         */
+        get: operations["streamBranchProgress"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/duels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a World and a Duel on it.
+         * @description Creates a new World (flagship scenario and demo seed 2026 unless given)
+         *     and two sibling Branches forked from its root Branch at `forkTick`
+         *     (default 0): the human Branch (label "You") and the AI Branch. Both
+         *     see the same seed, Scenario, potential customer arrivals and
+         *     Disruptions, and receive Decision_Windows at the same Ticks with the
+         *     same Observation fields, Command budget and lead times. `aiKind` is
+         *     `ai_rule_based` (default) or `ai_llm`. An LLM AI with no configured
+         *     provider plays as the Rule-based AI and is labelled as such.
+         *     Results are synthetic.
+         */
+        post: operations["createDuel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/duels/{duelId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read a Duel and its status.
+         * @description The status says where both Branches are, the Comparison_Tick (the lower
+         *     head Tick) and whom the Duel waits on: `human` while the human's
+         *     Decision_Window at the head is open and not ended, otherwise `none`.
+         *     The AI never holds the Duel.
+         */
+        get: operations["getDuel"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/duels/{duelId}/advance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Advance both sides of a Duel in lockstep.
+         * @description Without `runToTick` both Branches stop at the next Decision_Window or
+         *     the horizon. With `runToTick` the human's intervening windows end with
+         *     no Commands, the AI decides at each window it passes, and both stop at
+         *     `runToTick`, the horizon or the next Disruption onset. While the human's
+         *     window at the head is open, the request fails with `duel-window-open`.
+         *     `expectedHeadTick` is checked against the human Branch head.
+         */
+        post: operations["advanceDuel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/duels/{duelId}/commands": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit the human manager's Commands.
+         * @description Same rules as `submitCommands`, always on the human Branch of the Duel.
+         *     There is no way to submit Commands for the AI side.
+         */
+        post: operations["submitDuelCommands"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/duels/{duelId}/decision-window/end": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * End the human manager's Decision_Window.
+         * @description Closes the human's window at the head so the Duel can advance. The AI
+         *     Manager has already decided at that window.
+         */
+        post: operations["endDuelWindow"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/duels/{duelId}/disruptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Inject one Disruption into both sides of a Duel.
+         * @description Appends the same Disruption with the same start Tick to both Branches,
+         *     so both realities face it identically. Ranges and errors follow
+         *     `injectDisruption`.
+         */
+        post: operations["injectDuelDisruption"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/duels/{duelId}/score": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the Duel score at the Comparison_Tick.
+         * @description Scores both sides at the lower of their head Ticks. `provisional` is
+         *     true while either side is below the horizon: `outcome` is then the
+         *     standing at that Tick, not a declared winner. The score is a 100-point
+         *     composite held as integer hundredths (0 to 10000): financial,
+         *     fulfilment and on-time components in basis points, each scaled by its
+         *     weight. The financial component is normalized against the Scenario's
+         *     profit floor and target, never against the opponent. Raw metrics are
+         *     returned next to the score. A difference of at most
+         *     `tieToleranceHundredths` is a draw.
+         *     Results are synthetic and carry the disclaimer.
+         */
+        get: operations["getDuelScore"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/duels/{duelId}/decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the AI side's decision records.
+         * @description One record per Decision_Window the AI handled, with provenance, model,
+         *     fallback reason, accepted and rejected Commands with reason codes, and
+         *     the rationale as untrusted text to be shown escaped. While the human's
+         *     window at the Comparison_Tick is open, the AI's record for that window
+         *     is withheld, so the human cannot read the opponent's move before
+         *     committing their own. The human's own Commands are Inputs, read through
+         *     the export of the human Branch.
+         */
+        get: operations["listDuelDecisions"];
         put?: never;
         post?: never;
         delete?: never;
@@ -465,6 +785,19 @@ export interface components {
          * @enum {string}
          */
         ManagerKind: "human" | "ai_rule_based" | "ai_llm";
+        ManagerInfo: {
+            kind: components["schemas"]["ManagerKind"];
+            name: string;
+            description: string;
+            available: boolean;
+            /** @description The model identifier of the LLM AI. Present only when available. Never the API key or endpoint. */
+            model?: string;
+            /** @description Why the Manager kind is unavailable (for example not configured). Present only when unavailable. */
+            unavailableReason?: string;
+        };
+        ManagerList: {
+            managers: components["schemas"]["ManagerInfo"][];
+        };
         /**
          * @description Where an Input came from. Recorded metadata excluded from every state hash.
          * @enum {string}
@@ -495,13 +828,13 @@ export interface components {
         /**
          * @description URI that identifies the problem type. Status codes: history-immutable 409,
          *     not-yet-simulated 409, stale-head 409, window-not-open 409, branch-limit 409,
-         *     horizon-reached 409, engine-version-mismatch 409, budget-exceeded 422, validation 422, invalid-tick 422,
+         *     horizon-reached 409, duel-branch 409, duel-window-open 409, duel-diverged 409, engine-version-mismatch 409, budget-exceeded 422, validation 422, invalid-tick 422,
          *     invalid-scenario 400, invalid-name 400, bad-request 400, not-found 404,
          *     payload-too-large 413, rate-limited 429, unavailable 503, internal 500.
          *     An unknown route gives not-found 404. A wrong method gives bad-request with status 405.
          * @enum {string}
          */
-        ProblemType: "urn:parallel:problem:history-immutable" | "urn:parallel:problem:not-yet-simulated" | "urn:parallel:problem:stale-head" | "urn:parallel:problem:window-not-open" | "urn:parallel:problem:budget-exceeded" | "urn:parallel:problem:validation" | "urn:parallel:problem:branch-limit" | "urn:parallel:problem:horizon-reached" | "urn:parallel:problem:engine-version-mismatch" | "urn:parallel:problem:invalid-tick" | "urn:parallel:problem:invalid-scenario" | "urn:parallel:problem:invalid-name" | "urn:parallel:problem:bad-request" | "urn:parallel:problem:not-found" | "urn:parallel:problem:payload-too-large" | "urn:parallel:problem:rate-limited" | "urn:parallel:problem:unavailable" | "urn:parallel:problem:internal";
+        ProblemType: "urn:parallel:problem:history-immutable" | "urn:parallel:problem:not-yet-simulated" | "urn:parallel:problem:stale-head" | "urn:parallel:problem:window-not-open" | "urn:parallel:problem:budget-exceeded" | "urn:parallel:problem:validation" | "urn:parallel:problem:branch-limit" | "urn:parallel:problem:horizon-reached" | "urn:parallel:problem:engine-version-mismatch" | "urn:parallel:problem:duel-branch" | "urn:parallel:problem:duel-window-open" | "urn:parallel:problem:duel-diverged" | "urn:parallel:problem:invalid-tick" | "urn:parallel:problem:invalid-scenario" | "urn:parallel:problem:invalid-name" | "urn:parallel:problem:bad-request" | "urn:parallel:problem:not-found" | "urn:parallel:problem:payload-too-large" | "urn:parallel:problem:rate-limited" | "urn:parallel:problem:unavailable" | "urn:parallel:problem:internal";
         Warning: {
             /** @description Machine-readable code, for example `engine-version-mismatch`. */
             code: string;
@@ -621,6 +954,22 @@ export interface components {
             name: components["schemas"]["Name"];
             seed: components["schemas"]["Seed"];
             engineVersion: string;
+            /**
+             * @description True when the server has an LLM configuration (base URL, key and
+             *     model), so `ai_llm` Branches can ask the provider. When false the
+             *     counters below are 0 and the Rule-based AI is offered instead.
+             */
+            llmAvailable: boolean;
+            /** @description The configured model identifier. Present only when `llmAvailable`. The API key and endpoint are never returned. */
+            llmModel?: string;
+            /** @description LLM requests this World has made, across all its Branches. */
+            llmCallsMade: number;
+            /** @description Requests left before Decision_Windows fall back with reason `budget_exhausted`. */
+            llmCallsRemaining: number;
+            /** @description Prompt plus completion tokens the provider reported for this World. */
+            llmTokensUsed: number;
+            /** @description Tokens left before the per-World token cap is reached. */
+            llmTokensRemaining: number;
             /** @description SHA-256 of the canonical scenario bytes. */
             scenarioHash: string;
             /** Format: date-time */
@@ -826,6 +1175,32 @@ export interface components {
             budgetRemaining: number;
             /** @description True when the Idempotency-Key repeated an earlier submission. Nothing was appended. */
             duplicate: boolean;
+        };
+        DecisionRecord: {
+            windowTick: components["schemas"]["Tick"];
+            managerKind: components["schemas"]["ManagerKind"];
+            provenance: components["schemas"]["Provenance"];
+            /** @description Model name of an LLM proposal. Omitted otherwise. */
+            model?: string;
+            /** @description Why the rule-based manager stood in, with provenance `ai_rule_based_fallback`. Omitted otherwise. */
+            fallbackReason?: string;
+            /** @description Untrusted display text. Empty when the manager gave none. */
+            rationale: string;
+            /** @description The Commands the manager proposed, in priority order. */
+            proposed: components["schemas"]["Command"][];
+            /** @description How many proposals the validator accepted and stored as Inputs. */
+            acceptedCount: number;
+            /** @description Proposals the validator refused. They were stored nowhere. */
+            rejected: components["schemas"]["ValidationResult"][];
+            /**
+             * Format: date-time
+             * @description Server wall-clock time. Metadata, excluded from every State_Hash.
+             */
+            createdAt: string;
+        };
+        DecisionsResponse: {
+            branchId: components["schemas"]["Uuid"];
+            decisions: components["schemas"]["DecisionRecord"][];
         };
         TickFramesResponse: {
             branchId: components["schemas"]["Uuid"];
@@ -1232,9 +1607,57 @@ export interface components {
             total: number;
             offset: number;
             entries: components["schemas"]["LedgerEntry"][];
+            figure?: components["schemas"]["MoneyFigure"];
+            /**
+             * Format: int64
+             * @description Present with `figure`. Sum of the contributions of every matching entry, not only this page.
+             */
+            sumCents?: number;
             currency: components["schemas"]["Currency"];
             disclaimer: components["schemas"]["Disclaimer"];
             warnings?: components["schemas"]["Warnings"];
+        };
+        /** @enum {string} */
+        MoneyFigure: "cash" | "net_profit" | "net_revenue" | "cost_of_goods_sold" | "freight" | "labor" | "marketing" | "overhead" | "service_credits";
+        LedgerSummaryResponse: {
+            branchId: components["schemas"]["Uuid"];
+            tick: components["schemas"]["Tick"];
+            accounts: components["schemas"]["LedgerAccountTotal"][];
+            figures: components["schemas"]["LedgerFigure"][];
+            currency: components["schemas"]["Currency"];
+            disclaimer: components["schemas"]["Disclaimer"];
+            warnings?: components["schemas"]["Warnings"];
+        };
+        LedgerAccountTotal: {
+            account: components["schemas"]["Account"];
+            /** @enum {string} */
+            normalSide: "debit" | "credit";
+            /** Format: int64 */
+            debitCents: number;
+            /** Format: int64 */
+            creditCents: number;
+            /**
+             * Format: int64
+             * @description Balance on the account's normal side.
+             */
+            balanceCents: number;
+            entryCount: number;
+        };
+        LedgerFigure: {
+            figure: components["schemas"]["MoneyFigure"];
+            /**
+             * Format: int64
+             * @description Sum over components of sign times the account balance, computed from the Ledger entries.
+             */
+            sumCents: number;
+            /** @description Number of entries with a line on a component account. */
+            entryCount: number;
+            components: components["schemas"]["LedgerFigureComponent"][];
+        };
+        LedgerFigureComponent: {
+            account: components["schemas"]["Account"];
+            /** @enum {integer} */
+            sign: -1 | 1;
         };
         /** @description One balanced posting. Total debits equal total credits. */
         LedgerEntry: {
@@ -1246,6 +1669,11 @@ export interface components {
             description: string;
             cause: components["schemas"]["CauseRef"];
             lines: components["schemas"]["LedgerLine"][];
+            /**
+             * Format: int64
+             * @description Present with the `figure` filter. The entry's signed share of that figure.
+             */
+            contributionCents?: number;
         };
         CauseRef: {
             /**
@@ -1362,6 +1790,160 @@ export interface components {
             onHand: number;
             valueCents: components["schemas"]["Cents"];
         };
+        CreateDuelRequest: {
+            name?: components["schemas"]["Name"];
+            seed?: components["schemas"]["Seed"];
+            /** @description A scenario document. Omit it to use the flagship scenario. */
+            scenario?: {
+                [key: string]: unknown;
+            };
+            /** @description Assumption dotted path to new integer value. */
+            overrides?: {
+                [key: string]: number;
+            };
+            forkTick?: components["schemas"]["Tick"];
+            /**
+             * @default ai_rule_based
+             * @enum {string}
+             */
+            aiKind: "ai_rule_based" | "ai_llm";
+        };
+        DuelBranch: {
+            branch: components["schemas"]["Branch"];
+            /** @description Plain label: "You", "Rule-based AI", "LLM AI (<model>)" or "Rule-based AI (LLM fallback: <reason>)". */
+            managerLabel: string;
+        };
+        Duel: {
+            id: components["schemas"]["Uuid"];
+            worldId: components["schemas"]["Uuid"];
+            parentBranchId: components["schemas"]["Uuid"];
+            aiKind: components["schemas"]["ManagerKind"];
+            forkTick: components["schemas"]["Tick"];
+            /** @description How the Comparison_Tick is chosen. `min_head_tick` is the lower head Tick of the two sides. */
+            comparisonPolicy: string;
+            /** Format: date-time */
+            createdAt: string;
+            human: components["schemas"]["DuelBranch"];
+            ai: components["schemas"]["DuelBranch"];
+        };
+        DuelStatus: {
+            duelId: components["schemas"]["Uuid"];
+            humanHeadTick: components["schemas"]["Tick"];
+            aiHeadTick: components["schemas"]["Tick"];
+            comparisonTick: components["schemas"]["Tick"];
+            horizonTick: components["schemas"]["Tick"];
+            /** @description True when both sides are at the horizon. */
+            finished: boolean;
+            /** @description A Decision_Window is open for the human at its head. */
+            windowOpen: boolean;
+            windowReasons: components["schemas"]["WindowReason"][];
+            /**
+             * @description `human` while the human window is open and not ended; neither side advances then.
+             * @enum {string}
+             */
+            waitingOn: "human" | "none";
+            warnings?: components["schemas"]["Warnings"];
+        };
+        DuelResponse: {
+            duel: components["schemas"]["Duel"];
+            status: components["schemas"]["DuelStatus"];
+        };
+        CreateDuelResponse: {
+            world: components["schemas"]["World"];
+            duel: components["schemas"]["Duel"];
+            status: components["schemas"]["DuelStatus"];
+        };
+        AdvanceDuelResult: {
+            headTick: components["schemas"]["Tick"];
+            paused: components["schemas"]["PauseReason"];
+            windowReasons: components["schemas"]["WindowReason"][];
+            human?: components["schemas"]["AdvanceResult"];
+            ai?: components["schemas"]["AdvanceResult"];
+            status: components["schemas"]["DuelStatus"];
+            currency: components["schemas"]["Currency"];
+            disclaimer: components["schemas"]["Disclaimer"];
+        };
+        DuelInjectResult: {
+            human: components["schemas"]["InjectDisruptionResult"];
+            ai: components["schemas"]["InjectDisruptionResult"];
+        };
+        DuelScoreComponents: {
+            financialBps: components["schemas"]["Bps"];
+            fulfilmentRateBps: components["schemas"]["Bps"];
+            onTimeBps: components["schemas"]["Bps"];
+            /**
+             * Format: int64
+             * @description Composite score in hundredths of a point, 0 to 10000.
+             */
+            compositeHundredths: number;
+        };
+        /** @description Each component times its weight, rounded half to even, in hundredths of a point. They can differ from the composite by at most one hundredth. */
+        DuelWeightedComponents: {
+            /** Format: int64 */
+            financialHundredths: number;
+            /** Format: int64 */
+            fulfilmentHundredths: number;
+            /** Format: int64 */
+            onTimeHundredths: number;
+        };
+        DuelBranchScore: {
+            branchId: components["schemas"]["Uuid"];
+            managerKind: components["schemas"]["ManagerKind"];
+            managerLabel: string;
+            score: components["schemas"]["DuelScoreComponents"];
+            weighted: components["schemas"]["DuelWeightedComponents"];
+            metrics: components["schemas"]["Metrics"];
+            /** Format: int64 */
+            cancelledOrders: number;
+        };
+        DuelScore: {
+            duelId: components["schemas"]["Uuid"];
+            comparisonTick: components["schemas"]["Tick"];
+            horizonTick: components["schemas"]["Tick"];
+            /** @description True while either side is below the horizon. The outcome is then a standing, not a declared winner. */
+            provisional: boolean;
+            /** @enum {string} */
+            outcome: "human_wins" | "ai_wins" | "draw";
+            human: components["schemas"]["DuelBranchScore"];
+            ai: components["schemas"]["DuelBranchScore"];
+            weights: components["schemas"]["ScoreWeights"];
+            profitFloorCents: components["schemas"]["Cents"];
+            profitTargetCents: components["schemas"]["Cents"];
+            /** Format: int64 */
+            tieToleranceHundredths: number;
+            currency: components["schemas"]["Currency"];
+            disclaimer: components["schemas"]["Disclaimer"];
+            warnings?: components["schemas"]["Warnings"];
+        };
+        DuelDecision: {
+            /** @description Plain provenance label, for example "Rule-based AI" or "Rule-based AI (LLM fallback: timeout)". */
+            managerLabel: string;
+            windowTick: components["schemas"]["Tick"];
+            managerKind: components["schemas"]["ManagerKind"];
+            provenance: components["schemas"]["Provenance"];
+            /** @description Model name of an LLM proposal. Omitted otherwise. */
+            model?: string;
+            /** @description Why the rule-based manager stood in, with provenance `ai_rule_based_fallback`. Omitted otherwise. */
+            fallbackReason?: string;
+            /** @description Untrusted display text. Empty when the manager gave none. */
+            rationale: string;
+            /** @description The Commands the manager proposed, in priority order. */
+            proposed: components["schemas"]["Command"][];
+            /** @description How many proposals the validator accepted and stored as Inputs. */
+            acceptedCount: number;
+            /** @description Proposals the validator refused. They were stored nowhere. */
+            rejected: components["schemas"]["ValidationResult"][];
+            /**
+             * Format: date-time
+             * @description Server wall-clock time. Metadata, excluded from every State_Hash.
+             */
+            createdAt: string;
+        };
+        DuelDecisionsResponse: {
+            duelId: components["schemas"]["Uuid"];
+            branchId: components["schemas"]["Uuid"];
+            decisions: components["schemas"]["DuelDecision"][];
+        };
         CreateDemoRequest: {
             name?: components["schemas"]["Name"];
         };
@@ -1394,6 +1976,22 @@ export interface components {
             /** Format: int64 */
             qty: number;
         };
+        /** @description Data of a `tick` event of the progress stream. A TickFrame plus optional `warnings`. */
+        ProgressTickEvent: components["schemas"]["TickFrame"] & {
+            warnings?: components["schemas"]["Warnings"];
+        };
+        /** @description Data of a `decision_window` event of the progress stream. */
+        ProgressDecisionWindowEvent: {
+            tick: components["schemas"]["Tick"];
+            reasons: components["schemas"]["WindowReason"][];
+        };
+        /** @description Data of the `completed` event of the progress stream, sent once the horizon frame is out. */
+        ProgressCompletedEvent: {
+            tick: components["schemas"]["Tick"];
+            stateHash: components["schemas"]["StateHash"];
+            currency: components["schemas"]["Currency"];
+            disclaimer: components["schemas"]["Disclaimer"];
+        };
     };
     responses: {
         /** @description Malformed JSON, unknown field, missing or malformed parameter, invalid name or invalid scenario (types `bad-request`, `invalid-name`, `invalid-scenario`). */
@@ -1417,7 +2015,7 @@ export interface components {
         /**
          * @description The request conflicts with the Branch state. Types: `history-immutable`,
          *     `not-yet-simulated`, `stale-head`, `window-not-open`, `branch-limit`,
-         *     `horizon-reached`, `engine-version-mismatch` (a mutation of a World recorded
+         *     `horizon-reached`, `duel-branch` (a direct mutation of a Branch that belongs to a Duel; use the duel endpoints), `duel-window-open`, `duel-diverged`, `engine-version-mismatch` (a mutation of a World recorded
          *     under another engine version; its reads still work and carry a warning).
          */
         Conflict: {
@@ -1467,6 +2065,7 @@ export interface components {
     };
     parameters: {
         WorldId: components["schemas"]["Uuid"];
+        DuelId: components["schemas"]["Uuid"];
         BranchId: components["schemas"]["Uuid"];
         /** @description A Tick from 0 through the Head_Tick. */
         TickQuery: components["schemas"]["Tick"];
@@ -1477,6 +2076,27 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listManagers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Manager kinds. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagerList"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+        };
+    };
     getHealth: {
         parameters: {
             query?: never;
@@ -1874,6 +2494,13 @@ export interface operations {
                 to: components["schemas"]["Tick"];
                 /** @description Keep only entries with a line on this account. */
                 account?: components["schemas"]["Account"];
+                /**
+                 * @description Keep only entries with a line on an account that makes up this
+                 *     headline money figure, and return each entry's signed
+                 *     `contributionCents` plus the server-computed `sumCents` over every
+                 *     matching entry in the range. Exclusive with `account`.
+                 */
+                figure?: components["schemas"]["MoneyFigure"];
                 limit?: number;
                 offset?: number;
             };
@@ -1892,6 +2519,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LedgerResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    getLedgerSummary: {
+        parameters: {
+            query: {
+                /** @description A Tick from 0 through the Head_Tick. */
+                tick: components["parameters"]["TickQuery"];
+            };
+            header?: never;
+            path: {
+                branchId: components["parameters"]["BranchId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The summary. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LedgerSummaryResponse"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -1960,6 +2616,29 @@ export interface operations {
             422: components["responses"]["Unprocessable"];
         };
     };
+    listBranchDecisions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: components["parameters"]["BranchId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The records. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecisionsResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
     exportBranchInputs: {
         parameters: {
             query?: never;
@@ -1980,6 +2659,264 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InputsFile"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    streamBranchProgress: {
+        parameters: {
+            query?: {
+                /** @description First Tick to stream when `Last-Event-ID` is absent. Defaults to 0. */
+                fromTick?: components["schemas"]["Tick"];
+            };
+            header?: {
+                /** @description The last Tick the client received. The stream resumes at the next Tick. */
+                "Last-Event-ID"?: string;
+            };
+            path: {
+                branchId: components["parameters"]["BranchId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description An event stream. Each event is described by the Progress* schemas. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-cache";
+                    "X-Accel-Buffering"?: "no";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": components["schemas"]["ProgressTickEvent"] | components["schemas"]["ProgressDecisionWindowEvent"] | components["schemas"]["ProgressCompletedEvent"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["Unprocessable"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    createDuel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CreateDuelRequest"];
+            };
+        };
+        responses: {
+            /** @description The World, the Duel and its status. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateDuelResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            413: components["responses"]["PayloadTooLarge"];
+            422: components["responses"]["Unprocessable"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getDuel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                duelId: components["parameters"]["DuelId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Duel. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DuelResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    advanceDuel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                duelId: components["parameters"]["DuelId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AdvanceRequest"];
+            };
+        };
+        responses: {
+            /** @description Where both sides stopped. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdvanceDuelResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    submitDuelCommands: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-chosen key, 1 to 128 printable ASCII characters. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                duelId: components["parameters"]["DuelId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitCommandsRequest"];
+            };
+        };
+        responses: {
+            /** @description Accepted Inputs and rejected Commands. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubmitCommandsResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    endDuelWindow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                duelId: components["parameters"]["DuelId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EndWindowRequest"];
+            };
+        };
+        responses: {
+            /** @description The window is closed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+        };
+    };
+    injectDuelDisruption: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-chosen key, 1 to 128 printable ASCII characters. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                duelId: components["parameters"]["DuelId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InjectDisruptionRequest"];
+            };
+        };
+        responses: {
+            /** @description The recorded Input of each side. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DuelInjectResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    getDuelScore: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                duelId: components["parameters"]["DuelId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The score. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DuelScore"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listDuelDecisions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                duelId: components["parameters"]["DuelId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The records. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DuelDecisionsResponse"];
                 };
             };
             404: components["responses"]["NotFound"];

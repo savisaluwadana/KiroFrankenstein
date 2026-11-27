@@ -665,3 +665,46 @@ Run: Playwright 1.65.1 (exact-pinned), headless Chromium 159, macOS arm64. `npm 
 - The time strip's right edge is a sub-pixel target on a phone; the test uses the End key for it.
 - Frame times were measured in headless Chromium on a desktop-class Mac with no CPU throttling, so they say nothing about real phones. WebGL "GPU stall" notices from the headless driver appear as warnings and are not treated as failures.
 - Not tested: Firefox and Safari, real touch devices, screen readers, `prefers-reduced-motion` in the browser, the Docker/PostgreSQL store.
+
+## 11c. Scene label collisions: fixed, and what remains
+
+Fixed (`web/features/world-view/scene/labelLayout.ts`, `sceneLabels.ts`, tests in `labelLayout.test.ts`): about nine red tags used to overlap during a supplier outage. Now:
+
+- Disruptions are a stacked banner column along the top-left edge of the canvas, each with a warning icon. They are no longer floating at zone anchors, and "Dock closed" is not drawn twice (the dock hotspot tooltip still says it).
+- The four "Waiting for inventory: N" sentences became a small numeric badge on each rack plus one aggregate tag ("Waiting for inventory: N orders"). Per-product sentences stay in the rack tooltips and the accessible summary.
+- All other labels go through a deterministic greedy layout by priority (crisis, bottleneck, rack badges, stock, ambient). Each label tries a fixed order of offsets (with a thin leader line when moved) and shorter text variants, and is hidden only if nothing fits. The unit test builds the outage + surge + absence + four-stockout frame and asserts zero pairwise overlaps, and that every hidden label's facts appear in a hotspot tooltip or the accessible summary.
+- No new animation; numbers are unchanged frame values.
+
+Remaining:
+
+- On a phone the scene is wider than the screen and starts scrolled to the centre, so the top-left banner column and "Absent: N" are off-screen until the user pans. The Alerts tab carries the same information.
+- Labels are scene-pixel text, so they are small at desktop panel width (about 0.7x). Larger text would need more hiding.
+- Layout avoids label-on-label overlap only; a label can still sit over rack art.
+
+## 12. M4/M5 verification results (real browser, 2026-11-27)
+
+Headless Chromium, desktop 1440x900 and phone 390x844, against the real Go API (in-memory store, port 18080) and a production build of the web app (port 3199). Full `npm run e2e`: 16 passed, 6 skipped (desktop-only specs on the phone project), 0 failed, 4.7 min.
+
+| Spec | Desktop | Phone | Checks |
+|---|---|---|---|
+| `commands.spec.ts` | 1/1 | skipped | Order (backup), price, rush (PO placed at hour 0, rushed at hour 4), overtime, temp hire, marketing through their cards; each shows "Takes effect at …"; export inputs carry the kinds and fields; Labor_Expense lines for regular, overtime and temp wages, Marketing_Expense per hour and the $50 expedite Freight_Expense match the assumptions; plain-language rejection next to the price and staffing cards, and the marketing limit message before sending |
+| `ledger-sse.spec.ts` | 4/4 | skipped | Profit so far and Cash drill-downs equal `ledger/summary` and the sum of every listed "Adds" line (all pages); the browser opens `/progress` as an EventSource and receives ticks 0..8 in order; with `/progress` aborted the client switches to "Polling", polls `/tick-frames` and every hour 0..8 stays viewable; an injected surprise shows its time-strip marker, survives a reload (via export) and its crisis card appears at its hour, not before |
+| `duel.spec.ts` | 1/1 | 1/1 | Challenge from the briefing (Rule-based AI), both panes at one hour, AI decision withheld (UI and API) until Continue, then shown with "Rule-based AI" and "AI rationale (not verified)"; run to hour 120; every scoreboard number (composite, components, raw metrics, differences, outcome) equals `GET /duels/{id}/score`, which equals per-branch metrics; identical disruptions in both branches' frames and in both panes' descriptions; equal state hashes at the fork hour in Engineering Mode. No winner is asserted |
+| `duel-llm-stub.spec.ts` | 1/1 | skipped | **Stub provider. Live LLM verification is pending (no runtime API key configured).** "LLM AI (stub-model)" offered and shown; windows 0, 4, 16 use the stub's proposal, window 8 (malformed reply) shows "Rule-based AI (LLM fallback: invalid reply)", window 12 (HTTP 500) "… service error"; the `<script>` and markdown-link rationale renders as literal text (no anchor, no alert); usage counters equal GET world and the stub's own request count; `stub-key-not-secret` appears in no API response, DOM, storage, console line or server log; reloading and re-reading decisions, export, state and frames make zero further stub requests |
+| `journey`, `metrics`, `setup-and-perf` | 5/5 | 5/5 | Unchanged checks |
+
+Approach for the stub spec: the spec builds the API to `/tmp/parallel-api-llm-e2e`, starts it on a free port with the stub's `LLM_*` variables, and rewrites the web build's API origin (`localhost:18080`) to that instance with `page.route`. No second web server is built. Both the stub and the second API are stopped in `afterAll`; after the run nothing listened on 3199 or 18080.
+
+Defects found and fixed (minimal changes, no redesign):
+
+- Duel Engineering Mode LLM counters went stale: the world was read once on open, so "LLM calls made" stayed at 1 while the API said 6. `DuelView` now re-reads the world when the head or the waiting state changes.
+- Phone scoreboard: the "Observed differences" table overflowed the card (the profit difference was cut at the right edge). Both scoreboard tables now sit in a horizontal-scroll wrapper and use smaller text below 769 px.
+- Duel rail stretched to the full page height with a large empty area under short tabs. The rail now aligns to its content and stays in view (sticky) on desktop.
+- "Add a surprise" toggle: the label and the +/− sign were centred together ("Add a surprise−"). They now sit at opposite ends.
+- Test race (not a product defect): `journey` and `metrics` read the branch id from the URL right after skipping the fork sequence, before the studio switches reality. They now wait for the URL to change. This was failing `metrics` reliably.
+
+Observed and not changed:
+
+- The duel panes are small at 1440 px (two scenes side by side); scene labels are legible only as shapes. Hover/tap tooltips and the text summary carry the figures.
+- The timeline lane of decision-moment markers is dense across a full week; markers touch but do not overlap text.
+- On the phone, the stage and the rail are long; the scoreboard is reached by scrolling past the controls. No overlap or clipping was seen after the fix.

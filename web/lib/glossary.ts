@@ -201,6 +201,17 @@ const DISRUPTION_LABELS: Record<string, string> = {
   workforce_absence: "Team members out",
 };
 
+/** Names of the surprises a user can add, as shown on the "Add a surprise" control. */
+const DISRUPTION_CHOICE_LABELS: Record<string, string> = {
+  supplier_outage: "Supplier outage",
+  demand_surge: "Demand surge",
+  workforce_absence: "Staff absence",
+};
+
+export function disruptionChoiceLabel(kind: string): string {
+  return DISRUPTION_CHOICE_LABELS[kind] ?? "Something unexpected";
+}
+
 export function disruptionLabel(kind: string): string {
   return DISRUPTION_LABELS[kind] ?? "Something unexpected";
 }

@@ -29,6 +29,7 @@ import (
 
 	"github.com/savisaluwadana/KiroFrankenstein/backend/internal/app"
 	"github.com/savisaluwadana/KiroFrankenstein/backend/internal/httpapi"
+	"github.com/savisaluwadana/KiroFrankenstein/backend/internal/policy/llm"
 	"github.com/savisaluwadana/KiroFrankenstein/backend/scenarios"
 )
 
@@ -77,6 +78,27 @@ func loadConfig() (config, error) {
 	return c, nil
 }
 
+// llmOptions reads the LLM_* variables. An invalid value aborts start-up with
+// an error that names the variable. When base URL, key and model are all set
+// the LLM opponent is enabled; only the model identifier is logged, never the
+// key or the URL.
+func llmOptions(log *slog.Logger) ([]app.Option, error) {
+	cfg, err := llm.LoadConfig(os.Getenv)
+	if err != nil {
+		return nil, err
+	}
+	if !cfg.Available() {
+		log.Info("llm=disabled")
+		return nil, nil
+	}
+	opt, err := app.WithLLM(cfg, nil)
+	if err != nil {
+		return nil, fmt.Errorf("llm configuration: %w", err)
+	}
+	log.Info("llm=enabled", "model", cfg.Model)
+	return []app.Option{opt}, nil
+}
+
 func main() {
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	if len(os.Args) > 1 && os.Args[1] == "migrate" {
@@ -102,9 +124,13 @@ func run(log *slog.Logger) error {
 		return err
 	}
 	defer closeStore()
-	svc := app.NewBranchService(store, nil, nil)
+	opts, err := llmOptions(log)
+	if err != nil {
+		return err
+	}
+	svc := app.NewBranchService(store, nil, nil, opts...)
 	api, err := httpapi.New(httpapi.Options{
-		Service: svc, FlagshipScenario: scenarios.BlackFriday, WebOrigin: cfg.webOrigin,
+		Service: svc, Duels: app.NewDuelService(svc, nil), FlagshipScenario: scenarios.BlackFriday, WebOrigin: cfg.webOrigin,
 		RatePerSecond: cfg.rps, RateBurst: cfg.burst, Logger: log,
 	})
 	if err != nil {

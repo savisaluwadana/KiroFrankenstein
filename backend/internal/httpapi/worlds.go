@@ -81,7 +81,15 @@ func (s *Server) worldDTO(r *http.Request, id app.WorldID) (worldDTO, error) {
 	if err != nil {
 		return worldDTO{}, err
 	}
-	return worldToDTO(world, sc), nil
+	dto := worldToDTO(world, sc)
+	st, err := s.svc.LLMStatus(r.Context(), id)
+	if err != nil {
+		return worldDTO{}, err
+	}
+	dto.LLMAvailable, dto.LLMModel = st.Available, st.Model
+	dto.LLMCallsMade, dto.LLMCallsRemaining = st.CallsMade, st.CallsRemaining
+	dto.LLMTokensUsed, dto.LLMTokensRemaining = st.TokensUsed, st.TokensRemaining
+	return dto, nil
 }
 
 func (s *Server) getWorld(w http.ResponseWriter, r *http.Request) {

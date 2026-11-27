@@ -132,7 +132,7 @@ func TestForkBranchLimit(t *testing.T) {
 func TestForkIndependenceAndGrandchild(t *testing.T) {
 	svc, b, hash := parentAt4(t)
 	ctx := context.Background()
-	child, err := svc.ForkBranch(ctx, b.ID, 4, "alt", app.ManagerAIRuleBased)
+	child, err := svc.ForkBranch(ctx, b.ID, 4, "alt", "")
 	if err != nil {
 		t.Fatal(err)
 	}

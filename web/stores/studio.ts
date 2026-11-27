@@ -34,6 +34,8 @@ export interface StudioState {
   /** Tick at which the active Branch has an open Decision_Window, or null. */
   openWindowTick: number | null;
   error: string | null;
+  /** True once any response showed the world was recorded under another engine version. */
+  engineMismatch: boolean;
 
   openWorld(init: OpenWorldInit): void;
   setBranches(branches: Branch[]): void;
@@ -47,6 +49,7 @@ export interface StudioState {
   setSyncing(syncing: boolean): void;
   setOpenWindowTick(tick: number | null): void;
   setError(message: string | null): void;
+  setEngineMismatch(mismatch: boolean): void;
   reset(): void;
 }
 
@@ -62,6 +65,7 @@ const INITIAL = {
   syncing: false,
   openWindowTick: null,
   error: null,
+  engineMismatch: false,
 };
 
 export function createStudioStore() {
@@ -124,6 +128,9 @@ export function createStudioStore() {
     },
     setError(error) {
       set({ error });
+    },
+    setEngineMismatch(engineMismatch) {
+      set({ engineMismatch });
     },
     reset() {
       set({ ...INITIAL, framesByBranch: {} });
