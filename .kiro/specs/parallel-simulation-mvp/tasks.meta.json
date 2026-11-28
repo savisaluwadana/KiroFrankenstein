@@ -1614,6 +1614,32 @@
         "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
         "timestamp": 1795805978912
       }
+    ],
+    "9.1 Write the README setup, run and limitations sections": [
+      {
+        "executionId": "2a1347b0-f374-4b1f-b6b6-af368aa51395",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795853959959
+      }
+    ],
+    "9.2 Write the demo script and a consistency test": [
+      {
+        "executionId": "2a1347b0-f374-4b1f-b6b6-af368aa51395",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795853960645
+      },
+      {
+        "executionId": "2a1347b0-f374-4b1f-b6b6-af368aa51395",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795854206178
+      }
+    ],
+    "9.3 Finalize the Kiro build log and evidence checklist": [
+      {
+        "executionId": "2a1347b0-f374-4b1f-b6b6-af368aa51395",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795854204353
+      }
     ]
   }
 }

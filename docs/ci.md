@@ -1,10 +1,20 @@
 # CI
 
-> **Update 2026-11-28:** the workflow has since run on GitHub. Run 46100197654 (commit `d4f140b`) succeeded in all six jobs (go amd64, go arm64, openapi lint, web, docker build, e2e). The status paragraph and check table below date from 2026-11-27 and are kept as the record of the local pre-push verification; use `gh run list --branch main` for current results.
-
 Workflow: `.github/workflows/ci.yml`. Local equivalent: `scripts/ci-local.sh`.
 
-**Status (2026-11-27): the workflow has NOT RUN on GitHub.** `origin/main` contains no workflow file (`git ls-tree -r origin/main` lists none; the local branch is ahead of origin) and `gh run list` returns no runs. Everything marked "local" below was verified on one machine (macOS arm64, PostgreSQL 16 in the compose container on port 55432), not on GitHub. Nothing here claims a CI pass.
+## GitHub Actions history (`gh run list --branch main`, checked 2026-11-28)
+
+| Run id | Commit | State | Per-job result |
+|---|---|---|---|
+| 46060356207 | `6636bee` | failure | `web` failed (`npm ci`: lockfile out of sync); `e2e` skipped; the other four succeeded. This was the first run on GitHub. |
+| 46065036957 | `cbd0d68` | success | all six jobs succeeded (lockfile regenerated with npm 10) |
+| 46098817923 | `a2f6119` | cancelled | `e2e` cancelled; the other five succeeded |
+| 46100197654 | `d4f140b` | success | all six jobs succeeded |
+| 46106909199 | `2ce9c05` | cancelled | `e2e` cancelled after a slow runner exceeded its time budget; the other five succeeded. `669f640` added fail-fast, traces and a longer e2e budget. |
+| 46125120786 | `d387c6d` | cancelled | `e2e` cancelled; the other five succeeded. The cause was not read from the logs; a newer push (`e666480`) followed and the workflow cancels in-progress runs per ref. |
+| 46126448247 | `e666480` | in progress when checked | `openapi lint` and `docker build` succeeded; `go (amd64)`, `go (arm64)` and `web` still running; `e2e` not started |
+
+The last two green runs are 46065036957 and 46100197654. No run for a later commit had completed successfully when this was written; run `gh run list --branch main` for current results. The check table below is the 2026-11-27 local pre-push record (macOS arm64); its GitHub column was written before any run existed and is kept as history.
 
 ## Jobs
 
@@ -18,9 +28,9 @@ Workflow: `.github/workflows/ci.yml`. Local equivalent: `scripts/ci-local.sh`.
 
 Other settings: `permissions: contents: read`; concurrency group per ref with `cancel-in-progress`; Go and npm module caches through `setup-go` / `setup-node`. Third-party actions use major tags (`checkout@v4`, `setup-go@v5`, `setup-node@v4`, `upload-artifact@v4`), not commit SHAs, because the SHAs could not be verified. After the first green run, resolve each tag to its SHA and pin it.
 
-## Check table
+## Check table (2026-11-27 local pre-push record)
 
-GitHub column: NOT YET RUN for every row (no run exists). Local column: second full run of `CI_LOCAL_DOCKER=1 bash scripts/ci-local.sh` on 2026-11-27 (macOS arm64), output in `/tmp/ci-local.txt`.
+GitHub column: NOT YET RUN for every row (written 2026-11-27, before the first GitHub run; see the history above). Local column: second full run of `CI_LOCAL_DOCKER=1 bash scripts/ci-local.sh` on 2026-11-27 (macOS arm64), output in `/tmp/ci-local.txt`.
 
 | Check | GitHub CI | Local |
 |---|---|---|
@@ -58,7 +68,7 @@ Golden checks under linux/amd64 emulation (what the amd64 runner executes):
 docker run --rm --platform linux/amd64 -v "$PWD":/src -w /src/backend golang:1.25 sh -c 'go test ./internal/sim -run TestGoldenFlagshipHash -count=1 && go test ./internal/app -run TestGoldenDuelHashes -count=1 && go test ./internal/app/ensemble -run TestGoldenEnsembleReport -count=1'
 ```
 
-## How to see the first real CI run
+## How to see CI runs
 
 Nothing is pushed or triggered by this repository's tooling. When you decide to:
 
@@ -69,4 +79,4 @@ gh run watch                # pick the run
 gh run view --log-failed    # on failure
 ```
 
-Expect the first run to need fixes: the arm64 PostgreSQL service container, the `psql` client on the arm image, and Playwright's browser install have not been exercised on GitHub.
+The first run did need a fix (the npm lockfile); the arm64 PostgreSQL service container and Playwright browser install have since run on GitHub (see the history).

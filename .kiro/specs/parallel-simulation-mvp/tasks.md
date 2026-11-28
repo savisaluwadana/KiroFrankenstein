@@ -854,26 +854,30 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
     - Reconciliation (M7 pass): Combined with 8.5 and 5.8 as the M7 final checkpoint; results are listed under 8.5. Feature freeze applies. 8.6 is an accepted deviation and 8.7 is skipped (see above). Remaining defects are listed in the M7 implementation notes. Status is left to the orchestrator.
 
 - [ ] 9. M8 — Documentation and hackathon submission (~150 credits)
-  - [ ] 9.1 Write the README setup, run and limitations sections
+  - [x] 9.1 Write the README setup, run and limitations sections
     - _Requirements: 31.6 (Disclaimer), `security.md` known limitations, `hackathon.md` setup instructions_
     - Dependencies: 8.8
     - Deliverables: `README.md` (stack, prerequisites, `docker compose up -d db`, migrations, `go run ./cmd/parallel-api`, `npm run dev`, CLI `run`/`verify`/`ensemble` examples, optional LLM configuration through OpenRouter with no default model, known limitations: no authentication, unguessable IDs, provider sees the Observation, human can read the script file; Disclaimer; MIT license)
     - Verify: `npx --yes markdownlint-cli2 README.md && cd backend && go run ./cmd/parallel-sim run --scenario scenarios/black-friday.json --seed 2026`
     - Acceptance: every command in the README exits 0 on a fresh clone with Docker, Go and Node installed (long-running servers are started manually by the user).
-  - [ ] 9.2 Write the demo script and a consistency test
+    - Reconciliation (M8 pass): COMPLETED in `d387c6d` (final README with setup, run, CLI examples, optional LLM configuration, limitations and the Disclaimer; commands re-checked in the fresh-clone check recorded in the README). CI-status wording was corrected afterwards to the real GitHub run history.
+  - [x] 9.2 Write the demo script and a consistency test
     - _Requirements: 34.9, 36.10_
     - Dependencies: 8.8
     - Deliverables: `docs/demo-script.md` (steps under 3 minutes; Demo_Fork_Tick and Demo_Commands copied from `demo-plan.json`; no scripted winner), `backend/internal/app/demoplan/docs_test.go` asserting the script's fork Tick and Commands equal the fixture
     - Verify: `cd backend && go test ./internal/app/demoplan -run TestDemoScriptMatchesPlan`
     - Acceptance: the test fails when the fixture and the script disagree.
-  - [ ] 9.3 Finalize the Kiro build log and evidence checklist
+    - Reconciliation (M8 pass): COMPLETED. `docs/demo-script.md` exists and `backend/internal/app/demoplan/docs_test.go` holds `TestDemoScriptMatchesPlan` (commit `e666480`).
+  - [-] 9.3 Finalize the Kiro build log and evidence checklist
     - _Requirements: `hackathon.md` logging rule_
     - Dependencies: 9.1, 9.2
     - Deliverables: `docs/kiro-build-log.md` entries for each real implementation session with commits and verification outcomes; evidence checklist ticked only for evidence that exists
     - Verify: `npx --yes markdownlint-cli2 docs/kiro-build-log.md && git log --oneline | head -n 20`
     - Acceptance: every logged claim maps to a commit or command output; nothing done outside Kiro is labelled as Kiro work.
+    - Reconciliation (M8 pass): the "M8 release preparation" entry and the evidence checklist are written in `docs/kiro-build-log.md`, with each claim tied to a commit from `git log --oneline` or a `gh run` output. The provenance note now names the 2026-11-10 commits (`8cb6215`, `2a282fa`, `5c456a6`, `9abdaf5`) as scaffolding for a removed concept, not Kiro work. Checklist: hook/MCP item left unticked (not used), public demo and demo video unticked. Status is left to the orchestrator.
   - [ ] 9.4 Final checkpoint — submission ready
     - Run the full backend, web and Playwright suites. Recording the video and submitting to Devpost are manual steps for the user. Ensure all tests pass, ask the user if questions arise.
+    - Reconciliation (M8 pass): not run in this pass; see release candidate notes. The latest GitHub run (46126448247, commit `e666480`) was in progress when the notes below were written.
 
 - [ ] 10. Stretch — optional, budget-gated (start only after 9.4 and only with credits left outside the 500-credit reserve)
   - [ ] 10.1 Large ensembles and distribution views
@@ -978,7 +982,7 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
 - **Ensemble benchmark:** 50-Seed paired ensemble median 3.27 s at the default concurrency and 13.00 s at concurrency 1 on the Apple M5 (`docs/benchmarks.md`).
 - **Diff service design:** one comparison tick for both branches (the lower head unless given), First_Divergence_Tick from per-tick hash comparison, differing components and inputs listed as observed differences; the fixed causality statement is shown verbatim and the UI never claims a cause.
 - **Assumptions reveal rule:** `revealScript=true` returns entries with onset at or before the displayed branch's head; at the horizon the whole script; for a Duel Branch the head is the lower of the two heads, so the side that is ahead never reveals the other side's future. The script is absent without the flag.
-- **Remaining:** live LLM provider verification is PENDING (stub providers only); 5.7 is partial (no `interpolate.ts`); the CI matrix (ubuntu amd64 and arm64) has not executed on GitHub (golden tests were run on local arm64 and under linux/amd64 emulation in Docker); optional tests 7.3, 7.5, 7.13, 7.14 skipped; Kiro credit use for M6 was not measured.
+- **Remaining:** live LLM provider verification is PENDING (stub providers only); 5.7 is partial (no `interpolate.ts`); the CI matrix (ubuntu amd64 and arm64) had not executed on GitHub at that date (it has since; see M8 implementation notes) (golden tests were run on local arm64 and under linux/amd64 emulation in Docker); optional tests 7.3, 7.5, 7.13, 7.14 skipped; Kiro credit use for M6 was not measured.
 
 ### M7 implementation notes
 
@@ -988,10 +992,43 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
 - **Real bugs found by tests in M7:** (1) React error #185 in the browser: per-frame SSE updates exceeded React's nested update limit; fixed by batching SSE frames into the store at most every 50 ms. (2) The check-constraint bug above, found by the PostgreSQL concurrency test. (3) A cross-process race: two services recording the decision of one window collided on the `decision_records` unique constraint; the loser now discards its commands and adopts the winner's record (`TestAIConcurrencyPGDecisionUniqueRace`). (4) The benchmark found the cold `tick-frames` replay-per-frame cost (fixed, see 8.2).
 - **Also added:** timeline provenance markers (`markerStyle.tsx`), onboarding hints (`ExploreHint.tsx`), decorative scene interpolation (`scene/interpolate.ts`, positions only, with a test), `parallel-sim llm-check` (live verification procedure, `docs/live-llm-verification.md`), `scripts/demo-numbers.sh`, `docs/demo-script.md`, `scripts/ci-local.sh`, `docs/ci.md`.
 - **Benchmarks (Apple M5, laptop):** cold 120-frame read 114.6 ms median after the fix (1881 ms before); warm 0.69 ms; other API budgets met (see `docs/benchmarks.md`). Not measured on a demo host.
-- **CI status:** the GitHub workflow has NOT run on GitHub. The local mirror `scripts/ci-local.sh` passed every step; amd64 goldens passed in a linux/amd64 container.
+- **CI status:** at the time of M7 the GitHub workflow had NOT run (superseded: see the M8 implementation notes). The local mirror `scripts/ci-local.sh` passed every step; amd64 goldens passed in a linux/amd64 container.
 - **Live LLM verification: PENDING.** No real provider call was made; only stub providers were exercised.
 - **Not verified:** a real hosting platform, TLS/HSTS through a real proxy, a Vercel build, managed PostgreSQL. A web production build with an https API origin builds and its CSP `connect-src` includes that origin (checked with `next start` and `curl -I`).
 - **Remaining defects:** none critical or high known. Medium: 8.6 fork transition is 1500 ms against the 600 ms bound (accepted deviation); 8.7 not implemented; the rule-based AI overspends on labor (docs/calibration.md). Low: on the phone layout the bottom sheet hides most of the warehouse and the "Waiting for inventory" label is clipped at the right edge; the first demo-path screenshot catches the intro fade, nearly black; worlds are protected only by unguessable IDs; the running-API cap `MAX_WORLDS` applies to the memory store only. Kiro credit use was not measured.
+
+### M8 implementation notes
+
+- **Write-token capability model (migration `00007_world_write_token.sql`, commit `a2f6119`).** World, branch and duel IDs are read-only capabilities. Every mutating route needs the world's write token in `X-Parallel-Write-Token` (random 256-bit value returned once at creation, stored only as a SHA-256 hash, compared in constant time; 401 `write-token-required`, 403 `write-token-invalid`). The web app keeps the token in `sessionStorage`. `TestWriteRoutesNeedTheWriteToken` walks the router and `TestSessionIsolation` pins cross-world access. This replaces the M7 statement that worlds are protected only by unguessable IDs. Details in `docs/security-model.md` and `security.md`.
+- **LLM access code.** Optional `LLM_ACCESS_CODE`: starting an `ai_llm` duel, world or fork needs `X-Parallel-LLM-Code` (constant-time compare, 403 `llm-access-code-required`). The rule-based AI never needs it.
+- **Per-IP LLM cap.** `LLM_DUELS_PER_DAY_PER_IP` (default 5, range 1 to 1000) caps LLM-backed starts per client IP per 24 h (429). Global daily usage is rebuilt from persisted decision records after a restart (`ai_restart_limits_pg_test.go`).
+- **Local production rehearsal (`d4f140b`).** TLS PostgreSQL, an HTTPS proxy, SSE through it, API restart, SIGKILL and database-outage recovery, run locally with `scripts/rehearse-prod.sh`; `scripts/smoke-prod.sh` was fixed to send the write token. This is not a deployment to a real host.
+- **GitHub CI history (`gh run list --branch main`, 2026-11-28; table in `docs/ci.md`).** 46060356207 (`6636bee`) failure, `web` job (`npm ci` lockfile out of sync), fixed by `cbd0d68`; 46065036957 (`cbd0d68`) success, six jobs; 46098817923 (`a2f6119`) cancelled in `e2e`; 46100197654 (`d4f140b`) success, six jobs; 46106909199 (`2ce9c05`) cancelled in `e2e` (slow runner, budget overrun; addressed in `669f640`); 46125120786 (`d387c6d`) cancelled in `e2e`; 46126448247 (`e666480`) in progress when checked. In every cancelled run the other five jobs succeeded. A green run for the latest commit is not yet recorded.
+- **Local release suite.** `scripts/ci-local.sh` 22 of 22 steps pass; Playwright 24 passed, 10 skipped, 0 failed; vitest 275; Go tests with PostgreSQL, race tests and goldens pass (arm64 native and linux/amd64 emulation).
+- **Remaining limitations.** Live LLM provider verification PENDING (`parallel-sim llm-check` exits 4, no credentials). Nothing deployed; no public demo; the demo video is not recorded. Kiro credit use not measured. No hard monetary LLM cap in the app (set a credit limit at the provider). IDs plus write token are the only access control; there are no accounts. 8.6 fork transition is 1500 ms against the 600 ms bound (accepted deviation); 8.7 duel result reveal skipped under feature freeze. The rule-based AI overspends on labor (`docs/calibration.md`, not tuned).
+
+#### TASK RECONCILIATION SUMMARY (counts from the checkbox state of this file at the M8 pass, before the orchestrator's final status updates)
+
+Checkbox lines: 132 `[x]`, 22 `[ ]`, 1 `[-]` (155 in total). Of these, 10 are top-level parents (1 to 10; parents 1 to 7 are `[x]`, 8, 9 and 10 are open because they contain open sub-tasks), leaving 145 sub-tasks.
+
+| Group | Count | Tasks |
+|---|---|---|
+| Required sub-tasks in 1 to 9 | 129 | 125 `[x]`, 1 `[-]` (9.3, finished by this pass, the orchestrator ticks it), 3 `[ ]` (8.6, 8.7, 9.4) |
+| Optional property tests in 1 to 9, skipped | 8 | 2.8, 2.28, 2.29, 3.10, 7.3, 7.5, 7.13, 7.14 |
+| Stretch, required items (not started) | 5 | 10.1, 10.3, 10.4, 10.6, 10.7 |
+| Stretch, optional property tests (not started) | 3 | 10.2, 10.5, 10.8 |
+
+Open items and reasons:
+
+- 2.8, 2.28, 2.29, 3.10, 7.3, 7.5, 7.13, 7.14: optional, skipped to save credits.
+- 8.6 Fork split transition: accepted deviation. Implemented at 1.5 s against the 600 ms bound; left open because the acceptance bound is not met.
+- 8.7 Duel result reveal: skipped under feature freeze; the scoreboard shows final API values at once.
+- 9.3: work done in this pass; status ticked by the orchestrator.
+- 9.4 Final checkpoint: pending, run by the orchestrator.
+- 10.1 to 10.8: stretch, not started. 10.7 (shareable read-only replays) is only partly covered by the M8 write-token model: world, branch and duel IDs already work as read-only links because every mutation needs the write token. The task itself (a share-link table, `POST /worlds/{id}/share`, a separate share capability, world id omitted from responses, `TestReadOnlyLink`) is not built, so it stays unchecked.
+- Parents 8 and 9 stay open until 8.6, 8.7 (8 only), 9.3 and 9.4 are resolved; parent 10 stays open as stretch.
+
+After the orchestrator ticks 9.3 and completes 9.4, the required items would be 127 of 129 `[x]` with only 8.6 and 8.7 open. If 9.4 is not run, 126 of 129.
 
 ## Task Dependency Graph
 

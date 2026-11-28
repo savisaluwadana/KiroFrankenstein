@@ -31,7 +31,7 @@
 ## Current project status to mention honestly
 
 - ✓ Local CI mirror passes (`scripts/ci-local.sh`, per the build log).
-- ✓ GitHub Actions run 46100197654 (commit `d4f140b`): `web`, `openapi lint`, `go (arm64)`, `go (amd64)`, `docker build`, `e2e` all passed. A later run on `2ce9c05` was still in progress when checked, so re-check `gh run list` before submitting. `docs/ci.md`, the README and the build log still say CI has not run; they are out of date.
+- ✓ GitHub Actions run 46100197654 (commit `d4f140b`): `web`, `openapi lint`, `go (arm64)`, `go (amd64)`, `docker build`, `e2e` all passed. Runs on `2ce9c05` (46106909199) and `d387c6d` (46125120786) were cancelled in `e2e` (other jobs green); the run on `e666480` (46126448247) was in progress when checked. Re-check `gh run list --branch main` before submitting; a green latest run is not yet recorded.
 - ✗ Live LLM verification pending (optional; `docs/live-llm-verification.md`).
 - ✗ Not deployed (`docs/deploy.md`: "Nothing in the repository deploys itself").
 - ✗ Open tasks: fork transition timing (1.5 s vs 600 ms), duel reveal (8.7), M8 docs tasks 9.1 to 9.4 in `tasks.md`.

@@ -3,6 +3,8 @@
 **Purpose:** Maintain an accurate record of **actual** Kiro-assisted engineering for the hackathon submission.
 
 > The initial steering, requirements, design, and tasks were prepared as repository scaffolding outside Kiro. Do not represent them as generated or executed by Kiro. Start logging only after using Kiro itself.
+>
+> **Provenance of the first commits.** `git log --reverse --oneline` starts with `8cb6215` (initial commit), `2a282fa` (MIT license), `5c456a6` and `9abdaf5`, all dated 2026-11-10. `5c456a6` added steering, an "incident-stitcher" spec and an earlier build log; `9abdaf5` removed that concept because it was not approved. These four commits were scaffolding for a concept that no longer exists and are not Kiro evidence. The Parallel steering and spec in `.kiro/` are Kiro work from 2026-11-26 (the entries below); the first implementation commits are `ddc7c1d` (M0 scaffolding) and `d44bf1b` (M1 vertical slice), also 2026-11-26.
 
 ## Build sessions
 
@@ -166,11 +168,11 @@
   - `go test ./... -count=1 -v` with PostgreSQL (container on port 55432, migration version 4): all packages ok, 553 passing test lines, 0 failures, 0 SKIPs. Per package: `cmd/parallel-sim` 3.9 s, `internal/app` 172.4 s, `app/calibration` 71.9 s, `app/demoplan` 162.9 s, `app/ensemble` 217.9 s, `archtest` 2.5 s, `httpapi` 28.8 s, `policy/llm` 3.6 s, `policy/rulebased` 7.2 s, `sim` 63.4 s, `sim/inputsfile` 3.1 s, `simtest` 7.6 s, `store/memory` 3.0 s, `store/postgres` 13.9 s. (These times were measured while a Docker image pull ran in parallel.)
   - `go test -race`: `internal/app` (AI concurrency, LLM, window, duel, diff, concurrent) 16.2 s ok; `app/ensemble` (`TestReport|TestRunner|TestGolden`) 27.9 s ok; `httpapi` 82.5 s ok; `policy/llm` 2.6 s ok; `policy/rulebased` 11.6 s ok. `TestNoLLMConfiguration` with the three LLM variables unset: pass (2.4 s). `TestAIConcurrencyProposalBudget` and `TestLLMBudget` (call cap, token cap, per-world counter, concurrent windows) pass.
   - Determinism: `parallel-sim run --scenario scenarios/black-friday.json --seed 2026` printed engine version 2, state hash `f6f41425...fac80`, net profit 1,778,400 cents, service level 4427 bps, equal to `golden/no-command.hash` and the README. `verify` MATCH for demo-fork, demo-duel-human and demo-duel-ai (`9786f539...daca8`, `9786f539...daca8`, `647520ec...c1f41`). The 20-seed ensemble CLI output matched `ensemble-flagship-20.json` and `.csv` byte for byte (`cmp`).
-  - Cross-architecture: this machine is arm64. In `golang:1.25` under `--platform linux/amd64` (x86_64, go1.25.14, emulated), `TestGoldenFlagshipHash`, the demo-fork `verify` (MATCH), `TestGoldenEnsembleReport` and `TestGoldenDuelHashes` all passed. This is a local emulation result only; the GitHub Actions matrix (ubuntu-latest and ubuntu-24.04-arm) has not been executed. A first attempt failed only because the golden test reads the repo-root README and the container had mounted `backend/` alone.
+  - Cross-architecture: this machine is arm64. In `golang:1.25` under `--platform linux/amd64` (x86_64, go1.25.14, emulated), `TestGoldenFlagshipHash`, the demo-fork `verify` (MATCH), `TestGoldenEnsembleReport` and `TestGoldenDuelHashes` all passed. This is a local emulation result only; the GitHub Actions matrix (ubuntu-latest and ubuntu-24.04-arm) had not been executed at that date (it has since; see the M8 entry). A first attempt failed only because the golden test reads the repo-root README and the container had mounted `backend/` alone.
   - Web: `tsc` clean, `eslint` clean, vitest 32 files and 246 tests passed. Playwright full run (`npm run e2e`, includes `next build`): 19 passed, 0 failed, 7 skipped (desktop-only specs on the phone project) in 5.1 minutes. `duel-llm-stub.spec.ts` was the one known failure and now passes.
   - README OpenRouter procedure followed with a stub provider and a fake key: `/managers` listed `ai_llm` available with model `stub-readme-model`; the server log held the model name and no key or base URL; the temporary `.env` was deleted.
   - Retained rapid failure files: `TestPropReplayEquivalence` and `TestPropSnapshotResume` (regression seeds of bugs fixed earlier) and `TestPropScenarioRoundTrip` (a tracked seed from 2026-11-26, also a regression seed); rapid replays each on every run and all pass. The stale `TestPropHashMetadataIndependence` seed was already deleted in the working tree.
-- **Known issues:** live LLM provider verification is PENDING (stub providers only); task 5.7 is partial (no `scene/interpolate.ts`); the CI matrix has not run on GitHub; the rule-based AI overspends on labor and underperforms some human-style plans in the calibrated scenario (recorded in `docs/calibration.md`, not tuned); Kiro credit use for M6 was not measured.
+- **Known issues:** live LLM provider verification is PENDING (stub providers only); task 5.7 is partial (no `scene/interpolate.ts`); the CI matrix had not run on GitHub at that date (it has since; see the M8 entry); the rule-based AI overspends on labor and underperforms some human-style plans in the calibrated scenario (recorded in `docs/calibration.md`, not tuned); Kiro credit use for M6 was not measured.
 - **Learning / next action:** M7 (HTTP hardening, API benchmarks, the Playwright demo path, deployment).
 
 ### 2026-11-28 — M7 production readiness (final checkpoint)
@@ -179,8 +181,39 @@
 - **Goal:** M7 final checkpoint (tasks 5.8, 8.5, 8.8): fix the one benchmark miss, run every gate, check deploy readiness, reconcile the spec, commit.
 - **What Kiro actually did:** added `BranchService.FramesRange` (one replay per range) and used it in the tick-frames handler and the SSE catch-up, with tests (`backend/internal/app/frames_range_test.go`); ran the security and build checks, `scripts/ci-local.sh` with Docker and e2e, amd64 goldens in a container, `scripts/demo-numbers.sh`, the container, smoke and https-origin build checks; updated docs and tasks.md.
 - **Real numbers:** cold 120-frame `tick-frames` read 1881 ms to 114.6 ms median (max 120.6 ms), warm 0.69 ms (Apple M5). `go vet`, gofmt, staticcheck v0.8.2, govulncheck v1.10.0 and `npm audit` clean. `scripts/ci-local.sh`: all steps pass; vitest 35 files / 267 tests; Playwright 22 passed, 10 skipped, 0 failed. Goldens match on arm64 and linux/amd64 emulation. Demo headline numbers in `docs/demo-script.md` match `scripts/demo-numbers.sh`. Smoke test (with SSE) passes against a container on PostgreSQL.
-- **Honest notes:** credit use was not measured. The GitHub CI has not run. No real LLM provider call was made (live verification PENDING). Nothing was deployed; real platform, TLS/HSTS path, Vercel build, managed PostgreSQL are unverified. The cause of the faster warm read was not isolated. The fork transition (1.5 s) misses the 600 ms bound and the duel reveal was skipped.
+- **Honest notes:** credit use was not measured. The GitHub CI had not run at that date (superseded by the M8 entry). No real LLM provider call was made (live verification PENDING). Nothing was deployed; real platform, TLS/HSTS path, Vercel build, managed PostgreSQL are unverified. The cause of the faster warm read was not isolated. The fork transition (1.5 s) misses the 600 ms bound and the duel reveal was skipped.
 - **Learning / next action:** M8 documentation and submission.
+
+### 2026-11-28 — M8 release preparation
+
+- **Kiro surface/version:** Kiro IDE agent orchestrating sub-agents (spec task execution and general sub-agents).
+- **Goal:** Get the repository submission-ready: make GitHub CI green, add the write-token capability model and LLM access limits, rehearse a production-like deployment locally, finish the README and hackathon material, and reconcile `tasks.md`.
+- **Inputs:** `.kiro/specs/parallel-simulation-mvp/tasks.md` (M8, tasks 9.1 to 9.4), `design.md`, steering (`security.md`, `tech.md`), the M7 notes, and the GitHub Actions logs.
+- **What Kiro actually did** (commits after `98169a5`, from `git log --oneline`):
+  - `6636bee` docs: reconciled the task status files after M7.
+  - `cbd0d68` fix(web): regenerated `web/package-lock.json` with npm 10 so `npm ci` works on GitHub.
+  - `a2f6119` feat(security): write-token capability model (migration `00007_world_write_token.sql`, `backend/internal/httpapi/writeauth.go`, tests, read-only banner in the studio), optional LLM access code, per-IP cap on LLM-backed starts, and `docs/security-model.md`.
+  - `d4f140b` docs(deploy): local production rehearsal (TLS PostgreSQL, HTTPS proxy, SSE through it, API restart, SIGKILL and database outage recovery; `scripts/rehearse-prod.sh`, `web/rehearsal/https.spec.ts`) and a fix to `scripts/smoke-prod.sh`, which now sends the write token.
+  - `2ce9c05` test(e2e): wait for the intro animation before screenshots; `scripts/demo-numbers.sh` sends the write token; screenshots refreshed.
+  - `669f640` ci(e2e): fail fast with traces, a longer e2e time budget, a more robust intro wait.
+  - `d387c6d` docs: final README, `docs/architecture.md`, contributing guide, security policy, `docs/hackathon/` material and the docs link checker `scripts/check-docs.sh`.
+  - `e666480` test(docs): `TestDemoScriptMatchesPlan` demo-script consistency test; screenshots captioned with their own runs.
+  - Uncommitted at the time of writing (the orchestrator commits it): this entry, the task reconciliation in `tasks.md`, and the CI-status corrections in `README.md`, `docs/ci.md` and `docs/hackathon/`.
+- **What I reviewed or corrected:** The orchestrator read the actual failed GitHub log of run 46060356207 and diagnosed the cause as an `npm ci` lockfile mismatch (fixed in `cbd0d68`). It diagnosed the cancelled `e2e` job of run 46106909199 as a time-budget overrun on a slow runner (addressed in `669f640`). It found that `docs/ci.md`, the README and earlier log entries still said CI had never run, and had them corrected in the working tree (uncommitted, listed above). It did not label `5c456a6` and `9abdaf5` as Kiro work.
+- **Code/tests produced:** the commits above.
+- **Commands and verification outcomes:**
+  - GitHub Actions (`gh run list --branch main`, `gh run view <id> --json jobs`, checked 2026-11-28; full table in `docs/ci.md`):
+    - 46060356207 (`6636bee`): failure. `web` failed (`npm ci`, lockfile out of sync) and `e2e` was skipped; `docker build`, `go (amd64)`, `go (arm64)` and `openapi lint` succeeded. This was the first run on GitHub.
+    - 46065036957 (`cbd0d68`): success, all six jobs.
+    - 46098817923 (`a2f6119`): cancelled; `e2e` cancelled, the other five jobs succeeded.
+    - 46100197654 (`d4f140b`): success, all six jobs.
+    - 46106909199 (`2ce9c05`): cancelled; `e2e` cancelled, the other five succeeded.
+    - 46125120786 (`d387c6d`): cancelled; `e2e` cancelled, the other five succeeded. The cause was not read from the logs; a newer push followed and the workflow cancels in-progress runs per ref.
+    - 46126448247 (`e666480`): in progress when checked (`openapi lint` and `docker build` succeeded; `go` and `web` running; `e2e` not started). Its outcome is not recorded here.
+  - Local release suite: `scripts/ci-local.sh` passed all 22 steps; Playwright 24 passed, 10 skipped (per-project guards), 0 failed; vitest 275 tests; Go tests with PostgreSQL passed; race tests passed; golden hashes matched natively on arm64 and under linux/amd64 emulation in Docker; the demo headline numbers in `docs/demo-script.md` matched `scripts/demo-numbers.sh`.
+  - `parallel-sim llm-check` exits 4 (live verification PENDING) because no provider variables are set.
+- **Known issues:** live LLM provider verification is PENDING (no credentials); nothing was deployed to paid infrastructure; no public demo exists; the demo video is not recorded; Kiro credit use was not measured; the fork transition (1.5 s against the 600 ms bound) is an accepted deviation and the duel result reveal was skipped; the latest GitHub run (`e666480`) had not finished when checked.
+- **Learning / next action:** final checkpoint (task 9.4) by the orchestrator, then the manual steps: record the video and submit to Devpost.
 
 Use this template after each real Kiro session:
 
@@ -197,12 +230,12 @@ Use this template after each real Kiro session:
 
 ## Evidence checklist
 
-- [x] First genuine Kiro spec review/revision
-- [ ] First actual Kiro implementation commit
-- [x] Demonstrated tests and build
-- [ ] Hook / custom agent / MCP usage documented if actually used
-- [ ] Working public demo and test instructions
-- [ ] Submission write-up and public demo video
+- [x] First genuine Kiro spec review/revision (2026-11-26 entries: requirements, design, tasks)
+- [x] First actual Kiro implementation commit (`d44bf1b`, M1 vertical slice; M0 scaffolding is `ddc7c1d`)
+- [x] Demonstrated tests and build (see the M7 and M8 entries; GitHub runs 46065036957 and 46100197654 passed all six jobs)
+- [ ] Hook / custom agent / MCP usage documented if actually used (not used: `.kiro/` has steering and specs only; the work used Kiro's spec workflow and sub-agent task execution, documented in the entries above)
+- [ ] Working public demo and test instructions (test instructions are in the README; no public demo: nothing is deployed)
+- [ ] Submission write-up and public demo video (write-up drafted in `docs/hackathon/`; demo video not recorded)
 
 ## Links
 

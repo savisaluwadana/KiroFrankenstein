@@ -129,5 +129,5 @@ The build log has no dated entries for work after the M7 checkpoint. Later commi
 - `.kiro/steering/`, `.kiro/specs/parallel-simulation-mvp/{requirements,design,tasks}.md`
 - `docs/kiro-build-log.md`, `docs/calibration.md`, `docs/benchmarks.md`, `docs/demo-script.md`, `docs/ci.md`
 - Tests: `cd backend && go test ./...` (PostgreSQL tests need the compose database; see README), `cd web && npm run test`, `npm run e2e`
-- GitHub Actions run 46100197654 (`gh run view 46100197654`): jobs web, openapi lint, go (arm64), go (amd64), docker build, e2e all passed. `docs/ci.md` and the build log still say the workflow had not run; they are stale on this point.
+- GitHub Actions run 46100197654 (`gh run view 46100197654`): jobs web, openapi lint, go (arm64), go (amd64), docker build, e2e all passed. `docs/ci.md` now tabulates the run history; the build log entries before M8 record what was true on their dates.
 - `git log --stat` for the milestone commits above.
