@@ -201,6 +201,7 @@ test("steps 3-9, default path: crisis, rewind, fork, compare, duel, scoreboard a
 
   // 1 (landing -> briefing) is covered above; this path starts from the briefing.
   await page.goto("/");
+  await page.waitForFunction(() => { const c = document.querySelector(".intro-cta"); return !!c && getComputedStyle(c).opacity === "1"; }, undefined, { timeout: 15_000 }); // intro fade-in finished
   await shot(page, info, "demo-path-01-landing");
   await page.getByRole("link", { name: /Begin your shift/ }).click();
   await expect(page.getByRole("heading", { name: "Black Friday Meltdown" })).toBeVisible();
@@ -492,7 +493,7 @@ test("phone screenshots for steps 1, 3, 5 and 9", async ({ page }, info) => {
   const mon = monitor(page);
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Parallel" })).toBeVisible();
-  await page.waitForTimeout(2500);
+  await page.waitForFunction(() => { const c = document.querySelector(".intro-cta"); return !!c && getComputedStyle(c).opacity === "1"; }, undefined, { timeout: 15_000 }); // intro fade-in finished
   await shot(page, info, "demo-path-01-landing");
 
   await page.goto("/briefing");

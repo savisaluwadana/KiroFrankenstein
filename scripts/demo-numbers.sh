@@ -7,7 +7,8 @@ set -euo pipefail
 
 API="${1:-http://localhost:8080/api/v1}"
 J='content-type: application/json'
-post() { local body="${2:-}"; [ -n "$body" ] || body='{}'; curl -fsS -X POST -H "$J" "$API$1" -d "$body"; }
+TOKEN=""   # write token of the world being changed; set after each world is created
+post() { local body="${2:-}"; [ -n "$body" ] || body='{}'; local h=(-H "$J"); [ -z "$TOKEN" ] || h+=(-H "X-Parallel-Write-Token: $TOKEN"); curl -fsS -X POST "${h[@]}" "$API$1" -d "$body"; }
 get() { curl -fsS "$API$1"; }
 money() { awk -v c="$1" 'BEGIN{s=(c<0)?"-":""; if(c<0)c=-c; printf "%s$%d.%02d", s, int(c/100), c%100}'; }
 pct() { awk -v b="$1" 'BEGIN{printf "%.1f%%", b/100}'; }
@@ -30,6 +31,7 @@ show() { # label branch tick
 
 echo "== Reality fork (seed 2026) =="
 demo=$(post /demo)
+TOKEN=$(echo "$demo" | jq -r .writeToken)
 root=$(echo "$demo" | jq -r .rootBranch.id)
 fork=$(echo "$demo" | jq -r .plan.forkTick)
 crisis=$(echo "$demo" | jq -r .plan.crisisTick)
@@ -55,7 +57,10 @@ dtick=$(post /diffs "$dbody" | jq -r .divergence.tick)
 echo "  first divergence tick: $dtick"
 
 echo "== Duel: human plays the same two moves at tick $fork, then ends every window; rule-based AI =="
-duel=$(post /duels '{"forkTick":0}' | jq -r .duel.id)
+TOKEN=""
+duelresp=$(post /duels '{"forkTick":0}')
+TOKEN=$(echo "$duelresp" | jq -r .writeToken)
+duel=$(echo "$duelresp" | jq -r .duel.id)
 post "/duels/$duel/decision-window/end" '{"windowTick":0}' >/dev/null
 post "/duels/$duel/advance" "{\"runToTick\":$fork}" >/dev/null
 st=$(get "/duels/$duel" | jq -r '.status.humanHeadTick')
