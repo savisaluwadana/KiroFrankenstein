@@ -1,5 +1,7 @@
 # CI
 
+> **Update 2026-11-28:** the workflow has since run on GitHub. Run 46100197654 (commit `d4f140b`) succeeded in all six jobs (go amd64, go arm64, openapi lint, web, docker build, e2e). The status paragraph and check table below date from 2026-11-27 and are kept as the record of the local pre-push verification; use `gh run list --branch main` for current results.
+
 Workflow: `.github/workflows/ci.yml`. Local equivalent: `scripts/ci-local.sh`.
 
 **Status (2026-11-27): the workflow has NOT RUN on GitHub.** `origin/main` contains no workflow file (`git ls-tree -r origin/main` lists none; the local branch is ahead of origin) and `gh run list` returns no runs. Everything marked "local" below was verified on one machine (macOS arm64, PostgreSQL 16 in the compose container on port 55432), not on GitHub. Nothing here claims a CI pass.
