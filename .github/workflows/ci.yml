@@ -167,7 +167,7 @@ jobs:
     name: e2e (playwright, chromium)
     needs: [go, openapi, web, docker]
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: web
@@ -186,8 +186,9 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: playwright (includes the stub-LLM duel spec; in-memory API, no real provider)
         run: npm run e2e
+        timeout-minutes: 35 # fail the step (not cancel the job) so the artifact upload below runs
       - name: upload traces on failure
-        if: failure()
+        if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-test-results

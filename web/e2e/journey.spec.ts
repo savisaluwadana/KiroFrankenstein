@@ -38,7 +38,7 @@ test("first-time journey on the real backend", async ({ page }, info) => {
   await expect(page.getByText(/Run a warehouse through Black Friday week/)).toBeVisible();
   const cta = page.getByRole("link", { name: /Begin your shift/ });
   await expect(cta).toBeVisible();
-  await page.waitForFunction(() => { const c = document.querySelector(".intro-cta"); return !!c && getComputedStyle(c).opacity === "1"; }, undefined, { timeout: 15_000 }); // intro fade-in finished
+  await page.waitForFunction(() => { const c = document.querySelector(".intro-cta"); return !!c && parseFloat(getComputedStyle(c).opacity) >= 0.99; }, undefined, { timeout: 15_000 }); // intro fade-in finished
   await shot(page, info, "01-intro");
 
   // 2. Briefing: no crisis is spoiled.

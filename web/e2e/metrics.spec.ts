@@ -15,6 +15,7 @@ async function checkHeader(page: Page, branchId: string, tick: number): Promise<
 }
 
 test("header figures equal the live API at several hours, and comparisons equal the display subtraction", async ({ page }, info) => {
+  test.setTimeout(300_000); // healthy runs take about 1.6 min (real-time playback to hour 120)
   const mon = monitor(page);
   await startDemo(page);
   const root = branchIdOf(page);

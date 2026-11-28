@@ -16,7 +16,9 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: 0,
-  reporter: [["list"]],
+  // Fail fast on CI so the job reports real errors instead of being cancelled by its timeout.
+  maxFailures: process.env.CI ? 3 : 0,
+  reporter: process.env.CI ? [["list"], ["github"]] : [["list"]],
   outputDir: "./test-results",
   use: {
     baseURL: `http://localhost:${WEB_PORT}`,
