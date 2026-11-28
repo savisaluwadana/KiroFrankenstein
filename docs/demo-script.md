@@ -6,6 +6,15 @@ Presenter's script for the Parallel video. Every number below comes from a real 
 
 ## Demo plan (copied from `web/e2e/fixtures/demo-plan.json`)
 
+The block below is machine-checked by `TestDemoScriptMatchesPlan` (`backend/internal/app/demoplan/docs_test.go`) against the fixture and `demoplan.Derive`. The test also re-runs the flagship in process and checks that the profits at ticks 48 and 120, the orders waiting at tick 48, both state hashes at tick 120, the duel scores and the duel figures quoted in this file are the ones the engine computes.
+
+```demo-plan
+forkTick: 40
+commands:
+- place_purchase_order sku=speaker role=backup qty=339
+- hire_temp_workers qty=3
+```
+
 - Seed: 2026. Scenario: Black Friday Meltdown (120 simulated hours, Thursday 12:00 AM to Tuesday 12:00 AM on the clock).
 - Crisis tick 38 (Friday, 2:00 PM): first hour with a stock-bound order or an active disruption in the no-command run.
 - Demo fork tick 40 (Friday, 4:00 PM): the first scheduled decision window at or after the crisis tick whose backup order arrives before the horizon.

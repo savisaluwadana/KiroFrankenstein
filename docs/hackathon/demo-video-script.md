@@ -39,7 +39,7 @@ Alternate technical shot (not in the timeline): the 20-seed ensemble `cmp` showi
 3. Fork sequence animation (shared history, then branching lines).
 4. Fork studio with the two moves.
 5. Compare view and "What changed?" panel.
-6. Duel view with both warehouses, then scoreboard.
+6. Duel view with both warehouses, then scoreboard. If you show a still, use `desktop-demo-path-09-results.png` (26.53 vs 56.83, the numbers in the timeline above). `desktop-16-duel-scoreboard.png` is a different run (24.51 vs 56.83, human ordered only 60 Chargers); see `screenshots.md`.
 7. Ledger drill-down panel.
 8. Terminal showing `MATCH`.
 9. Editor showing `.kiro/` and the build log (10 to 15 s).

@@ -2,7 +2,15 @@
 
 All files are in `docs/screenshots/` (checked to exist). Images were produced by the Playwright specs, not by hand. Every file in the table below was opened and checked by the author of this file.
 
-**Numbers caveat.** The screenshots come from capture runs of the e2e specs, which are not identical to the recorded demo plan in `docs/demo-script.md`. For example, `desktop-16-duel-scoreboard.png` shows 24.51 vs 56.83 points while the demo script's recorded run says 26.53 vs 56.83, and `desktop-18-diff.png` compares a different fork hour (Friday, 4:00 PM, read at Saturday, 12:00 PM) from the script's Saturday 12:00 AM figures. Do not mix numbers from a screenshot into narration or the Devpost text without looking at that image. All screenshots show the synthetic-results footer (the landing image shows "Synthetic simulation. Not a forecast.").
+**Numbers caveat.** The screenshots come from capture runs of several e2e specs, which are not all the recorded demo plan of `docs/demo-script.md`. Each duel scoreboard image was opened and its numbers read; they come from three different runs and must never be mixed:
+
+| Image | Spec that captured it | What the human did | You vs Rule-based AI points | Profit so far (you) |
+|---|---|---|---|---|
+| `desktop-demo-path-09-results.png` | `demo-path.spec.ts` (desktop) | The two demo moves at Friday, 4:00 PM (339 Speakers, 3 temporary workers), then nothing | 26.53 vs 56.83 | $21,611.61 |
+| `desktop-16-duel-scoreboard.png`, `mobile-16-duel-scoreboard.png` | `duel.spec.ts` | One order of 60 Chargers from the backup supplier at the first hour, then nothing | 24.51 vs 56.83 | $18,113.40 |
+| `mobile-demo-path-09-results.png` | `demo-path.spec.ts` (phone) | No moves at all | 24.18 vs 56.83 | $17,784.00 |
+
+Only the 26.53 run is the one in `docs/demo-script.md` (and `TestDemoScriptMatchesPlan` re-computes it). The rule-based AI side is the same in all three (56.83, $35,957.50). `desktop-18-diff.png` compares a different fork hour (Friday, 4:00 PM, read at Saturday, 12:00 PM) from the script's Saturday 12:00 AM figures. Do not mix numbers from a screenshot into narration or the Devpost text without looking at that image. All screenshots show the synthetic-results footer (the landing image shows "Synthetic simulation. Not a forecast.").
 
 ## Devpost gallery (8, in recommended order)
 
@@ -13,7 +21,7 @@ All files are in `docs/screenshots/` (checked to exist). Images were produced by
 | 3 | `desktop-07-fork-sequence.png` | yes | Fork transition: a "Shared history" line splitting into the original path and "Alternative future 1 (from Thursday 4:00 AM)" | Rewind to any hour and fork. History before that hour is unchanged. |
 | 4 | `desktop-08-comparison.png` | yes | Two warehouses side by side, "Observed differences" table, note that a different outcome is not proof of cause | Two futures from the same hour, compared without claiming cause. |
 | 5 | `desktop-18-diff.png` | yes | "What changed between these two futures": first different hour, the different decisions (339 Speakers from the backup supplier, 3 temporary workers), financial, service, backlog and stock differences | The diff lists what was observed and which decisions differ. |
-| 6 | `desktop-16-duel-scoreboard.png` | yes | You versus the rule-based AI: both warehouses, score breakdown (financial 50%, orders fully shipped 30%, on time 20%), observed differences | A duel under identical customers and surprises. This is one run, and the screen says it doesn't show which approach is better in general. |
+| 6 | `desktop-demo-path-09-results.png` | yes | You versus the rule-based AI after the demo plan: both warehouses, scoreboard 26.53 vs 56.83 points, score breakdown (financial 50%, orders fully shipped 30%, on time 20%), observed differences | A duel under identical customers and surprises: 26.53 vs 56.83 points in this one run. The screen says it doesn't show which approach is better in general. |
 | 7 | `desktop-12-ledger-drilldown.png` | yes | "Where this number comes from": ledger entries that add up to "Profit so far" | Click a profit figure and see the ledger entries behind it. |
 | 8 | `desktop-10-engineering-mode.png` | yes | Engineering Mode: tick, state hash, engine version and the metrics JSON | Engineering Mode exposes the state hash that replay must reproduce. |
 
@@ -21,7 +29,7 @@ Optional replacement for #8: `desktop-19-assumptions.png` (viewed): "How this is
 
 ## README (suggested, not applied)
 
-The README is being rewritten by another worker, so this file does not edit it. Suggested hero set, in order: `desktop-demo-path-01-landing.png`, `desktop-05-studio-crisis.png`, `desktop-08-comparison.png`, `desktop-16-duel-scoreboard.png`, `desktop-12-ledger-drilldown.png`. Reference them with relative paths, for example `docs/screenshots/desktop-08-comparison.png`.
+The README is being rewritten by another worker, so this file does not edit it. Suggested hero set, in order: `desktop-demo-path-01-landing.png`, `desktop-05-studio-crisis.png`, `desktop-08-comparison.png`, `desktop-demo-path-09-results.png`, `desktop-12-ledger-drilldown.png`. Reference them with relative paths, for example `docs/screenshots/desktop-08-comparison.png`.
 
 ## Mobile (not viewed)
 
