@@ -9,6 +9,7 @@
 //	WEB_ORIGIN                    the one allowed CORS origin (default http://localhost:3100)
 //	ENV / PARALLEL_ENV            "production" enables strict start-up validation and HSTS
 //	TRUSTED_PROXY_HOPS            trusted reverse proxies in front, 0..5 (default 0)
+//	CLIENT_IP_HEADER              X-Real-IP (edge-set client IP, e.g. Railway); exclusive with TRUSTED_PROXY_HOPS > 0
 //	RATE_LIMIT_RPS, RATE_LIMIT_BURST  per-IP request rate (default 50, 100)
 //	HTTP_REQUEST_TIMEOUT_SECONDS  per-request deadline, 1..120 (default 30)
 //	SHUTDOWN_TIMEOUT_SECONDS      graceful drain, 1..120 (default 25)
@@ -108,7 +109,7 @@ func run(ctx context.Context, log *slog.Logger, getenv func(string) string) erro
 	o := httpapi.Options{
 		Service: svc, Duels: app.NewDuelService(svc, nil), FlagshipScenario: scenarios.BlackFriday, WebOrigin: cfg.webOrigin,
 		RatePerSecond: cfg.rps, RateBurst: cfg.burst, Logger: log, Production: cfg.production,
-		TrustedProxyHops: cfg.trustedProxyHops, RequestTimeout: cfg.requestTimeout,
+		TrustedProxyHops: cfg.trustedProxyHops, ClientIPHeader: cfg.clientIPHeader, RequestTimeout: cfg.requestTimeout,
 		MaxConcurrentSimulations: cfg.maxSimulations, WorldCreatePerHourPerIP: cfg.worldCreatePerHour,
 		LLMAccessCode: cfg.llmAccessCode, LLMDuelsPerDayPerIP: cfg.llmDuelsPerDay,
 		WriteTokenFailuresPerMinute: cfg.tokenFailsPerMin,
@@ -139,7 +140,7 @@ func run(ctx context.Context, log *slog.Logger, getenv func(string) string) erro
 	errc := make(chan error, 1)
 	go func() { errc <- srv.Serve(ln) }()
 	log.Info("parallel-api listening", "addr", srv.Addr, "webOrigin", cfg.webOrigin, "base", "/api/v1",
-		"store", st.desc, "production", cfg.production, "trustedProxyHops", cfg.trustedProxyHops)
+		"store", st.desc, "production", cfg.production, "trustedProxyHops", cfg.trustedProxyHops, "clientIPHeader", cfg.clientIPHeader)
 
 	select {
 	case err := <-errc:

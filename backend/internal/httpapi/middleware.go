@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -122,6 +124,9 @@ func (s *Server) cors(next http.Handler) http.Handler {
 // address is used.
 func (s *Server) clientIP(r *http.Request) string {
 	peer := peerAddr(r)
+	if s.clientHeader != "" {
+		return s.clientIPFromHeader(r, peer)
+	}
 	if s.proxyHops == 0 {
 		return peer
 	}
@@ -141,6 +146,49 @@ func (s *Server) clientIP(r *http.Request) string {
 		return peer
 	}
 	return ip.String()
+}
+
+// AllowedClientIPHeaders is the closed allowlist for CLIENT_IP_HEADER. Only a
+// header that the edge proxy overwrites on every forwarded request may be
+// listed. To support another edge, add its header here after confirming that
+// the edge replaces client-supplied copies, and extend the tests and docs.
+var AllowedClientIPHeaders = []string{"X-Real-IP"}
+
+// ValidateClientIPHeader checks CLIENT_IP_HEADER: empty or an allowlisted
+// name, and not combined with TRUSTED_PROXY_HOPS > 0.
+func ValidateClientIPHeader(header string, hops int) error {
+	if header == "" {
+		return nil
+	}
+	if !slices.Contains(AllowedClientIPHeaders, header) {
+		return fmt.Errorf("CLIENT_IP_HEADER %q is not allowed; use empty or one of %s", header, strings.Join(AllowedClientIPHeaders, ", "))
+	}
+	if hops > 0 {
+		return errors.New("CLIENT_IP_HEADER and TRUSTED_PROXY_HOPS > 0 are mutually exclusive; set only one")
+	}
+	return nil
+}
+
+// clientIPFromHeader trusts exactly one header value that parses as an IP
+// address. Anything else (missing, repeated, comma list, invalid, zone) falls
+// back to the peer address, never to X-Forwarded-For.
+func (s *Server) clientIPFromHeader(r *http.Request, peer string) string {
+	if vals := r.Header.Values(s.clientHeader); len(vals) == 1 {
+		if a, err := netip.ParseAddr(strings.TrimSpace(vals[0])); err == nil && a.Zone() == "" {
+			return a.Unmap().String()
+		}
+	}
+	s.warnBadClientIP()
+	return peer
+}
+
+// warnBadClientIP logs at most one warning per minute and never the value.
+func (s *Server) warnBadClientIP() {
+	now := s.now().UnixNano()
+	last := s.badIPWarnAt.Load()
+	if (last == 0 || now-last >= int64(time.Minute)) && s.badIPWarnAt.CompareAndSwap(last, now) {
+		s.log.Warn("client IP header missing or invalid; using peer address", "header", s.clientHeader)
+	}
 }
 
 func peerAddr(r *http.Request) string {

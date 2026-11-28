@@ -58,7 +58,7 @@ Check these on the official rules page, in a browser:
 - **Production acceptance suite:** ready (`npm run e2e:prod`). A dry run passed locally against Postgres: 7 passed before a restart and 1 passed after; the LLM test was skipped. It has **not** been run against a real deployment.
 - **Live LLM verification:** PENDING. No credentials exist, and it needs the user's approval of a paid call. The LLM manager is tested only with stub providers (`docs/live-llm-verification.md`).
 - **Known deployment risks:**
-  - Railway `X-Forwarded-For` layout: verify `TRUSTED_PROXY_HOPS` after deploy (start with 2).
+  - Client IP on Railway: `CLIENT_IP_HEADER=X-Real-IP` (Railway edge header; X-Forwarded-For ignored). Verify after deploy with runbook step 3.5.
   - Supabase dedicated schema is not usable without a code change (`CheckMigrated` checks `public.<table>`). Use `public` and disable the Supabase Data API.
   - LLM prompt size: with `LLM_MAX_PROMPT_BYTES=32768`, 12 of 31 decision windows in a flagship duel exceed the cap and fall back to the rule-based manager with reason `budget_exhausted`. Raising it to 262144 covers all windows at about 4x token cost. This is the user's decision.
   - Supabase Free pauses after one week of inactivity and has no backups.
@@ -81,7 +81,7 @@ After deployment, change every "not deployed" statement (`devpost-submission.md`
 
 1. Re-read the official rules at https://kiroween.devpost.com/rules in a browser and tick every item above, especially the unknowns in "Rules audit". Fix any row that differs.
 2. Approve the paid resources (Railway Hobby, optionally Supabase Pro, OpenRouter credit).
-3. Follow `docs/deploy-railway-supabase-vercel.md`. Verify `TRUSTED_PROXY_HOPS` and decide `LLM_MAX_PROMPT_BYTES`.
+3. Follow `docs/deploy-railway-supabase-vercel.md`. Verify client-IP handling (step 3.5). `LLM_MAX_PROMPT_BYTES=262144` decided for gated testing.
 4. Run the smoke test, then `npm run e2e:prod` with `PHASE=before`, redeploy the API, then `PHASE=after`.
 5. Optional: create an OpenRouter key with a credit limit, set `LLM_ACCESS_CODE`, run `parallel-sim llm-check --confirm-paid-call`, and run one live duel. Record the result in `docs/live-llm-verification.md`.
 6. Record the video (under 3:00) following `docs/hackathon/demo-video-script.md`, using the deployed URL. Upload it publicly and open it in a private window to confirm access.

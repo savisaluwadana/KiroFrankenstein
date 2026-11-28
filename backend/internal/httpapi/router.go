@@ -50,6 +50,10 @@ type Options struct {
 	// the server, 0 to MaxTrustedProxyHops. 0 (default) uses the peer address
 	// and ignores X-Forwarded-For.
 	TrustedProxyHops int
+	// ClientIPHeader, when set, names the single header an edge proxy
+	// overwrites with the client address. Allowed: "" or "X-Real-IP" (see
+	// AllowedClientIPHeaders). Exclusive with TrustedProxyHops > 0.
+	ClientIPHeader string
 	// RequestTimeout bounds each non-stream request (default 30 s).
 	RequestTimeout time.Duration
 	// MaxConcurrentSimulations and SimQueueWait limit expensive simulation
@@ -105,6 +109,8 @@ type Server struct {
 	now           func() time.Time
 	production    bool
 	proxyHops     int
+	clientHeader  string
+	badIPWarnAt   atomic.Int64 // unix nanos of the last bad-header warning
 	reqTimeout    time.Duration
 	sims          chan struct{}
 	simWait       time.Duration
@@ -174,6 +180,9 @@ func New(o Options) (*Server, error) {
 	if o.TrustedProxyHops < 0 || o.TrustedProxyHops > MaxTrustedProxyHops {
 		return nil, fmt.Errorf("httpapi: TrustedProxyHops must be 0 to %d", MaxTrustedProxyHops)
 	}
+	if err := ValidateClientIPHeader(o.ClientIPHeader, o.TrustedProxyHops); err != nil {
+		return nil, fmt.Errorf("httpapi: %w", err)
+	}
 	if o.RequestTimeout <= 0 {
 		o.RequestTimeout = DefaultRequestTimeout
 	}
@@ -198,7 +207,7 @@ func New(o Options) (*Server, error) {
 	return &Server{
 		tokenFails: newWindowCounter(time.Minute, o.Now), tokenFailMax: o.WriteTokenFailuresPerMinute,
 		llmCode: o.LLMAccessCode, llmDaily: newWindowCounter(24*time.Hour, o.Now), llmPerDay: o.LLMDuelsPerDayPerIP,
-		now: o.Now, production: o.Production, proxyHops: o.TrustedProxyHops, reqTimeout: o.RequestTimeout,
+		now: o.Now, production: o.Production, proxyHops: o.TrustedProxyHops, clientHeader: o.ClientIPHeader, reqTimeout: o.RequestTimeout,
 		sims: make(chan struct{}, o.MaxConcurrentSimulations), simWait: o.SimQueueWait,
 		createPerHour: o.WorldCreatePerHourPerIP, creates: map[string]*hourWindow{}, maxWorlds: int64(o.MaxWorlds),
 		ping: o.Ping, schema: o.CheckSchema, done: make(chan struct{}),

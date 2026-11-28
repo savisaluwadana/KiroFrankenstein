@@ -7,7 +7,7 @@ Results are synthetic. Placeholders look like `<THIS>`. Never paste real secrets
 ## Findings that change the plan (read first)
 
 1. **Do not use a dedicated Postgres schema on Supabase.** It was tested locally and fails: migrations and the store contract tests pass in a schema `parallel` (search_path set per role and database), but `parallel-api` refuses to start with "the database schema is not migrated", because `postgres.CheckMigrated` looks up tables as `public.<name>` (`backend/internal/store/postgres/store.go:47`). Fixing that is a one-line code change, which is frozen. Use schema `public` and protect it as in step 1.
-2. **Railway's `X-Forwarded-For` is not a stable contract.** Railway staff say the edge replaces the header, that its entry count is not guaranteed, and that `X-Real-IP` is the supported header ([Railway Station thread](https://station.railway.com/questions/security-clarification-x-real-ip-and-x-115c7e09), 2026-11-22). Reports show two entries, the first being the visitor and the second a Railway hop that changes between requests. `parallel-api` reads only `X-Forwarded-For` (the Nth entry from the right, `backend/internal/httpapi/middleware.go:123`). With `TRUSTED_PROXY_HOPS=1` the key would be that changing hop and per-IP limits would stop working; with `2` it is the visitor. Start with `2` and verify empirically (step 3.5). If the layout differs, the safe failure is a shared bucket (peer address), not a spoofable one. Reading `X-Real-IP` would need a code change (frozen); record it as a known limitation.
+2. **Client IP on Railway: use `CLIENT_IP_HEADER=X-Real-IP`, not `TRUSTED_PROXY_HOPS`.** Railway's [Specs & Limits](https://docs.railway.com/networking/public-networking/specs-and-limits) page lists `X-Real-IP` as the header the edge sets with the client's remote IP. It does not state overwrite semantics. Railway staff say on Railway Station that the HTTP edge overwrites `X-Real-IP`, `X-Forwarded-For`, `X-Forwarded-Proto` and `X-Forwarded-Host` on every forwarded request, that the second `X-Forwarded-For` entry changes between requests (so counting hops is unreliable), and that the socket peer is Railway's proxy with no published stable range ([thread](https://station.railway.com/questions/security-clarification-x-real-ip-and-x-115c7e09), 2026-11-22; staff statements researched 2026-11-28, not a contract). With `CLIENT_IP_HEADER=X-Real-IP` `parallel-api` keys every per-IP limit on that one header and ignores `X-Forwarded-For` completely. A value that is missing, repeated, a comma list or not an IP falls back to the socket peer (a shared bucket, never a client-chosen one). **Trust boundary:** the Railway edge. Traffic over the private network (`*.railway.internal`) bypasses the edge and can carry any headers, so the API must not be reachable by untrusted callers there: keep it the only service in its Railway project, and do not add other services or private-network clients. `CLIENT_IP_HEADER` and `TRUSTED_PROXY_HOPS` > 0 are mutually exclusive (startup error).
 3. **LLM prompts outgrow the default prompt cap.** Measured with the production prompt builder, no network: the flagship observation is 2.6 KB at hour 0 and grows to 220 KB (Rule-based-managed run, seed 2026) or 340 KB (no commands). With `LLM_MAX_PROMPT_BYTES=32768` (default), 12 of 31 windows of the measured run exceed the cap; those windows fall back to the Rule-based AI with reason `budget_exhausted`, mostly in the middle of the crisis (hours 64 to 112). See [LLM cost](#llm-cost-formula-and-measured-prompt-size). Raising the cap makes the LLM play those windows and raises the cost about 4 times. This is a decision for the owner, not a bug.
 4. **Supabase exposes `public` tables through its Data API unless you turn that off.** Our tables are created by `parallel_migrator` in `public`. Locally simulated (roles `anon`, `authenticated`, `service_role` and default privileges granted by the admin role): tables created by `parallel_migrator` get **no** grants for those roles, so they are not reachable. Still disable the Data API (step 1.4) and run the check query (step 2.3).
 5. **Railway Free and Trial plans are unsuitable.** Free services sleep after 5 to 10 minutes without outbound traffic; a Limited Trial restricts outbound ports ([Free plan](https://docs.railway.com/pricing/free-plan)). Use **Hobby** and make sure serverless/app sleeping is off.
@@ -123,7 +123,7 @@ Sources: [Dockerfiles](https://docs.railway.com/builds/dockerfiles), [monorepo](
 | `ENV` | `production` |
 | `WEB_ORIGIN` | a placeholder `https://placeholder.example.com` now, the exact Vercel production URL in step 4 (https, no path, no trailing slash) |
 | `DATABASE_URL` | the app role pooler URL from step 1.6 |
-| `TRUSTED_PROXY_HOPS` | `2` (candidate, verify in 3.5) |
+| `CLIENT_IP_HEADER` | `X-Real-IP` (verify in 3.5). **Do not set `TRUSTED_PROXY_HOPS`**; remove it if an earlier draft set `2` |
 | `RATE_LIMIT_RPS`, `RATE_LIMIT_BURST` | `50`, `100` (the defaults, stated so they are visible) |
 | `MAX_CONCURRENT_SIMULATIONS` | `4` |
 | `WORLD_CREATE_PER_HOUR_PER_IP` | `60` |
@@ -133,17 +133,16 @@ Sources: [Dockerfiles](https://docs.railway.com/builds/dockerfiles), [monorepo](
 
    Do not set `MIGRATE_DATABASE_URL` here.
 4. Settings: healthcheck path `/readyz`; restart policy On Failure (the default, 10 restarts); **serverless / app sleeping off**; generate a public domain (Networking). Healthchecks run only while a deployment goes live and are not continuous monitoring. Add an external uptime monitor if you want one.
-5. **Verify `TRUSTED_PROXY_HOPS` empirically** (no code needed). `/healthz` and `/readyz` are exempt from rate limiting, so use `/api/v1/health`.
-   a. Temporarily set `RATE_LIMIT_RPS=1` and `RATE_LIMIT_BURST=3`; redeploy.
-   b. From your laptop, 8 quick requests with a forged header:
+5. **Verify the client-IP key once after deploy** (no setting changes; about 300 tiny requests to `/api/v1/health`, which is cheap; `/healthz` and `/readyz` are exempt from rate limiting). The default limit is 50 requests/s with a burst of 100, so the check must exceed that rate. The unit tests cover the logic; this step only confirms that the Railway edge behaves as its staff describe.
+   a. From your laptop, send 300 requests, 32 in parallel, each with a different forged `X-Real-IP` and `X-Forwarded-For`:
 
 ```
-for i in 1 2 3 4 5 6 7 8; do curl -s -o /dev/null -w '%{http_code} ' -H "X-Forwarded-For: 9.9.9.$i" https://<API>/api/v1/health; done; echo
+seq 1 300 | xargs -P 32 -I{} curl -s -o /dev/null -w '%{http_code}\n' -H "X-Real-IP: 9.9.9.{}" -H "X-Forwarded-For: 8.8.8.{}" https://<API>/api/v1/health | sort | uniq -c
 ```
 
-   Expected for a correct setting: `200 200 200` then `429`s. All `200`s means the key changes per request (hops too small, likely `1`): set `2` or `3` and retry. Immediate `429` for the first request of a second network (next step) means the key is shared by everybody (hops too large or `0`).
-   c. From a second network (phone hotspot), the same request must be `200` while your laptop is limited. If it is limited too, the key is the shared peer address.
-   d. Restore `RATE_LIMIT_RPS=50`, `RATE_LIMIT_BURST=100`; redeploy. Record the working value and the date in your notes.
+   Expected: some `429`s (the forged values did not give each request its own bucket). If every response is `200` the forged headers reach the app unchanged: stop, remove `CLIENT_IP_HEADER`, and leave `TRUSTED_PROXY_HOPS=0` (shared peer bucket) until the edge behaviour is understood. If you cannot reach 50 requests/s from your network, a few `200`s only is not a failure; raise the parallelism or rely on the tests.
+   b. Wait 10 s, then from a second network (phone hotspot) one `curl https://<API>/api/v1/health` must return `200` while your laptop is limited. If it is limited too, the key is Railway's shared peer address (the header is absent or invalid): limits still hold but are shared by all visitors.
+   c. Check the logs for `client IP header missing or invalid` (at most one line per minute, value never logged). Frequent lines mean the edge is not setting `X-Real-IP` as documented.
 6. SSE and timeouts: the edge allows HTTP requests up to 15 minutes while data flows, closes idle HTTP/1.1 connections after 60 s between requests, and closes a request after 5 minutes with no data. The progress stream sends a heartbeat every 15 s, so it stays inside the limits; the browser reconnects with `Last-Event-ID` anyway. The community reports an undocumented 60 s cut for responses with no bytes; the heartbeat avoids it (**UNVERIFIED**, check with the smoke test's 3 s stream and a longer manual `curl -N`).
 7. Redeploy behaviour: Railway keeps one deployment, starts the new one, switches when the healthcheck passes, then sends SIGTERM to the old one and SIGKILL after `RAILWAY_DEPLOYMENT_DRAINING_SECONDS`. `SHUTDOWN_TIMEOUT_SECONDS` (25) must be smaller than the draining time (30).
 8. Smoke the API alone: `curl https://<API>/readyz` returns `{"status":"ready"}`.
@@ -190,7 +189,7 @@ Without `PHASE` the suite runs once and the persistence test re-opens the worlds
 | Persistence | persistence test, and PHASE=after across a redeploy (hashes at tick 0, middle and head; stored write token still accepted; no token still 401) |
 | Authorization: no token 401, wrong token 403, shared link read-only banner | authorization |
 | CORS from `https://evil.example` denied, web origin allowed, security headers, CSP | limits and headers |
-| Rate limiting | **not probed by the suite** (kept non-abusive). Use the manual check in step 3.5 |
+| Rate limiting | **not probed by the suite** (kept non-abusive). Use the manual check in step 3.5 (about 300 cheap requests to `/api/v1/health`) |
 | LLM | only with `PROD_LLM_ACCESS_CODE` (step 7); at most 2 provider calls |
 
 Dry run on 2026-11-28 against a local stack (API on 18085 with PostgreSQL, web production build on 13105, ENV=development): `PHASE=before` 7 passed (about 27 s), API process restarted, `PHASE=after` 1 passed (hashes and heads identical, no token still 401, stored token not refused). The mobile project ran the main flow and passed. The LLM test was skipped. Not run against any real deployment.
@@ -220,12 +219,13 @@ go run ./cmd/parallel-sim llm-check --confirm-paid-call --out llm-check.json    
 | `LLM_MODEL` | the model id you tested |
 | `LLM_ACCESS_CODE` | the random code, shared only with judges |
 | `LLM_MAX_CALLS_PER_WORLD` | `40` |
-| `LLM_GLOBAL_MAX_CALLS` | `400` per UTC day (about 13 full duels at 31 windows, 21 at the 19 windows that fit the default prompt cap) |
-| `LLM_GLOBAL_MAX_TOKENS` | `2500000` (see formula: 400 calls at most about 5 thousand tokens each is 2.0 million) |
+| `LLM_GLOBAL_MAX_CALLS` | `200` per UTC day (decided 2026-11-28 for gated testing with the 262144-byte prompt cap; about 6 full duels) |
+| `LLM_GLOBAL_MAX_TOKENS` | `3000000` per UTC day (one full duel reserves about 0.5 million tokens at the 262144-byte cap: 1.4 MB of prompts / 3 plus 31 x 512) |
+| `LLM_MAX_TOTAL_TOKENS_PER_WORLD` | `600000` (the default 200000 would stop a 262144-cap duel after a few windows) |
 | `LLM_MAX_CONCURRENT_REQUESTS` | `2` |
 | `LLM_DUELS_PER_DAY_PER_IP` | `3` |
 | `LLM_MAX_TOKENS_PER_CALL` | `512` to halve the completion cost (default 1024) |
-| `LLM_MAX_PROMPT_BYTES` | leave `32768`, or decide per finding 3 |
+| `LLM_MAX_PROMPT_BYTES` | `262144` (decided 2026-11-28 for initial gated testing; the $5 OpenRouter key limit remains the hard monetary cap) |
 | `LLM_HTTP_REFERER`, `LLM_APP_TITLE` | optional attribution headers (your site URL, an app name) |
 
 5. Redeploy, then `curl https://<API>/api/v1/managers`: the LLM entry must be available, name the model, say `requiresAccessCode: true` and never show the key or base URL. Re-run the smoke test.
@@ -289,6 +289,6 @@ Look up the real prices of the model you choose on its OpenRouter page ("verify 
 ## Not verified
 
 - Any behaviour on the real Railway, Supabase, Vercel or OpenRouter. All platform facts above are from the cited pages and community or staff posts of the dates shown; they can change.
-- Railway's `X-Forwarded-For` layout (finding 2), `TRUSTED_PROXY_HOPS=2`, the config-as-code field types in the template, SSE through the Railway edge for more than 15 s.
+- The Railway edge overwriting `X-Real-IP` (finding 2, `CLIENT_IP_HEADER=X-Real-IP`), the config-as-code field types in the template, SSE through the Railway edge for more than 15 s.
 - The Supabase privilege model for `public` (simulated locally), the pooler client and pool-size limits for your compute size, `pool_max_conns` against Supavisor, and the Vercel production deployment protection default.
 - Vercel Hobby fair-use terms for this project, OpenRouter credit purchase fees, and real model prices.

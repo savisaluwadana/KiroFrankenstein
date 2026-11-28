@@ -124,6 +124,43 @@ func TestProductionConfig(t *testing.T) {
 	}
 }
 
+func TestClientIPHeaderConfig(t *testing.T) {
+	// Allowlist: empty or exactly X-Real-IP.
+	for _, tc := range []struct {
+		val string
+		ok  bool
+	}{{"", true}, {"X-Real-IP", true}, {"x-real-ip", false}, {"X-Forwarded-For", false}, {"CF-Connecting-IP", false}} {
+		c, err := loadConfig(env(map[string]string{"CLIENT_IP_HEADER": tc.val}))
+		if (err == nil) != tc.ok {
+			t.Errorf("CLIENT_IP_HEADER=%q: err = %v, want ok=%v", tc.val, err, tc.ok)
+		} else if err == nil && c.clientIPHeader != tc.val {
+			t.Errorf("clientIPHeader = %q", c.clientIPHeader)
+		} else if err != nil && !strings.Contains(err.Error(), "CLIENT_IP_HEADER") {
+			t.Errorf("error does not name the variable: %v", err)
+		}
+	}
+	// Mutual exclusion names both variables; hops=0 is compatible.
+	_, err := loadConfig(env(map[string]string{"CLIENT_IP_HEADER": "X-Real-IP", "TRUSTED_PROXY_HOPS": "2"}))
+	if err == nil || !strings.Contains(err.Error(), "CLIENT_IP_HEADER") || !strings.Contains(err.Error(), "TRUSTED_PROXY_HOPS") {
+		t.Errorf("exclusion error = %v", err)
+	}
+	if _, err := loadConfig(env(map[string]string{"CLIENT_IP_HEADER": "X-Real-IP", "TRUSTED_PROXY_HOPS": "0"})); err != nil {
+		t.Errorf("hops=0 with header rejected: %v", err)
+	}
+	// Production needs one of the two; the header alone satisfies it.
+	if _, err := loadConfig(env(prodEnv(map[string]string{"TRUSTED_PROXY_HOPS": ""}))); err == nil ||
+		!strings.Contains(err.Error(), "CLIENT_IP_HEADER") || !strings.Contains(err.Error(), "TRUSTED_PROXY_HOPS") {
+		t.Errorf("production without either = %v", err)
+	}
+	c, err := loadConfig(env(prodEnv(map[string]string{"TRUSTED_PROXY_HOPS": "", "CLIENT_IP_HEADER": "X-Real-IP"})))
+	if err != nil || c.clientIPHeader != "X-Real-IP" {
+		t.Errorf("production with CLIENT_IP_HEADER only: %v", err)
+	}
+	if _, err := loadConfig(env(prodEnv(map[string]string{"CLIENT_IP_HEADER": "X-Real-IP"}))); err == nil {
+		t.Error("production with header and hops=1 accepted")
+	}
+}
+
 type syncBuf struct {
 	mu sync.Mutex
 	b  bytes.Buffer

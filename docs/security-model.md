@@ -83,6 +83,10 @@ Trade-offs, stated plainly:
 - Anyone with access to the creating browser tab can change the world.
 - There is no recovery for a lost token, by design: only the hash is stored.
 
+## Client IP for per-IP limits
+
+All per-IP limits (request rate, world creation, progress streams, write-token failures, LLM duels per day) use one function, `Server.clientIP`. Modes: (1) default, the socket peer address, with `X-Real-IP` and `X-Forwarded-For` ignored; (2) `TRUSTED_PROXY_HOPS=N` for a proxy you operate, the Nth `X-Forwarded-For` entry from the right; (3) `CLIENT_IP_HEADER=X-Real-IP`, exactly one header value that parses as an IP (IPv4-mapped IPv6 normalised), otherwise the peer address; `X-Forwarded-For` is never read in this mode. Modes 2 and 3 are mutually exclusive. Mode 3 trusts the edge proxy (Railway) to overwrite the header on every forwarded request; Railway's docs list the header but staff statements, not the docs, describe the overwrite (see `docs/deploy-railway-supabase-vercel.md`). Anyone who can reach the API without going through the edge, for example over Railway's private network, can choose any header value and so any bucket; keep the API the only service in its project. Failure of the assumption lowers limiter quality but exposes no data: capabilities are the write token and the world ID, not the IP.
+
 ## Deployment recommendation
 
 For any public deployment either:
@@ -90,4 +94,4 @@ For any public deployment either:
 1. Leave the LLM unconfigured (`LLM_*` unset). Everything works with the rule-based AI, and no provider cost is possible; or
 2. Set `LLM_ACCESS_CODE` and conservative `LLM_GLOBAL_MAX_CALLS` and `LLM_GLOBAL_MAX_TOKENS`, use a provider key with a credit limit, and give the code only to people who should use the LLM opponent.
 
-Also run with `ENV=production`, a PostgreSQL URL with TLS and an explicit `TRUSTED_PROXY_HOPS` (see `docs/deploy.md`).
+Also run with `ENV=production`, a PostgreSQL URL with TLS and an explicit `CLIENT_IP_HEADER` or `TRUSTED_PROXY_HOPS` (see `docs/deploy.md`).

@@ -37,7 +37,8 @@ Vercel does not proxy the API. The browser calls the API origin directly, so the
 | `PORT` | no | `8080` (image default) |
 | `DATABASE_URL` | yes | Runtime role `parallel_app`, `sslmode=verify-full` (or `require`). Secret |
 | `WEB_ORIGIN` | yes | Exact Vercel production URL, e.g. `https://parallel.example.com` (https, no path, no trailing slash) |
-| `TRUSTED_PROXY_HOPS` | yes (explicit) | Number of proxies in front; see below |
+| `TRUSTED_PROXY_HOPS` | yes, unless `CLIENT_IP_HEADER` is set | Number of proxies in front; see below |
+| `CLIENT_IP_HEADER` | alternative to hops | Empty or `X-Real-IP`; see below. Exclusive with `TRUSTED_PROXY_HOPS` > 0 |
 | `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` | no | Set all three or none. `LLM_API_KEY` is a secret. `LLM_BASE_URL` must be https |
 | `SHUTDOWN_TIMEOUT_SECONDS`, `HTTP_REQUEST_TIMEOUT_SECONDS`, `RATE_LIMIT_*`, `MAX_CONCURRENT_SIMULATIONS`, `WORLD_CREATE_PER_HOUR_PER_IP`, `LLM_*` limits | no | Defaults in the table above and `.env.example` |
 
@@ -124,7 +125,7 @@ docker run --rm -p 8080:8080 \
   -e DATABASE_URL='postgres://parallel_app:...@host/parallel?sslmode=verify-full' parallel-api
 ```
 
-`TRUSTED_PROXY_HOPS` per platform: set it to the number of proxies that append to `X-Forwarded-For` before the API. Typical values are 1 for Fly.io, Render and Railway (one platform proxy), and 1 for Cloud Run (Google front end); put a CDN or load balancer you operate in front and it becomes 2. Verify rather than assume: send a request with a forged `X-Forwarded-For` and confirm per-IP limits do not follow the forged value. `0` is correct only when clients connect to the container directly.
+`TRUSTED_PROXY_HOPS` per platform: set it to the number of proxies that append to `X-Forwarded-For` before the API. Typical values are 1 for Fly.io and Render (one platform proxy), and 1 for Cloud Run (Google front end); put a CDN or load balancer you operate in front and it becomes 2. Verify rather than assume: send a request with a forged `X-Forwarded-For` and confirm per-IP limits do not follow the forged value. `0` is correct only when clients connect to the container directly.
 
 Rate limits are per process (see Not covered). Secrets are never logged by the API; rotate `LLM_API_KEY` and database passwords in the secret store and restart. Rotating a database password means changing the role password and the secret, then redeploying.
 
@@ -155,7 +156,7 @@ Everything below ran on one macOS machine with Docker. Nothing was deployed and 
 | # | Check | Result |
 |---|---|---|
 | 1 | `migrate up` as `parallel_migrator` over TLS (`sslmode=require`) from the built image | PASS, version 7 |
-| 2 | Startup rejects `sslmode=disable`, missing `sslmode`, http `WEB_ORIGIN`, localhost `WEB_ORIGIN`, missing `WEB_ORIGIN`, missing `TRUSTED_PROXY_HOPS`, missing `DATABASE_URL`, partial LLM variables, http `LLM_BASE_URL` | PASS: exit 1, each message names the variable. A wrong password gives a generic "cannot connect to PostgreSQL" message; neither the password nor the key appeared in any output |
+| 2 | Startup rejects `sslmode=disable`, missing `sslmode`, http `WEB_ORIGIN`, localhost `WEB_ORIGIN`, missing `WEB_ORIGIN`, missing `TRUSTED_PROXY_HOPS` and `CLIENT_IP_HEADER`, missing `DATABASE_URL`, partial LLM variables, http `LLM_BASE_URL` | PASS: exit 1, each message names the variable. A wrong password gives a generic "cannot connect to PostgreSQL" message; neither the password nor the key appeared in any output |
 | 3 | `/healthz`, `/readyz` over HTTPS through the proxy | PASS |
 | 4 | HSTS: absent on plain http without `X-Forwarded-Proto`, present with `X-Forwarded-Proto: https` and through Caddy | PASS |
 | 5 | CORS preflight from the exact `WEB_ORIGIN` allowed (incl. `X-Parallel-Write-Token`), from `https://evil.example` denied | PASS |
@@ -203,7 +204,7 @@ Managed Postgres and poolers. The store takes only transaction-scoped advisory l
 2. Create the roles and database (see "Managed PostgreSQL setup") with long random passwords.
 3. `docker build -t parallel-api ./backend`, run `scripts/check-image-secrets.sh parallel-api`, push the image under an immutable tag.
 4. Run `migrate status`, then `migrate up` with `MIGRATE_DATABASE_URL` (owner role, `sslmode=require` or stronger). Confirm version 7.
-5. Deploy the API container with `ENV=production`, `DATABASE_URL` (runtime role), a placeholder `WEB_ORIGIN` you will correct in step 7, and `TRUSTED_PROXY_HOPS` set to the real number (test with a forged `X-Forwarded-For`). Set the grace period above 25 s, liveness `/healthz`, readiness `/readyz`, proxy buffering off and idle timeout of 60 s or more, and at least one instance that never sleeps.
+5. Deploy the API container with `ENV=production`, `DATABASE_URL` (runtime role), a placeholder `WEB_ORIGIN` you will correct in step 7, and `TRUSTED_PROXY_HOPS` set to the real number (test with a forged `X-Forwarded-For`), or `CLIENT_IP_HEADER=X-Real-IP` on Railway. Set the grace period above 25 s, liveness `/healthz`, readiness `/readyz`, proxy buffering off and idle timeout of 60 s or more, and at least one instance that never sleeps.
 6. Note the public API URL. In Vercel create the project with root directory `web`, set `NEXT_PUBLIC_API_BASE_URL=https://<api-host>/api/v1` for Production, deploy.
 7. Set the API's `WEB_ORIGIN` to the exact Vercel production URL (no path, no trailing slash) and redeploy the API.
 8. Run `scripts/smoke-prod.sh https://<api-host> https://<web-host>`. All checks must pass.
@@ -230,6 +231,7 @@ Out-of-range or malformed values stop start-up with a message that names the var
 | `WEB_ORIGIN` | `http://localhost:3100` | one `http(s)` origin | The single allowed CORS origin, exact match. `*`, other schemes, paths and trailing slashes are rejected. Credentials are never allowed |
 | `ENV` (or `PARALLEL_ENV`) | unset | | `production` turns on strict validation and HSTS |
 | `TRUSTED_PROXY_HOPS` | 0 | 0..5 | Trusted reverse proxies in front of the API (see Client IP) |
+| `CLIENT_IP_HEADER` | empty | empty or `X-Real-IP` | Single edge-set client IP header (see Client IP); mutually exclusive with `TRUSTED_PROXY_HOPS` > 0 |
 | `RATE_LIMIT_RPS`, `RATE_LIMIT_BURST` | 50, 100 | > 0 | Per-IP token bucket |
 | `HTTP_REQUEST_TIMEOUT_SECONDS` | 30 | 1..120 | Context deadline of every request except the progress stream |
 | `SHUTDOWN_TIMEOUT_SECONDS` | 25 | 1..120 | Drain time on SIGTERM or SIGINT |
@@ -249,7 +251,7 @@ With `ENV=production` the server refuses to start unless:
 
 - `WEB_ORIGIN` is set explicitly, uses `https` and is not localhost or a loopback address.
 - `DATABASE_URL` is set and has `sslmode=require`, `verify-ca` or `verify-full`. A missing `sslmode` (the driver would use `prefer`) and `disable` are rejected. `verify-full` is recommended.
-- `TRUSTED_PROXY_HOPS` is set explicitly (`0` when nothing is in front).
+- `CLIENT_IP_HEADER` or `TRUSTED_PROXY_HOPS` is set explicitly (`TRUSTED_PROXY_HOPS=0` when nothing is in front).
 - The LLM configuration is complete when any of `LLM_API_KEY` or `LLM_MODEL` is set, and `LLM_BASE_URL` uses `https`.
 
 In production mode, responses carry `Strict-Transport-Security` when the request arrived over TLS or with `X-Forwarded-Proto: https`.
@@ -261,6 +263,8 @@ Every API response: `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-refe
 ## Client IP and proxies
 
 Per-IP limits (rate limit, world creation, 4 streams per IP) key on the peer address. `X-Forwarded-For` is ignored unless `TRUSTED_PROXY_HOPS` = N > 0. Then the Nth entry from the right is used: with one proxy that is the address the proxy saw as its peer. Entries further left are client-controlled and are never used. If the header has fewer than N entries or the entry is not an IP address, the peer address is used. Set N to the exact number of proxies you operate; a value that is too small keys limits on a proxy address, and one that is too large lets a client choose its own key.
+
+`CLIENT_IP_HEADER=X-Real-IP` is the alternative for an edge that overwrites that header on every request (Railway; see `docs/deploy-railway-supabase-vercel.md`). All per-IP limits (request rate, world creation, progress streams, write-token failures, LLM duels per day) then use that header only: exactly one value that parses as an IPv4 or IPv6 address (IPv4-mapped IPv6 is normalised to IPv4). A missing, repeated, comma-separated or invalid value falls back to the peer address with a warning (at most one per minute, value never logged). `X-Forwarded-For` is ignored in this mode and the peer address is never replaced by it. The setting is exclusive with `TRUSTED_PROXY_HOPS` > 0 (startup error). The allowlist is closed (`httpapi.AllowedClientIPHeaders`); to support another edge, add its header there only after confirming that the edge replaces client-supplied copies, and extend `clientip_internal_test.go`. The trust boundary is that edge: the API must not be reachable around it.
 
 ## Probes
 

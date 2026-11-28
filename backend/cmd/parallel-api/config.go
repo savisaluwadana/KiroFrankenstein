@@ -26,6 +26,7 @@ type config struct {
 	production bool
 
 	trustedProxyHops   int
+	clientIPHeader     string
 	requestTimeout     time.Duration
 	shutdownTimeout    time.Duration
 	maxSimulations     int
@@ -96,6 +97,10 @@ func loadConfig(getenv func(string) string) (config, error) {
 	if c.trustedProxyHops, err = get.intVar("TRUSTED_PROXY_HOPS", 0, 0, httpapi.MaxTrustedProxyHops); err != nil {
 		return c, err
 	}
+	c.clientIPHeader = strings.TrimSpace(get("CLIENT_IP_HEADER"))
+	if err := httpapi.ValidateClientIPHeader(c.clientIPHeader, c.trustedProxyHops); err != nil {
+		return c, err
+	}
 	secs, err := get.intVar("HTTP_REQUEST_TIMEOUT_SECONDS", 30, 1, 120)
 	if err != nil {
 		return c, err
@@ -146,8 +151,8 @@ func validateProduction(get getenvFunc, c config) error {
 	if err := checkProductionDatabaseURL(get("DATABASE_URL")); err != nil {
 		return err
 	}
-	if get("TRUSTED_PROXY_HOPS") == "" {
-		return fmt.Errorf("TRUSTED_PROXY_HOPS must be set explicitly in production (0 when no reverse proxy is in front)")
+	if get("TRUSTED_PROXY_HOPS") == "" && c.clientIPHeader == "" {
+		return fmt.Errorf("CLIENT_IP_HEADER (X-Real-IP behind Railway) or TRUSTED_PROXY_HOPS must be set explicitly in production (TRUSTED_PROXY_HOPS=0 when no reverse proxy is in front)")
 	}
 	llmCfg, err := llm.LoadConfig(get)
 	if err != nil {
