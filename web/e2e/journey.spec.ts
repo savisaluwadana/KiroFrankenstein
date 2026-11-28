@@ -141,7 +141,8 @@ test("first-time journey on the real backend", async ({ page }, info) => {
   await expect(seq).toContainText("Same history up to Thursday, 4:00 AM");
   await page.waitForTimeout(500);
   await shot(page, info, "07-fork-sequence");
-  await seq.getByRole("button", { name: /Skip/ }).click();
+  // The 1.5 s sequence may already have ended by itself during a slow screenshot; Escape is then a no-op.
+  await page.keyboard.press("Escape");
   await expect(seq).toHaveCount(0);
 
   // 10. Reality switcher lists both futures.

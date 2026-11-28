@@ -2,6 +2,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { ForkSequence } from "./ForkSequence";
+import { useReducer, useCallback } from "react";
+import { useStudioStore } from "@/stores/studio";
 import {
   FORK_SEQUENCE_MS,
   INITIAL_FORK_SEQUENCE,
@@ -80,5 +82,37 @@ describe("ForkSequence", () => {
     expect(screen.getByTestId("fork-sequence").dataset.phase).toBe("static");
     expect(screen.getByRole("status").textContent).toBe(caption(info));
     expect(document.querySelector(".fork-lanes, .fork-trunk, .fork-overlay, .fork-caption")).toBeNull();
+  });
+  it("keeps one mounted overlay and one timer while the studio store receives new heads and ticks", () => {
+    vi.useFakeTimers();
+    function Harness() {
+      // Re-renders on every store change, like the studio page does.
+      const head = useStudioStore((s) => s.selectedTick);
+      useStudioStore((s) => s.branches);
+      const [st, dispatch] = useReducer(forkSequenceReducer, { phase: "playing", info } as ForkSequenceState);
+      const onDone = useCallback(() => dispatch({ type: "skip" }), []);
+      return (
+        <div data-head={head}>
+          <ForkSequence state={st} onDone={onDone} />
+        </div>
+      );
+    }
+    render(<Harness />);
+    const first = screen.getByTestId("fork-sequence");
+    const skip = screen.getByRole("button", { name: /Skip/ });
+    for (let i = 1; i <= 5; i++) {
+      act(() => {
+        vi.advanceTimersByTime(200);
+        useStudioStore.getState().setSelectedTick(i);
+        useStudioStore.getState().setBranchHead("b", i);
+      });
+      expect(screen.getByTestId("fork-sequence")).toBe(first);
+      expect(screen.getByRole("button", { name: /Skip/ })).toBe(skip);
+    }
+    // 1000 ms elapsed across the updates; the timer was not restarted, so it ends at 1500 ms in total.
+    act(() => {
+      vi.advanceTimersByTime(FORK_SEQUENCE_MS - 1000 + 1);
+    });
+    expect(screen.queryByTestId("fork-sequence")).toBeNull();
   });
 });

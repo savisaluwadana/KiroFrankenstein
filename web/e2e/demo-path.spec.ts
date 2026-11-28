@@ -265,7 +265,8 @@ test("steps 3-9, default path: crisis, rewind, fork, compare, duel, scoreboard a
   await expect(seq).toBeVisible();
   await expect(seq).toContainText("Same history up to");
   await shot(page, info, "demo-path-06-fork");
-  await seq.getByRole("button", { name: /Skip/ }).click();
+  // The 1.5 s sequence may already have ended by itself during a slow screenshot; Escape is then a no-op.
+  await page.keyboard.press("Escape");
   await expect(seq).toHaveCount(0);
   await page.waitForURL((u) => u.searchParams.get("branch") !== rootId);
   const childId = branchIdOf(page);
