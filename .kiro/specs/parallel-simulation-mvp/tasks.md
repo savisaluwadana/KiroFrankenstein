@@ -853,7 +853,7 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
     - Run the full backend, web and Playwright suites. Ensure all tests pass, ask the user if questions arise.
     - Reconciliation (M7 pass): Combined with 8.5 and 5.8 as the M7 final checkpoint; results are listed under 8.5. Feature freeze applies. 8.6 is an accepted deviation and 8.7 is skipped (see above). Remaining defects are listed in the M7 implementation notes. Status is left to the orchestrator.
 
-- [ ] 9. M8 — Documentation and hackathon submission (~150 credits)
+- [x] 9. M8 — Documentation and hackathon submission (~150 credits)
   - [x] 9.1 Write the README setup, run and limitations sections
     - _Requirements: 31.6 (Disclaimer), `security.md` known limitations, `hackathon.md` setup instructions_
     - Dependencies: 8.8
@@ -868,16 +868,16 @@ Task field conventions: `_Requirements_` lists criterion numbers from `requireme
     - Verify: `cd backend && go test ./internal/app/demoplan -run TestDemoScriptMatchesPlan`
     - Acceptance: the test fails when the fixture and the script disagree.
     - Reconciliation (M8 pass): COMPLETED. `docs/demo-script.md` exists and `backend/internal/app/demoplan/docs_test.go` holds `TestDemoScriptMatchesPlan` (commit `e666480`).
-  - [-] 9.3 Finalize the Kiro build log and evidence checklist
+  - [x] 9.3 Finalize the Kiro build log and evidence checklist
     - _Requirements: `hackathon.md` logging rule_
     - Dependencies: 9.1, 9.2
     - Deliverables: `docs/kiro-build-log.md` entries for each real implementation session with commits and verification outcomes; evidence checklist ticked only for evidence that exists
     - Verify: `npx --yes markdownlint-cli2 docs/kiro-build-log.md && git log --oneline | head -n 20`
     - Acceptance: every logged claim maps to a commit or command output; nothing done outside Kiro is labelled as Kiro work.
     - Reconciliation (M8 pass): the "M8 release preparation" entry and the evidence checklist are written in `docs/kiro-build-log.md`, with each claim tied to a commit from `git log --oneline` or a `gh run` output. The provenance note now names the 2026-11-10 commits (`8cb6215`, `2a282fa`, `5c456a6`, `9abdaf5`) as scaffolding for a removed concept, not Kiro work. Checklist: hook/MCP item left unticked (not used), public demo and demo video unticked. Status is left to the orchestrator.
-  - [ ] 9.4 Final checkpoint — submission ready
+  - [x] 9.4 Final checkpoint — submission ready
     - Run the full backend, web and Playwright suites. Recording the video and submitting to Devpost are manual steps for the user. Ensure all tests pass, ask the user if questions arise.
-    - Reconciliation (M8 pass): not run in this pass; see release candidate notes. The latest GitHub run (46126448247, commit `e666480`) was in progress when the notes below were written.
+    - Reconciliation (M8 final checkpoint): verified at HEAD `0d1a192` ("docs: M8 build log, task reconciliation and real CI history"). GitHub Actions run 46133835646 for `0d1a192`: conclusion success, all six jobs success (openapi lint, go amd64, go arm64, web, docker build, e2e playwright chromium). Earlier run 46126448247 (`e666480`) failed in e2e only (the fork-sequence Skip click raced the overlay's own 1.5 s end on a slow runner); fixed by the commit "test(e2e): end the fork sequence with Escape". Local acceptance at `0d1a192` (2026-11-28): `scripts/ci-local.sh` with Docker and e2e, all 22 steps passed; vitest 276 tests in 36 files; Playwright 24 passed, 10 skipped (mobile-project skips of desktop-only specs), 0 failed in 6.6 min; frame stats 60.0 fps, p95 16.7 ms, max 16.8 ms, 0 frames over 33 ms (headless Chromium); goldens under linux/amd64 emulation (`TestGoldenFlagshipHash`, `TestGoldenEnsembleReport`, `TestGoldenDuelHashes`, `TestDemoScriptMatchesPlan`) ok; demo numbers match `docs/demo-script.md` (fork tick 40; profit at tick 48 $50,757.48 original and $50,525.00 fork; at 120 $17,784.00 / 44.3% against $21,611.61 / 47.0%; hashes `f6f41425…` / `9786f539…`; duel 26.53 vs 56.83; AI $35,957.50; 6,179 ledger entries); README Quick start re-run OK (API health ok, engineVersion 2; web `/` and `/briefing` 200); `parallel-sim llm-check` exit 4 PENDING (no credentials); `scripts/check-docs.sh` ok. No live LLM call was made, nothing was deployed to paid infrastructure, the Devpost form is not submitted and the video is not recorded (manual steps for the user). Release notes: `docs/release-notes-rc1.md` (`v0.1.0-rc.1`).
 
 - [ ] 10. Stretch — optional, budget-gated (start only after 9.4 and only with credits left outside the 500-credit reserve)
   - [ ] 10.1 Large ensembles and distribution views
@@ -1024,11 +1024,11 @@ Open items and reasons:
 - 8.6 Fork split transition: accepted deviation. Implemented at 1.5 s against the 600 ms bound; left open because the acceptance bound is not met.
 - 8.7 Duel result reveal: skipped under feature freeze; the scoreboard shows final API values at once.
 - 9.3: work done in this pass; status ticked by the orchestrator.
-- 9.4 Final checkpoint: pending, run by the orchestrator.
+- 9.4 Final checkpoint: verified and recorded (see its Reconciliation bullet; GitHub run 46133835646 success at `0d1a192`).
 - 10.1 to 10.8: stretch, not started. 10.7 (shareable read-only replays) is only partly covered by the M8 write-token model: world, branch and duel IDs already work as read-only links because every mutation needs the write token. The task itself (a share-link table, `POST /worlds/{id}/share`, a separate share capability, world id omitted from responses, `TestReadOnlyLink`) is not built, so it stays unchecked.
 - Parents 8 and 9 stay open until 8.6, 8.7 (8 only), 9.3 and 9.4 are resolved; parent 10 stays open as stretch.
 
-After the orchestrator ticks 9.3 and completes 9.4, the required items would be 127 of 129 `[x]` with only 8.6 and 8.7 open. If 9.4 is not run, 126 of 129.
+After the orchestrator ticks 9.3 and 9.4, the required items are 127 of 129 `[x]`, with only 8.6 (accepted deviation: 1.5 s transition against the 600 ms bound) and 8.7 (skipped under feature freeze) open.
 
 ## Task Dependency Graph
 

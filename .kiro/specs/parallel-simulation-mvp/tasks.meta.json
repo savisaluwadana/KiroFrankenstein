@@ -1639,6 +1639,30 @@
         "executionId": "2a1347b0-f374-4b1f-b6b6-af368aa51395",
         "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
         "timestamp": 1795854204353
+      },
+      {
+        "executionId": "2a1347b0-f374-4b1f-b6b6-af368aa51395",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795862027484
+      }
+    ],
+    "9.4 Final checkpoint — submission ready": [
+      {
+        "executionId": "2a1347b0-f374-4b1f-b6b6-af368aa51395",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795862029603
+      },
+      {
+        "executionId": "2a1347b0-f374-4b1f-b6b6-af368aa51395",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795862167826
+      }
+    ],
+    "9. M8 — Documentation and hackathon submission (~150 credits)": [
+      {
+        "executionId": "2a1347b0-f374-4b1f-b6b6-af368aa51395",
+        "chatSessionId": "sess_62eb2e2a-2e09-4828-9274-b8f6ad146277",
+        "timestamp": 1795862167835
       }
     ]
   }

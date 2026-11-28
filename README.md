@@ -434,12 +434,12 @@ Latest recorded results:
 | Go tests including PostgreSQL, 0 skips | pass | 2026-11-28 (CI, below; and locally in M7 checkpoint) |
 | Go race tests (concurrency-sensitive packages) | pass | 2026-11-28 |
 | Golden hashes: flagship, demo duel, 20-seed ensemble report | pass natively on arm64 and under linux/amd64 emulation in Docker; pass on both CI runners | 2026-11-28 |
-| Web: vitest | **275 tests** pass | 2026-11-28 |
+| Web: vitest | **276 tests** (36 files) pass | 2026-11-28 |
 | Web: Playwright (Chromium; desktop 1440x900 and phone 390x844) | **24 passed, 10 skipped**, 0 failed. The skips are per-project guards (desktop-only specs skip on the phone project) | 2026-11-28 |
 | `govulncheck`, `staticcheck`, `npm audit --audit-level=high` | clean at the M7 checkpoint | 2026-11-28 |
 | Fresh clone, following this README | see below | 2026-11-28 |
 
-**GitHub Actions.** Last fully green runs: 46065036957 (commit `cbd0d68`) and 46100197654 (commit `d4f140b`), each with all six jobs successful (go amd64, go arm64, openapi lint, web, docker build, e2e). The first GitHub run, 46060356207 (`6636bee`), failed in `web` because the npm lockfile was out of sync; that was fixed in `cbd0d68`. Later runs 46106909199 (`2ce9c05`) and 46125120786 (`d387c6d`) were cancelled in the `e2e` job (the other five jobs succeeded); the run for `e666480` (46126448247) was still in progress when this was written. Check the badge above for current status. The CI badge reflects the latest run on `main`, which may be in progress or failing. [docs/ci.md](docs/ci.md) lists the jobs.
+**GitHub Actions.** Latest verified run: 46133835646 (commit `0d1a192`), conclusion success, all six jobs successful (openapi lint, go amd64, go arm64, web, docker build, e2e). Check the badge above for current status. [docs/ci.md](docs/ci.md) lists the jobs; the release candidate is described in [docs/release-notes-rc1.md](docs/release-notes-rc1.md).
 
 **Fresh-clone check.** On 2026-11-28 a fresh `git clone` (no `node_modules`, no `.env`) was used to run: `go build ./cmd/...`; the API with the in-memory store (`/api/v1/health`, `POST /api/v1/demo`); `npm ci`, `npm run build`, `npx next start` (`GET /` and `/briefing` returned 200, the CSP allowed the API origin, CORS allowed the web origin); Docker Compose PostgreSQL with a separate project name and `DB_PORT`, `migrate up` to version 7, the API on that database, `/readyz` ready, a demo world created; `docker build`, the secrets check, `docker run` (health check `healthy`); and the CLI commands `run`, `verify` (MATCH) and `ensemble --seeds 1..3`. Not run in that check: `npm run dev`, the Playwright suite, a browser session.
 
