@@ -3,6 +3,7 @@
 package storetest
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"reflect"
@@ -64,6 +65,32 @@ func Run(t *testing.T, f Factory) {
 		b, _ := s.GetBranch(ctx, "b1")
 		if b.HeadTick != 9 {
 			t.Fatalf("head tick %d", b.HeadTick)
+		}
+	})
+
+	t.Run("world write token hash round trip", func(t *testing.T) {
+		s := f(t)
+		hash := make([]byte, 32)
+		for i := range hash {
+			hash[i] = byte(i + 1)
+		}
+		if err := s.CreateWorld(ctx, app.World{ID: "wt1", Name: "w", ScenarioJSON: []byte(`{}`), EngineVersion: "1", WriteTokenHash: hash}); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.CreateWorld(ctx, app.World{ID: "wt2", Name: "w", ScenarioJSON: []byte(`{}`), EngineVersion: "1"}); err != nil {
+			t.Fatal(err)
+		}
+		w1, err := s.GetWorld(ctx, "wt1")
+		if err != nil || !bytes.Equal(w1.WriteTokenHash, hash) {
+			t.Fatalf("hash %x err %v, want %x", w1.WriteTokenHash, err, hash)
+		}
+		hash[0] = 99 // the store keeps its own copy
+		if w1, _ = s.GetWorld(ctx, "wt1"); w1.WriteTokenHash[0] != 1 {
+			t.Fatal("store aliases the caller's hash slice")
+		}
+		w2, err := s.GetWorld(ctx, "wt2")
+		if err != nil || len(w2.WriteTokenHash) != 0 {
+			t.Fatalf("legacy world hash %x err %v, want none", w2.WriteTokenHash, err)
 		}
 	})
 

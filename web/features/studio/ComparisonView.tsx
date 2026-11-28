@@ -36,6 +36,8 @@ export interface ComparisonViewProps {
   waiting: Readonly<Record<string, number>>;
   advancingId: string | null;
   onAdvance: (branchId: string) => void;
+  /** No write token: the "Advance this future" control is omitted. */
+  readOnly?: boolean;
   onGoTo: (branchId: string) => void;
   /** Opens "What changed between these two futures" for this pair. */
   onWhatChanged?: () => void;
@@ -183,7 +185,7 @@ export function ComparisonView(props: ComparisonViewProps) {
             <p>
               {nameOf(b)} has not been simulated up to {formatSimTime(selectedTick, startClock)} yet.
             </p>
-            {isWaiting ? null : (
+            {isWaiting || props.readOnly === true ? null : (
               <button
                 type="button"
                 disabled={props.advancingId !== null}

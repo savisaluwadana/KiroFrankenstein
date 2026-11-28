@@ -110,7 +110,9 @@ func run(ctx context.Context, log *slog.Logger, getenv func(string) string) erro
 		RatePerSecond: cfg.rps, RateBurst: cfg.burst, Logger: log, Production: cfg.production,
 		TrustedProxyHops: cfg.trustedProxyHops, RequestTimeout: cfg.requestTimeout,
 		MaxConcurrentSimulations: cfg.maxSimulations, WorldCreatePerHourPerIP: cfg.worldCreatePerHour,
-		Ping: st.ping, CheckSchema: st.checkSchema,
+		LLMAccessCode: cfg.llmAccessCode, LLMDuelsPerDayPerIP: cfg.llmDuelsPerDay,
+		WriteTokenFailuresPerMinute: cfg.tokenFailsPerMin,
+		Ping:                        st.ping, CheckSchema: st.checkSchema,
 	}
 	if st.memory {
 		o.MaxWorlds = cfg.maxWorlds

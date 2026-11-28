@@ -33,6 +33,9 @@ type createWorldRequest struct {
 type createWorldResponse struct {
 	World      worldDTO  `json:"world"`
 	RootBranch branchDTO `json:"rootBranch"`
+	// WriteToken is shown once. Send it in X-Parallel-Write-Token to change
+	// the world; only its hash is stored.
+	WriteToken string `json:"writeToken"`
 }
 
 func (s *Server) createWorld(w http.ResponseWriter, r *http.Request) {
@@ -61,9 +64,17 @@ func (s *Server) createWorld(w http.ResponseWriter, r *http.Request) {
 	if len(scenario) == 0 || string(scenario) == "null" {
 		scenario = s.flagship
 	}
+	if req.ManagerKind == string(app.ManagerAILLM) && !s.guardLLMCreate(w, r) {
+		return
+	}
+	token, hash, err := newWriteToken()
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	world, root, err := s.svc.CreateWorld(r.Context(), app.CreateWorldRequest{
 		Name: *req.Name, ScenarioJSON: scenario, Seed: sim.Seed(*req.Seed),
-		Overrides: req.Overrides, Manager: app.ManagerKind(req.ManagerKind),
+		Overrides: req.Overrides, Manager: app.ManagerKind(req.ManagerKind), WriteTokenHash: hash,
 	})
 	if err != nil {
 		s.fail(w, r, withIssueField(err, "name"))
@@ -74,7 +85,7 @@ func (s *Server) createWorld(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, createWorldResponse{World: dto, RootBranch: branchToDTO(root)})
+	writeJSON(w, http.StatusCreated, createWorldResponse{World: dto, RootBranch: branchToDTO(root), WriteToken: token})
 }
 
 func (s *Server) worldDTO(r *http.Request, id app.WorldID) (worldDTO, error) {
@@ -170,6 +181,8 @@ type demoResponse struct {
 	World      worldDTO    `json:"world"`
 	RootBranch branchDTO   `json:"rootBranch"`
 	Plan       demoPlanDTO `json:"plan"`
+	// WriteToken is shown once; see createWorldResponse.
+	WriteToken string `json:"writeToken"`
 }
 
 // demoPlan derives the plan once per process: it depends only on the flagship
@@ -207,8 +220,13 @@ func (s *Server) createDemo(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	token, hash, err := newWriteToken()
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	world, root, err := s.svc.CreateWorld(r.Context(), app.CreateWorldRequest{
-		Name: name, ScenarioJSON: s.flagship, Seed: demoplan.DefaultSeed,
+		Name: name, ScenarioJSON: s.flagship, Seed: demoplan.DefaultSeed, WriteTokenHash: hash,
 	})
 	if err != nil {
 		s.fail(w, r, withIssueField(err, "name"))
@@ -226,7 +244,7 @@ func (s *Server) createDemo(w http.ResponseWriter, r *http.Request) {
 	for _, c := range plan.Commands {
 		pd.Commands = append(pd.Commands, demoCommandDTO(c))
 	}
-	writeJSON(w, http.StatusCreated, demoResponse{World: dto, RootBranch: branchToDTO(root), Plan: pd})
+	writeJSON(w, http.StatusCreated, demoResponse{World: dto, RootBranch: branchToDTO(root), Plan: pd, WriteToken: token})
 }
 
 // ---- GET /worlds/{id}/assumptions ----

@@ -8,6 +8,7 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { rememberWriteToken } from "@/lib/api/writeToken";
 import type { DuelDecision, DuelScore, TickFrame } from "@/lib/api/client";
 import { useStudioStore } from "@/stores/studio";
 import { usePlaybackStore } from "@/stores/playback";
@@ -260,6 +261,8 @@ function installFetch(opts: Opts = {}) {
 }
 
 beforeEach(() => {
+  window.sessionStorage.clear();
+  rememberWriteToken("tok-test", "d1"); // this tab created the duel
   useUiStore.setState({ engineering: false });
 });
 

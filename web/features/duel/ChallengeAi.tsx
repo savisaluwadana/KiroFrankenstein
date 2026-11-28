@@ -22,6 +22,8 @@ export function ChallengeAi() {
   const [aiKind, setAiKind] = useState<"ai_rule_based" | "ai_llm">("ai_rule_based");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Kept in component state only: never stored, logged or put in a URL.
+  const [accessCode, setAccessCode] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -40,13 +42,14 @@ export function ChallengeAi() {
   const llm = managers?.find((m) => m.kind === "ai_llm");
   const llmAvailable = llm?.available === true;
   const chosen = llmAvailable ? aiKind : "ai_rule_based";
+  const needsCode = chosen === "ai_llm" && llm?.requiresAccessCode === true;
 
   async function start() {
     if (busy) return;
     setBusy(true);
     setError(null);
     try {
-      const res = await createDuel({ seed: DEMO_SEED, aiKind: chosen });
+      const res = await createDuel({ seed: DEMO_SEED, aiKind: chosen }, {}, needsCode ? accessCode.trim() : undefined);
       router.push(`/duels/${encodeURIComponent(res.duel.id)}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not start the duel. Please try again.");
@@ -79,10 +82,24 @@ export function ChallengeAi() {
           {engineering && managers !== null ? <span data-testid="llm-note"> {LLM_NOT_CONFIGURED}.</span> : null}
         </p>
       )}
+      {needsCode ? (
+        <label className="flex flex-col gap-1 text-sm">
+          <span>Access code for the LLM AI</span>
+          <input
+            type="password"
+            autoComplete="off"
+            value={accessCode}
+            onChange={(e) => setAccessCode(e.target.value)}
+            maxLength={128}
+            className="min-h-11 max-w-xs rounded-[4px] border border-edge bg-transparent px-3"
+          />
+          <span className="text-ivory-dim">The Rule-based AI needs no code.</span>
+        </label>
+      ) : null}
       <button
         type="button"
         onClick={() => void start()}
-        disabled={busy}
+        disabled={busy || (needsCode && accessCode.trim() === "")}
         className="inline-flex min-h-12 items-center rounded-[4px] border border-edge px-6 text-base hover:border-amber hover:text-amber-hot disabled:opacity-60"
       >
         {busy ? "Starting…" : "Challenge the AI manager"}

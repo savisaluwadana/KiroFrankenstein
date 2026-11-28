@@ -114,6 +114,8 @@ type createDuelResponse struct {
 	World  worldDTO      `json:"world"`
 	Duel   duelDTO       `json:"duel"`
 	Status duelStatusDTO `json:"status"`
+	// WriteToken is shown once; see createWorldResponse.
+	WriteToken string `json:"writeToken"`
 }
 
 func (s *Server) duelToDTO(ctx context.Context, du app.Duel) (duelDTO, error) {
@@ -205,8 +207,16 @@ func (s *Server) createDuel(w http.ResponseWriter, r *http.Request) {
 		scenario = s.flagship
 	}
 	ctx := r.Context()
+	if kind == app.ManagerAILLM && !s.guardLLMCreate(w, r) {
+		return
+	}
+	token, hash, err := newWriteToken()
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	world, root, err := s.svc.CreateWorld(ctx, app.CreateWorldRequest{
-		Name: name, ScenarioJSON: scenario, Seed: sim.Seed(seed), Overrides: req.Overrides,
+		Name: name, ScenarioJSON: scenario, Seed: sim.Seed(seed), Overrides: req.Overrides, WriteTokenHash: hash,
 	})
 	if err != nil {
 		s.fail(w, r, withIssueField(err, "name"))
@@ -223,7 +233,7 @@ func (s *Server) createDuel(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	out := createDuelResponse{}
+	out := createDuelResponse{WriteToken: token}
 	if out.World, err = s.worldDTO(r, world.ID); err != nil {
 		s.fail(w, r, err)
 		return

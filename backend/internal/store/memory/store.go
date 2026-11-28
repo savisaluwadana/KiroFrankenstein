@@ -58,6 +58,7 @@ func (s *Store) CreateWorld(_ context.Context, w app.World) error {
 		return fmt.Errorf("world %s: %w", w.ID, app.ErrAlreadyExists)
 	}
 	w.ScenarioJSON = cloneBytes(w.ScenarioJSON)
+	w.WriteTokenHash = cloneBytes(w.WriteTokenHash)
 	s.worlds[w.ID] = w
 	return nil
 }
@@ -71,6 +72,7 @@ func (s *Store) GetWorld(_ context.Context, id app.WorldID) (app.World, error) {
 		return app.World{}, fmt.Errorf("world %s: %w", id, app.ErrNotFound)
 	}
 	w.ScenarioJSON = cloneBytes(w.ScenarioJSON)
+	w.WriteTokenHash = cloneBytes(w.WriteTokenHash)
 	return w, nil
 }
 

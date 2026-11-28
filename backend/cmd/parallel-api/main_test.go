@@ -54,6 +54,8 @@ func TestLoadConfigBounds(t *testing.T) {
 		{"SHUTDOWN_TIMEOUT_SECONDS", "120", true}, {"SHUTDOWN_TIMEOUT_SECONDS", "0", false}, {"SHUTDOWN_TIMEOUT_SECONDS", "x", false},
 		{"MAX_CONCURRENT_SIMULATIONS", "64", true}, {"MAX_CONCURRENT_SIMULATIONS", "65", false}, {"MAX_CONCURRENT_SIMULATIONS", "0", false},
 		{"WORLD_CREATE_PER_HOUR_PER_IP", "10000", true}, {"WORLD_CREATE_PER_HOUR_PER_IP", "10001", false},
+		{"LLM_DUELS_PER_DAY_PER_IP", "1000", true}, {"LLM_DUELS_PER_DAY_PER_IP", "1", true}, {"LLM_DUELS_PER_DAY_PER_IP", "1001", false}, {"LLM_DUELS_PER_DAY_PER_IP", "0", false},
+		{"WRITE_TOKEN_FAILURES_PER_MINUTE", "10000", true}, {"WRITE_TOKEN_FAILURES_PER_MINUTE", "0", false},
 		{"MAX_WORLDS", "1", true}, {"MAX_WORLDS", "0", false},
 		{"WEB_ORIGIN", "*", false}, {"WEB_ORIGIN", "ftp://x.test", false}, {"WEB_ORIGIN", "https://x.test/", false},
 		{"PORT", "70000", false},

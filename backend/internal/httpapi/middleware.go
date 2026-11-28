@@ -101,7 +101,7 @@ func (s *Server) cors(next http.Handler) http.Handler {
 			h.Add("Vary", "Access-Control-Request-Headers")
 			if allowed {
 				h.Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-				h.Set("Access-Control-Allow-Headers", "Content-Type, Idempotency-Key, Last-Event-ID")
+				h.Set("Access-Control-Allow-Headers", "Content-Type, Idempotency-Key, Last-Event-ID, "+WriteTokenHeader+", "+LLMCodeHeader)
 				h.Set("Access-Control-Max-Age", "600")
 			}
 			w.WriteHeader(http.StatusNoContent)

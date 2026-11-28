@@ -66,6 +66,17 @@ type Options struct {
 	// server is ready whenever it is not shutting down.
 	Ping        func(context.Context) error
 	CheckSchema func(context.Context) error
+
+	// WriteTokenFailuresPerMinute caps invalid write tokens (and LLM access
+	// codes) per client IP per minute before 429 (default 20).
+	WriteTokenFailuresPerMinute int
+	// LLMAccessCode, when set, is required in X-Parallel-LLM-Code to start an
+	// LLM-backed manager (ai_llm). Empty: no code. The rule-based AI never
+	// needs it.
+	LLMAccessCode string
+	// LLMDuelsPerDayPerIP caps LLM-backed manager creations per client IP per
+	// 24 hours (default 5, 1 to 1000).
+	LLMDuelsPerDayPerIP int
 }
 
 // Rate limit defaults: 50 requests per second per IP with a burst of 100.
@@ -103,6 +114,12 @@ type Server struct {
 	createSweep   time.Time
 	maxWorlds     int64
 	worlds        atomic.Int64
+
+	tokenFails   *windowCounter
+	tokenFailMax int
+	llmCode      string
+	llmDaily     *windowCounter
+	llmPerDay    int
 
 	ping, schema func(context.Context) error
 	readyMu      sync.Mutex
@@ -169,7 +186,18 @@ func New(o Options) (*Server, error) {
 	if o.WorldCreatePerHourPerIP <= 0 {
 		o.WorldCreatePerHourPerIP = DefaultWorldCreatePerHourPerIP
 	}
+	if o.WriteTokenFailuresPerMinute <= 0 {
+		o.WriteTokenFailuresPerMinute = DefaultWriteTokenFailuresPerMinute
+	}
+	if o.LLMDuelsPerDayPerIP == 0 {
+		o.LLMDuelsPerDayPerIP = DefaultLLMDuelsPerDayPerIP
+	}
+	if o.LLMDuelsPerDayPerIP < 1 || o.LLMDuelsPerDayPerIP > MaxLLMDuelsPerDayPerIP {
+		return nil, fmt.Errorf("httpapi: LLMDuelsPerDayPerIP must be 1 to %d", MaxLLMDuelsPerDayPerIP)
+	}
 	return &Server{
+		tokenFails: newWindowCounter(time.Minute, o.Now), tokenFailMax: o.WriteTokenFailuresPerMinute,
+		llmCode: o.LLMAccessCode, llmDaily: newWindowCounter(24*time.Hour, o.Now), llmPerDay: o.LLMDuelsPerDayPerIP,
 		now: o.Now, production: o.Production, proxyHops: o.TrustedProxyHops, reqTimeout: o.RequestTimeout,
 		sims: make(chan struct{}, o.MaxConcurrentSimulations), simWait: o.SimQueueWait,
 		createPerHour: o.WorldCreatePerHourPerIP, creates: map[string]*hourWindow{}, maxWorlds: int64(o.MaxWorlds),
@@ -209,6 +237,12 @@ func (s *Server) Handler() http.Handler {
 			r.Use(s.withTimeout)
 			heavy := r.With(s.simSlot)
 			create := r.With(s.guardWorldCreate)
+			// Every mutation of an existing world passes the write-token check
+			// first. Creation and POST /diffs (a read) need no token.
+			bw := r.With(s.requireWrite("branch"))
+			dw := r.With(s.requireWrite("duel"))
+			bwHeavy := bw.With(s.simSlot)
+			dwHeavy := dw.With(s.simSlot)
 			r.Get("/health", s.getHealth)
 			r.Get("/managers", s.listManagers)
 			create.Post("/worlds", s.createWorld)
@@ -217,11 +251,11 @@ func (s *Server) Handler() http.Handler {
 			r.Get("/worlds/{worldId}/assumptions", s.getAssumptions)
 			create.Post("/demo", s.createDemo)
 			r.Get("/branches/{branchId}", s.getBranch)
-			heavy.Post("/branches/{branchId}/fork", s.forkBranch)
-			heavy.Post("/branches/{branchId}/advance", s.advanceBranch)
-			r.Post("/branches/{branchId}/commands", s.submitCommands)
-			r.Post("/branches/{branchId}/decision-window/end", s.endDecisionWindow)
-			r.Post("/branches/{branchId}/disruptions", s.injectDisruption)
+			bwHeavy.Post("/branches/{branchId}/fork", s.forkBranch)
+			bwHeavy.Post("/branches/{branchId}/advance", s.advanceBranch)
+			bw.Post("/branches/{branchId}/commands", s.submitCommands)
+			bw.Post("/branches/{branchId}/decision-window/end", s.endDecisionWindow)
+			bw.Post("/branches/{branchId}/disruptions", s.injectDisruption)
 			r.Get("/branches/{branchId}/tick-frames", s.listTickFrames)
 			r.Get("/branches/{branchId}/state", s.getBranchState)
 			r.Get("/branches/{branchId}/metrics", s.getBranchMetrics)
@@ -234,10 +268,10 @@ func (s *Server) Handler() http.Handler {
 			heavy.Post("/diffs", s.createDiff)
 			create.With(s.simSlot).Post("/duels", s.createDuel)
 			r.Get("/duels/{duelId}", s.getDuel)
-			heavy.Post("/duels/{duelId}/advance", s.advanceDuel)
-			r.Post("/duels/{duelId}/commands", s.submitDuelCommands)
-			r.Post("/duels/{duelId}/decision-window/end", s.endDuelWindow)
-			r.Post("/duels/{duelId}/disruptions", s.injectDuelDisruption)
+			dwHeavy.Post("/duels/{duelId}/advance", s.advanceDuel)
+			dw.Post("/duels/{duelId}/commands", s.submitDuelCommands)
+			dw.Post("/duels/{duelId}/decision-window/end", s.endDuelWindow)
+			dw.Post("/duels/{duelId}/disruptions", s.injectDuelDisruption)
 			r.Get("/duels/{duelId}/score", s.getDuelScore)
 			r.Get("/duels/{duelId}/decisions", s.listDuelDecisions)
 		})

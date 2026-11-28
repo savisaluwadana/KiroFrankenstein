@@ -1,4 +1,4 @@
-import { expect, type Page, type TestInfo, type Request } from "@playwright/test";
+import { expect, type APIRequestContext, type APIResponse, type Page, type TestInfo, type Request } from "@playwright/test";
 import path from "node:path";
 
 export const API = "http://localhost:18080/api/v1";
@@ -209,4 +209,32 @@ export async function apiMetrics(page: Page, branchId: string, tick: number) {
   };
   expect(j.tick).toBe(tick);
   return j.metrics;
+}
+
+/* ---------- write tokens for tests that call mutating endpoints directly ---------- */
+
+/** Header the API requires on every request that changes a world. */
+export const WRITE_TOKEN_HEADER = "X-Parallel-Write-Token";
+const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g;
+const learned = new Map<string, string>(); // id -> write token, for worlds created through the API here
+
+/** The write token for a branch, duel or world id: learned from an API create, else this tab's sessionStorage. */
+export async function writeTokenFor(page: Page, id: string): Promise<string | undefined> {
+  const known = learned.get(id);
+  if (known !== undefined) return known;
+  return (await page.evaluate((k) => window.sessionStorage.getItem(`parallel.writeToken.${k}`), id)) ?? undefined;
+}
+
+/** POSTs to the API like the studio does: the write token for the id in the path is attached; tokens in the response are learned. */
+export async function apiPost(page: Page, path: string, data?: unknown, request: APIRequestContext = page.request): Promise<APIResponse> {
+  const ids = path.match(UUID) ?? [];
+  const token = ids[0] === undefined ? undefined : await writeTokenFor(page, ids[0]);
+  const res = await request.post(`${API}${path}`, { data, headers: token === undefined ? {} : { [WRITE_TOKEN_HEADER]: token } });
+  if (res.ok()) {
+    const text = await res.text();
+    const created = /"writeToken":"([A-Za-z0-9_-]{43})"/.exec(text)?.[1];
+    const tok = created ?? token;
+    if (tok !== undefined) for (const found of text.match(UUID) ?? []) learned.set(found, tok);
+  }
+  return res;
 }

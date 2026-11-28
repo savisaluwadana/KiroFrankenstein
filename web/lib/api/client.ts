@@ -5,6 +5,9 @@
  * The client returns server values unchanged. It never computes metrics.
  */
 import type { components } from "./schema";
+import { notifyWriteTokenRejected, rememberWriteToken, WRITE_TOKEN_HEADER, writeTokenFor } from "./writeToken";
+
+export { hasWriteToken, onWriteTokenRejected } from "./writeToken";
 
 type Schemas = components["schemas"];
 
@@ -184,10 +187,16 @@ interface RequestOptions {
   body?: unknown;
   headers?: Record<string, string>;
   signal?: AbortSignal | undefined;
+  /** Id (branch or duel) of the world a mutation changes: its write token is attached. */
+  writeFor?: string;
 }
 
 async function request(opts: RequestOptions): Promise<Response> {
   const headers: Record<string, string> = { Accept: "application/json", ...opts.headers };
+  if (opts.writeFor !== undefined) {
+    const token = writeTokenFor(opts.writeFor);
+    if (token !== null) headers[WRITE_TOKEN_HEADER] = token;
+  }
   const init: RequestInit = { method: opts.method, headers };
   if (opts.body !== undefined) {
     headers["Content-Type"] = "application/json";
@@ -195,7 +204,13 @@ async function request(opts: RequestOptions): Promise<Response> {
   }
   if (opts.signal) init.signal = opts.signal;
   const res = await fetch(buildUrl(opts.path, opts.query), init);
-  if (!res.ok) throw await toApiError(res);
+  if (!res.ok) {
+    const err = await toApiError(res);
+    if (opts.writeFor !== undefined && (err.type === "write-token-required" || err.type === "write-token-invalid")) {
+      notifyWriteTokenRejected(); // the studio switches to its read-only view
+    }
+    throw err;
+  }
   return res;
 }
 
@@ -211,6 +226,8 @@ export interface CallOptions {
 
 const id = (v: string): string => encodeURIComponent(v);
 
+const LLM_CODE_HEADER = "X-Parallel-LLM-Code";
+
 // operationId: getHealth
 export function getHealth(opts: CallOptions = {}): Promise<Health> {
   return requestJson<Health>({ method: "GET", path: "/health", signal: opts.signal });
@@ -219,8 +236,10 @@ export function getHealth(opts: CallOptions = {}): Promise<Health> {
 /** Alias of getHealth. */
 export const health = getHealth;
 
-export function createWorld(body: CreateWorldRequest, opts: CallOptions = {}): Promise<CreateWorldResponse> {
-  return requestJson<CreateWorldResponse>({ method: "POST", path: "/worlds", body, signal: opts.signal });
+export async function createWorld(body: CreateWorldRequest, opts: CallOptions = {}): Promise<CreateWorldResponse> {
+  const res = await requestJson<CreateWorldResponse>({ method: "POST", path: "/worlds", body, signal: opts.signal });
+  rememberWriteToken(res.writeToken, res.world.id, res.rootBranch.id);
+  return res;
 }
 
 export function getWorld(worldId: string, opts: CallOptions = {}): Promise<World> {
@@ -252,16 +271,32 @@ export function listBranches(worldId: string, opts: CallOptions = {}): Promise<B
   return requestJson<BranchList>({ method: "GET", path: `/worlds/${id(worldId)}/branches`, signal: opts.signal });
 }
 
-export function createDemo(body?: CreateDemoRequest, opts: CallOptions = {}): Promise<DemoResponse> {
-  return requestJson<DemoResponse>({ method: "POST", path: "/demo", body, signal: opts.signal });
+export async function createDemo(body?: CreateDemoRequest, opts: CallOptions = {}): Promise<DemoResponse> {
+  const res = await requestJson<DemoResponse>({ method: "POST", path: "/demo", body, signal: opts.signal });
+  rememberWriteToken(res.writeToken, res.world.id, res.rootBranch.id);
+  return res;
 }
 
 export function getBranch(branchId: string, opts: CallOptions = {}): Promise<Branch> {
   return requestJson<Branch>({ method: "GET", path: `/branches/${id(branchId)}`, signal: opts.signal });
 }
 
-export function forkBranch(branchId: string, body: ForkRequest, opts: CallOptions = {}): Promise<Branch> {
-  return requestJson<Branch>({ method: "POST", path: `/branches/${id(branchId)}/fork`, body, signal: opts.signal });
+export async function forkBranch(
+  branchId: string,
+  body: ForkRequest,
+  opts: CallOptions = {},
+  llmCode?: string,
+): Promise<Branch> {
+  const child = await requestJson<Branch>({
+    method: "POST",
+    path: `/branches/${id(branchId)}/fork`,
+    body,
+    headers: llmCode !== undefined && llmCode !== "" ? { [LLM_CODE_HEADER]: llmCode } : {},
+    signal: opts.signal,
+    writeFor: branchId,
+  });
+  rememberWriteToken(writeTokenFor(branchId) ?? undefined, child.id); // the child is in the same world
+  return child;
 }
 
 export function advanceBranch(
@@ -272,6 +307,7 @@ export function advanceBranch(
   return requestJson<AdvanceResult>({
     method: "POST",
     path: `/branches/${id(branchId)}/advance`,
+    writeFor: branchId,
     body,
     signal: opts.signal,
   });
@@ -287,6 +323,7 @@ export function submitCommands(
   return requestJson<SubmitCommandsResult>({
     method: "POST",
     path: `/branches/${id(branchId)}/commands`,
+    writeFor: branchId,
     body,
     headers: idempotencyKey !== undefined ? { "Idempotency-Key": idempotencyKey } : {},
     signal: opts.signal,
@@ -301,6 +338,7 @@ export async function endDecisionWindow(
   await request({
     method: "POST",
     path: `/branches/${id(branchId)}/decision-window/end`,
+    writeFor: branchId,
     body,
     signal: opts.signal,
   });
@@ -381,6 +419,7 @@ export function injectDisruption(
   return requestJson<InjectDisruptionResult>({
     method: "POST",
     path: `/branches/${id(branchId)}/disruptions`,
+    writeFor: branchId,
     body,
     headers: idempotencyKey !== undefined ? { "Idempotency-Key": idempotencyKey } : {},
     signal: opts.signal,
@@ -408,8 +447,21 @@ export function listManagers(opts: CallOptions = {}): Promise<ManagerList> {
 
 // ---- Duels ----
 
-export function createDuel(body?: CreateDuelRequest, opts: CallOptions = {}): Promise<CreateDuelResponse> {
-  return requestJson<CreateDuelResponse>({ method: "POST", path: "/duels", body, signal: opts.signal });
+/** `llmCode` is the optional LLM access code, sent only when the server asks for one. Never stored. */
+export async function createDuel(
+  body?: CreateDuelRequest,
+  opts: CallOptions = {},
+  llmCode?: string,
+): Promise<CreateDuelResponse> {
+  const res = await requestJson<CreateDuelResponse>({
+    method: "POST",
+    path: "/duels",
+    body,
+    headers: llmCode !== undefined && llmCode !== "" ? { [LLM_CODE_HEADER]: llmCode } : {},
+    signal: opts.signal,
+  });
+  rememberWriteToken(res.writeToken, res.world.id, res.duel.id, res.duel.human.branch.id, res.duel.ai.branch.id);
+  return res;
 }
 
 export function getDuel(duelId: string, opts: CallOptions = {}): Promise<DuelResponse> {
@@ -420,6 +472,7 @@ export function advanceDuel(duelId: string, body?: AdvanceRequest, opts: CallOpt
   return requestJson<AdvanceDuelResult>({
     method: "POST",
     path: `/duels/${id(duelId)}/advance`,
+    writeFor: duelId,
     body,
     signal: opts.signal,
   });
@@ -435,6 +488,7 @@ export function submitDuelCommands(
   return requestJson<SubmitCommandsResult>({
     method: "POST",
     path: `/duels/${id(duelId)}/commands`,
+    writeFor: duelId,
     body,
     headers: idempotencyKey !== undefined ? { "Idempotency-Key": idempotencyKey } : {},
     signal: opts.signal,
@@ -442,7 +496,13 @@ export function submitDuelCommands(
 }
 
 export async function endDuelWindow(duelId: string, body: EndWindowRequest, opts: CallOptions = {}): Promise<void> {
-  await request({ method: "POST", path: `/duels/${id(duelId)}/decision-window/end`, body, signal: opts.signal });
+  await request({
+    method: "POST",
+    path: `/duels/${id(duelId)}/decision-window/end`,
+    body,
+    signal: opts.signal,
+    writeFor: duelId,
+  });
 }
 
 /** Injects one Disruption into both sides of the Duel. */
@@ -455,6 +515,7 @@ export function injectDuelDisruption(
   return requestJson<DuelInjectResult>({
     method: "POST",
     path: `/duels/${id(duelId)}/disruptions`,
+    writeFor: duelId,
     body,
     headers: idempotencyKey !== undefined ? { "Idempotency-Key": idempotencyKey } : {},
     signal: opts.signal,

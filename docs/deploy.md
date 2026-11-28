@@ -170,6 +170,9 @@ Out-of-range or malformed values stop start-up with a message that names the var
 | `MAX_CONCURRENT_SIMULATIONS` | 8 | 1..64 | Expensive requests at once (advance, fork, diff, journal, ledger summary, duel create and advance) |
 | `WORLD_CREATE_PER_HOUR_PER_IP` | 60 | 1..10000 | World creations (`/worlds`, `/demo`, `/duels`) per client IP per hour, then 429 |
 | `MAX_WORLDS` | 5000 | 1..1000000 | World cap for the memory store only, then 503. PostgreSQL is not capped |
+| `WRITE_TOKEN_FAILURES_PER_MINUTE` | 20 | 1..10000 | Invalid write tokens or LLM access codes per client IP per minute, then 429 |
+| `LLM_ACCESS_CODE` | unset | | When set, starting an LLM-backed opponent needs the header `X-Parallel-LLM-Code` with this value (constant-time compare). A secret: set it in the secret store. Recommended for any public deployment that configures the LLM |
+| `LLM_DUELS_PER_DAY_PER_IP` | 5 | 1..1000 | LLM-backed starts (duel, world or fork with `ai_llm`) per client IP per 24 hours, then 429. Per process |
 | `LLM_*` | see `.env.example` | | Optional LLM opponent |
 
 Fixed limits: request body 256 KiB, 32 branches per world, 4 progress streams per client IP, names 1 to 64 printable characters. Server timeouts: ReadHeaderTimeout 5 s, ReadTimeout 15 s, WriteTimeout request timeout + 10 s (the progress stream clears its own write deadline), IdleTimeout 60 s, MaxHeaderBytes 16 KiB.
@@ -217,12 +220,21 @@ The progress stream sends `Content-Type: text/event-stream`, `Cache-Control: no-
 
 ## Capability model and known limitation
 
-There are no accounts. A world, branch or duel ID is a random UUIDv4 (122 random bits) and acts as a capability: whoever holds it can read and mutate that world. Consequences:
+There are no accounts. Three credentials exist (full description in `docs/security-model.md`):
+
+- A world, branch or duel ID is a random UUIDv4 (122 random bits). It is a **read-only** capability: whoever holds it can read that world, so a URL is a read-only link.
+- A **write token** (random 256 bits, returned once as `writeToken` by `POST /worlds`, `/demo` and `/duels`) is required in the `X-Parallel-Write-Token` header on every request that changes a world (advance, commands, decision-window end, fork, disruptions, duel advance, commands, window end and disruptions). A missing token gives 401 `write-token-required`, a wrong one 403 `write-token-invalid`, before any state changes. Only the SHA-256 hash is stored (`worlds.write_token_hash`, migration 00007). The token is never in a URL or a log.
+- The optional **LLM access code** (`LLM_ACCESS_CODE`) gates starting an LLM-backed opponent.
+
+Consequences:
 
 - Nothing lists or enumerates worlds, branches or duels. Unknown and malformed IDs give the same 404 `not-found` problem.
 - An ID from one world is never accepted as a different world's resource (the assumptions route answers 403, diffs answer 422 `incomparable-branches`, duel branches answer 409 `duel-branch`).
-- IDs travel in URLs, so they appear in browser history and in any proxy access log. Do not share a URL you do not want mutated.
-- Anyone with an ID can change that world. There is no read-only link in the MVP.
+- IDs travel in URLs, so they appear in browser history and in any proxy access log. Anyone with the ID can read the world, but not change it.
+- **Legacy worlds** (created before migration 00007, no stored hash) are read-only for every write in production and writable otherwise, so old development data keeps working locally.
+- The web app keeps the token in the creating tab's `sessionStorage`. A fresh tab or browser that opens the URL sees the world read-only.
+- CORS allows the `X-Parallel-Write-Token` and `X-Parallel-LLM-Code` request headers from `WEB_ORIGIN` only.
+- Put real spending limits at the LLM provider. The app limits calls and tokens, not currency.
 
 Tests: `TestSessionIsolation`, `TestTrustedProxy`, `TestSecurityHeaders`, `TestCORSStrict`, `TestNameValidation`, `TestReadiness`, `TestConcurrencyLimit`, `TestRateLimit*` in `backend/internal/httpapi`, and `TestLoadConfig*`, `TestProductionConfig`, `TestStartupLogsContainNoSecrets` in `backend/cmd/parallel-api`.
 

@@ -14,6 +14,9 @@ type managerDTO struct {
 	// Server-wide LLM allowance left today (UTC); only when the LLM is available.
 	LLMGlobalCallsRemaining  *int `json:"llmGlobalCallsRemaining,omitempty"`
 	LLMGlobalTokensRemaining *int `json:"llmGlobalTokensRemaining,omitempty"`
+	// RequiresAccessCode is true when starting this manager needs the
+	// X-Parallel-LLM-Code header. Never set for the human and rule-based AI.
+	RequiresAccessCode bool `json:"requiresAccessCode,omitempty"`
 }
 
 type managerListDTO struct {
@@ -31,6 +34,7 @@ func (s *Server) listManagers(w http.ResponseWriter, r *http.Request) {
 	}
 	if llmOK {
 		llm.Model = model
+		llm.RequiresAccessCode = s.llmCode != ""
 		if calls, tokens, ok, err := s.svc.LLMGlobalStatus(r.Context()); ok && err == nil {
 			llm.LLMGlobalCallsRemaining, llm.LLMGlobalTokensRemaining = &calls, &tokens
 		}

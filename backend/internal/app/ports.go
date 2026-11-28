@@ -55,6 +55,11 @@ type World struct {
 	Seed          sim.Seed
 	EngineVersion string
 	CreatedAt     time.Time
+	// WriteTokenHash is the SHA-256 of the world's write token, or nil for a
+	// world created before write tokens existed. The token itself is never
+	// stored. It is access control, not simulation state, and is excluded
+	// from every state hash.
+	WriteTokenHash []byte
 }
 
 // Branch is one timeline. The root has an empty ParentBranchID and ForkTick 0.

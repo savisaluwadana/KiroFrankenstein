@@ -24,8 +24,13 @@ info:
     - Errors are `application/problem+json` (RFC 9457) without stack traces.
     - Every response that carries metrics also carries the `disclaimer`
       field. Results are synthetic and are never a forecast.
-    - Possession of a World or Branch identifier grants access to it. There
-      is no authentication in the MVP (documented limitation).
+    - Reading a World, Branch or Duel needs only its identifier (a link is a
+      read-only capability). Changing one needs the world's write token in
+      the `X-Parallel-Write-Token` header; it is returned once, as
+      `writeToken`, when the world, demo or duel is created. There are no
+      user accounts (documented limitation). `POST /diffs` only reads and
+      needs no token. Starting an LLM-backed manager may need an
+      `X-Parallel-LLM-Code` header (see `GET /managers`).
   license:
     name: MIT
     identifier: MIT
@@ -150,6 +155,8 @@ paths:
         and stores the World. The root Branch is at Head_Tick 0 with its
         Decision_Window open. When `scenario` is omitted the flagship
         scenario "Black Friday Meltdown" is used.
+      parameters:
+        - $ref: '#/components/parameters/LLMCode'
       requestBody:
         required: true
         content:
@@ -157,6 +164,8 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateWorldRequest'
       responses:
+        '403':
+          $ref: '#/components/responses/LLMAccessCodeRequired'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
         '201':
@@ -313,6 +322,8 @@ paths:
         never modified. A World holds at most 32 Branches.
       parameters:
         - $ref: '#/components/parameters/BranchId'
+        - $ref: '#/components/parameters/WriteToken'
+        - $ref: '#/components/parameters/LLMCode'
       requestBody:
         required: true
         content:
@@ -320,6 +331,10 @@ paths:
             schema:
               $ref: '#/components/schemas/ForkRequest'
       responses:
+        '401':
+          $ref: '#/components/responses/WriteTokenRequired'
+        '403':
+          $ref: '#/components/responses/WriteTokenInvalid'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
         '201':
@@ -352,6 +367,7 @@ paths:
         changes any state hash.
       parameters:
         - $ref: '#/components/parameters/BranchId'
+        - $ref: '#/components/parameters/WriteToken'
       requestBody:
         required: false
         content:
@@ -359,6 +375,10 @@ paths:
             schema:
               $ref: '#/components/schemas/AdvanceRequest'
       responses:
+        '401':
+          $ref: '#/components/responses/WriteTokenRequired'
+        '403':
+          $ref: '#/components/responses/WriteTokenInvalid'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
         '200':
@@ -391,6 +411,7 @@ paths:
         original accepted Inputs with `duplicate: true` and appends nothing.
       parameters:
         - $ref: '#/components/parameters/BranchId'
+        - $ref: '#/components/parameters/WriteToken'
         - name: Idempotency-Key
           in: header
           required: false
@@ -407,6 +428,10 @@ paths:
             schema:
               $ref: '#/components/schemas/SubmitCommandsRequest'
       responses:
+        '401':
+          $ref: '#/components/responses/WriteTokenRequired'
+        '403':
+          $ref: '#/components/responses/WriteTokenInvalid'
         '200':
           description: Accepted Inputs and rejected Commands.
           content:
@@ -434,6 +459,7 @@ paths:
         the Branch; call `advanceBranch` for that.
       parameters:
         - $ref: '#/components/parameters/BranchId'
+        - $ref: '#/components/parameters/WriteToken'
       requestBody:
         required: true
         content:
@@ -441,6 +467,10 @@ paths:
             schema:
               $ref: '#/components/schemas/EndWindowRequest'
       responses:
+        '401':
+          $ref: '#/components/responses/WriteTokenRequired'
+        '403':
+          $ref: '#/components/responses/WriteTokenInvalid'
         '204':
           description: The window is closed.
         '400':
@@ -468,6 +498,7 @@ paths:
         `duplicate: true` and appends nothing.
       parameters:
         - $ref: '#/components/parameters/BranchId'
+        - $ref: '#/components/parameters/WriteToken'
         - name: Idempotency-Key
           in: header
           required: false
@@ -484,6 +515,10 @@ paths:
             schema:
               $ref: '#/components/schemas/InjectDisruptionRequest'
       responses:
+        '401':
+          $ref: '#/components/responses/WriteTokenRequired'
+        '403':
+          $ref: '#/components/responses/WriteTokenInvalid'
         '200':
           description: The recorded Disruption Input.
           content:
@@ -931,6 +966,8 @@ paths:
         `ai_rule_based` (default) or `ai_llm`. An LLM AI with no configured
         provider plays as the Rule-based AI and is labelled as such.
         Results are synthetic.
+      parameters:
+        - $ref: '#/components/parameters/LLMCode'
       requestBody:
         required: false
         content:
@@ -938,6 +975,8 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateDuelRequest'
       responses:
+        '403':
+          $ref: '#/components/responses/LLMAccessCodeRequired'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
         '201':
@@ -989,6 +1028,7 @@ paths:
         `expectedHeadTick` is checked against the human Branch head.
       parameters:
         - $ref: '#/components/parameters/DuelId'
+        - $ref: '#/components/parameters/WriteToken'
       requestBody:
         required: false
         content:
@@ -996,6 +1036,10 @@ paths:
             schema:
               $ref: '#/components/schemas/AdvanceRequest'
       responses:
+        '401':
+          $ref: '#/components/responses/WriteTokenRequired'
+        '403':
+          $ref: '#/components/responses/WriteTokenInvalid'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
         '200':
@@ -1024,6 +1068,7 @@ paths:
         There is no way to submit Commands for the AI side.
       parameters:
         - $ref: '#/components/parameters/DuelId'
+        - $ref: '#/components/parameters/WriteToken'
         - name: Idempotency-Key
           in: header
           required: false
@@ -1040,6 +1085,10 @@ paths:
             schema:
               $ref: '#/components/schemas/SubmitCommandsRequest'
       responses:
+        '401':
+          $ref: '#/components/responses/WriteTokenRequired'
+        '403':
+          $ref: '#/components/responses/WriteTokenInvalid'
         '200':
           description: Accepted Inputs and rejected Commands.
           content:
@@ -1066,6 +1115,7 @@ paths:
         Manager has already decided at that window.
       parameters:
         - $ref: '#/components/parameters/DuelId'
+        - $ref: '#/components/parameters/WriteToken'
       requestBody:
         required: true
         content:
@@ -1073,6 +1123,10 @@ paths:
             schema:
               $ref: '#/components/schemas/EndWindowRequest'
       responses:
+        '401':
+          $ref: '#/components/responses/WriteTokenRequired'
+        '403':
+          $ref: '#/components/responses/WriteTokenInvalid'
         '204':
           description: The window is closed.
         '400':
@@ -1094,6 +1148,7 @@ paths:
         `injectDisruption`.
       parameters:
         - $ref: '#/components/parameters/DuelId'
+        - $ref: '#/components/parameters/WriteToken'
         - name: Idempotency-Key
           in: header
           required: false
@@ -1110,6 +1165,10 @@ paths:
             schema:
               $ref: '#/components/schemas/InjectDisruptionRequest'
       responses:
+        '401':
+          $ref: '#/components/responses/WriteTokenRequired'
+        '403':
+          $ref: '#/components/responses/WriteTokenInvalid'
         '200':
           description: The recorded Input of each side.
           content:
@@ -1240,6 +1299,31 @@ components:
       required: true
       schema:
         $ref: '#/components/schemas/Uuid'
+    WriteToken:
+      name: X-Parallel-Write-Token
+      in: header
+      required: true
+      description: |
+        The world's write token, returned once as `writeToken` when the world
+        (or demo, or duel) was created. Required on every request that changes
+        a world. Reads never need it, so a link that holds only the id is
+        read-only. Never put it in a URL.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 512
+    LLMCode:
+      name: X-Parallel-LLM-Code
+      in: header
+      required: false
+      description: |
+        The server's LLM access code. Required only to start an LLM-backed
+        manager (`ai_llm`) when the server sets `LLM_ACCESS_CODE` (see
+        `requiresAccessCode` on `GET /managers`). The rule-based AI never
+        needs it.
+      schema:
+        type: string
+        maxLength: 512
     TickQuery:
       name: tick
       in: query
@@ -1266,6 +1350,28 @@ components:
         `not-yet-simulated`, `stale-head`, `window-not-open`, `branch-limit`,
         `horizon-reached`, `duel-branch` (a direct mutation of a Branch that belongs to a Duel; use the duel endpoints), `duel-window-open`, `duel-diverged`, `decision-stale` (an AI answer arrived after the branch changed and was discarded; retry), `engine-version-mismatch` (a mutation of a World recorded
         under another engine version; its reads still work and carry a warning).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    WriteTokenRequired:
+      description: The request changes a world and has no `X-Parallel-Write-Token` header (type `write-token-required`). Reading the world needs no token.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    WriteTokenInvalid:
+      description: |
+        The write token does not match the world (type `write-token-invalid`),
+        or the world predates write tokens and the server runs in production,
+        where such a world is read-only. Repeated invalid tokens from one
+        address give 429 `rate-limited`.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    LLMAccessCodeRequired:
+      description: The server requires an LLM access code to start an LLM-backed manager and `X-Parallel-LLM-Code` is missing or wrong (type `llm-access-code-required`). Also possible on a fork that asks for an `ai_llm` manager.
       content:
         application/problem+json:
           schema:
@@ -1363,6 +1469,9 @@ components:
           type: integer
           minimum: 0
           description: Tokens left in today's (UTC) server-wide LLM limit (LLM_GLOBAL_MAX_TOKENS), after in-flight reservations. Present only on the available LLM AI.
+        requiresAccessCode:
+          type: boolean
+          description: True when starting this manager needs the `X-Parallel-LLM-Code` header (the server sets LLM_ACCESS_CODE). Present, and true, only on the available LLM AI.
     ManagerList:
       type: object
       required: [managers]
@@ -1427,7 +1536,8 @@ components:
         URI that identifies the problem type. Status codes: history-immutable 409,
         not-yet-simulated 409, stale-head 409, window-not-open 409, branch-limit 409,
         horizon-reached 409, duel-branch 409, duel-window-open 409, duel-diverged 409, decision-stale 409, engine-version-mismatch 409, budget-exceeded 422, incomparable-branches 422, validation 422, invalid-tick 422,
-        invalid-scenario 400, invalid-name 400, bad-request 400, forbidden 403, not-found 404,
+        invalid-scenario 400, invalid-name 400, bad-request 400, forbidden 403, write-token-required 401,
+        write-token-invalid 403, llm-access-code-required 403, not-found 404,
         payload-too-large 413, rate-limited 429, unavailable 503, internal 500.
         An unknown route gives not-found 404. A wrong method gives bad-request with status 405.
       enum:
@@ -1451,6 +1561,9 @@ components:
         - urn:parallel:problem:bad-request
         - urn:parallel:problem:not-found
         - urn:parallel:problem:forbidden
+        - urn:parallel:problem:write-token-required
+        - urn:parallel:problem:write-token-invalid
+        - urn:parallel:problem:llm-access-code-required
         - urn:parallel:problem:payload-too-large
         - urn:parallel:problem:rate-limited
         - urn:parallel:problem:unavailable
@@ -1813,8 +1926,18 @@ components:
     CreateWorldResponse:
       type: object
       additionalProperties: false
-      required: [world, rootBranch]
+      required: [world, rootBranch, writeToken]
       properties:
+        writeToken:
+          type: string
+          minLength: 43
+          maxLength: 43
+          pattern: '^[A-Za-z0-9_-]{43}$'
+          description: |
+            Random 256-bit write token (base64url), shown only in this response.
+            The server stores its SHA-256 hash only. Send it as
+            `X-Parallel-Write-Token` on every request that changes the world.
+            Anyone with only the world id can read but not change it.
         world:
           $ref: '#/components/schemas/World'
         rootBranch:
@@ -3382,8 +3505,18 @@ components:
     CreateDuelResponse:
       type: object
       additionalProperties: false
-      required: [world, duel, status]
+      required: [world, duel, status, writeToken]
       properties:
+        writeToken:
+          type: string
+          minLength: 43
+          maxLength: 43
+          pattern: '^[A-Za-z0-9_-]{43}$'
+          description: |
+            Random 256-bit write token (base64url), shown only in this response.
+            The server stores its SHA-256 hash only. Send it as
+            `X-Parallel-Write-Token` on every request that changes the world.
+            Anyone with only the world id can read but not change it.
         world:
           $ref: '#/components/schemas/World'
         duel:
@@ -3571,8 +3704,18 @@ components:
     DemoResponse:
       type: object
       additionalProperties: false
-      required: [world, rootBranch, plan]
+      required: [world, rootBranch, plan, writeToken]
       properties:
+        writeToken:
+          type: string
+          minLength: 43
+          maxLength: 43
+          pattern: '^[A-Za-z0-9_-]{43}$'
+          description: |
+            Random 256-bit write token (base64url), shown only in this response.
+            The server stores its SHA-256 hash only. Send it as
+            `X-Parallel-Write-Token` on every request that changes the world.
+            Anyone with only the world id can read but not change it.
         world:
           $ref: '#/components/schemas/World'
         rootBranch:

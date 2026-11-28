@@ -31,6 +31,9 @@ type config struct {
 	maxSimulations     int
 	worldCreatePerHour int
 	maxWorlds          int
+	llmAccessCode      string
+	llmDuelsPerDay     int
+	tokenFailsPerMin   int
 	databaseConfigured bool
 }
 
@@ -111,6 +114,13 @@ func loadConfig(getenv func(string) string) (config, error) {
 	if c.maxWorlds, err = get.intVar("MAX_WORLDS", 5000, 1, 1_000_000); err != nil {
 		return c, err
 	}
+	if c.llmDuelsPerDay, err = get.intVar("LLM_DUELS_PER_DAY_PER_IP", httpapi.DefaultLLMDuelsPerDayPerIP, 1, httpapi.MaxLLMDuelsPerDayPerIP); err != nil {
+		return c, err
+	}
+	if c.tokenFailsPerMin, err = get.intVar("WRITE_TOKEN_FAILURES_PER_MINUTE", httpapi.DefaultWriteTokenFailuresPerMinute, 1, 10000); err != nil {
+		return c, err
+	}
+	c.llmAccessCode = strings.TrimSpace(get("LLM_ACCESS_CODE"))
 	c.databaseConfigured = get("DATABASE_URL") != ""
 	if c.production {
 		if err := validateProduction(get, c); err != nil {

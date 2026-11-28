@@ -36,7 +36,32 @@ func newInternalServer(t *testing.T, mod func(*Options)) *Server {
 func TestConcurrencyLimit(t *testing.T) {
 	s := newInternalServer(t, nil)
 	h := s.Handler()
-	const id = "5f0d9a3e-1b2c-4d4e-8f60-1234567890ab"
+	// A real world and duel: the write-token check runs before the slot queue,
+	// so unknown ids would be refused with 404 before ever waiting.
+	var demo struct {
+		WriteToken string `json:"writeToken"`
+		RootBranch struct {
+			ID string `json:"id"`
+		} `json:"rootBranch"`
+	}
+	rec0 := httptest.NewRecorder()
+	h.ServeHTTP(rec0, httptest.NewRequest("POST", "/api/v1/demo", nil))
+	if err := json.Unmarshal(rec0.Body.Bytes(), &demo); err != nil || demo.WriteToken == "" {
+		t.Fatalf("demo: %v %s", err, rec0.Body.String())
+	}
+	id := demo.RootBranch.ID
+	recD := httptest.NewRecorder()
+	h.ServeHTTP(recD, httptest.NewRequest("POST", "/api/v1/duels", nil))
+	var duel struct {
+		WriteToken string `json:"writeToken"`
+		Duel       struct {
+			ID string `json:"id"`
+		} `json:"duel"`
+	}
+	if err := json.Unmarshal(recD.Body.Bytes(), &duel); err != nil || duel.Duel.ID == "" {
+		t.Fatalf("duel: %v %s", err, recD.Body.String())
+	}
+	tokenOf := map[string]string{id: demo.WriteToken, duel.Duel.ID: duel.WriteToken}
 	s.sims <- struct{}{} // occupy the only slot
 	heavy := [][2]string{
 		{"POST", "/api/v1/branches/" + id + "/advance"},
@@ -45,11 +70,17 @@ func TestConcurrencyLimit(t *testing.T) {
 		{"GET", "/api/v1/branches/" + id + "/ledger/summary"},
 		{"POST", "/api/v1/diffs"},
 		{"POST", "/api/v1/duels"},
-		{"POST", "/api/v1/duels/" + id + "/advance"},
+		{"POST", "/api/v1/duels/" + duel.Duel.ID + "/advance"},
 	}
 	for _, e := range heavy {
 		rec := httptest.NewRecorder()
-		h.ServeHTTP(rec, httptest.NewRequest(e[0], e[1], strings.NewReader("{}")))
+		req := httptest.NewRequest(e[0], e[1], strings.NewReader("{}"))
+		for k, t := range tokenOf {
+			if strings.Contains(e[1], k) {
+				req.Header.Set(WriteTokenHeader, t)
+			}
+		}
+		h.ServeHTTP(rec, req)
 		if rec.Code != http.StatusServiceUnavailable || rec.Header().Get("Retry-After") == "" ||
 			rec.Header().Get("Content-Type") != "application/problem+json" ||
 			!strings.Contains(rec.Body.String(), "urn:parallel:problem:unavailable") {
@@ -63,9 +94,11 @@ func TestConcurrencyLimit(t *testing.T) {
 			t.Errorf("%s %s must not take a simulation slot", e[0], e[1])
 		}
 	}
-	<-s.sims // free the slot: the same request is admitted (and fails on the unknown id)
+	<-s.sims // free the slot: the same request is admitted
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest("POST", "/api/v1/branches/"+id+"/advance", strings.NewReader(`{"ticks":1}`)))
+	req := httptest.NewRequest("POST", "/api/v1/branches/"+id+"/advance", strings.NewReader(`{"ticks":1}`))
+	req.Header.Set(WriteTokenHeader, demo.WriteToken)
+	h.ServeHTTP(rec, req)
 	if rec.Code == http.StatusServiceUnavailable {
 		t.Errorf("request refused with a free slot: %s", rec.Body.String())
 	}

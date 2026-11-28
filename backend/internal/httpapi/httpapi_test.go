@@ -6,8 +6,10 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -51,12 +53,66 @@ func do(t *testing.T, h http.Handler, method, path string, body any, hdr ...stri
 		rd = strings.NewReader(string(raw))
 	}
 	req := httptest.NewRequest(method, "/api/v1"+path, rd)
+	explicit := false
 	for i := 0; i+1 < len(hdr); i += 2 {
 		req.Header.Set(hdr[i], hdr[i+1])
+		explicit = explicit || hdr[i] == httpapi.WriteTokenHeader
+	}
+	// Tests act as the creator of every world: the write token learned from a
+	// create response is attached to later mutations unless a test sets the
+	// header itself (tokenless and wrong-token tests do).
+	tok := ""
+	if method == "POST" && !explicit {
+		tok = tokenForPath(path)
+		if tok != "" {
+			req.Header.Set(httpapi.WriteTokenHeader, tok)
+		}
+	} else if method == "POST" {
+		tok = req.Header.Get(httpapi.WriteTokenHeader)
 	}
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
+	if rec.Code < 300 {
+		learnTokens(rec.Body.Bytes(), tok)
+	}
 	return rec
+}
+
+var (
+	tokMu  sync.Mutex
+	tokens = map[string]string{} // any id (world, branch, duel) -> write token
+	uuidRe = regexp.MustCompile(`[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`)
+	pathRe = regexp.MustCompile(`^/(?:branches|duels)/([0-9a-f-]{36})`)
+)
+
+func tokenForPath(path string) string {
+	m := pathRe.FindStringSubmatch(path)
+	if m == nil {
+		return ""
+	}
+	tokMu.Lock()
+	defer tokMu.Unlock()
+	return tokens[m[1]]
+}
+
+// learnTokens records the token that a create response carries, or, for a
+// response to a request that carried one, files every id in the body under it.
+func learnTokens(body []byte, sent string) {
+	var m struct {
+		WriteToken string `json:"writeToken"`
+	}
+	tok := sent
+	if json.Unmarshal(body, &m) == nil && m.WriteToken != "" {
+		tok = m.WriteToken
+	}
+	if tok == "" {
+		return
+	}
+	tokMu.Lock()
+	defer tokMu.Unlock()
+	for _, id := range uuidRe.FindAllString(string(body), -1) {
+		tokens[id] = tok
+	}
 }
 
 type obj = map[string]any

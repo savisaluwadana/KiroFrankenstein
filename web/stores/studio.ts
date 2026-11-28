@@ -5,6 +5,7 @@
  */
 import { create } from "zustand";
 import type { Branch, BranchState, MetricsResponse, TickFrame } from "@/lib/api/client";
+import { onWriteTokenRejected } from "@/lib/api/writeToken";
 
 export type FramesByTick = Record<number, TickFrame>;
 
@@ -36,6 +37,8 @@ export interface StudioState {
   error: string | null;
   /** True once any response showed the world was recorded under another engine version. */
   engineMismatch: boolean;
+  /** True when this tab has no write token for the world (shared link) or the server refused it. */
+  sharedReadOnly: boolean;
 
   openWorld(init: OpenWorldInit): void;
   setBranches(branches: Branch[]): void;
@@ -50,6 +53,7 @@ export interface StudioState {
   setOpenWindowTick(tick: number | null): void;
   setError(message: string | null): void;
   setEngineMismatch(mismatch: boolean): void;
+  setSharedReadOnly(readOnly: boolean): void;
   reset(): void;
 }
 
@@ -66,6 +70,7 @@ const INITIAL = {
   openWindowTick: null,
   error: null,
   engineMismatch: false,
+  sharedReadOnly: false,
 };
 
 export function createStudioStore() {
@@ -132,6 +137,9 @@ export function createStudioStore() {
     setEngineMismatch(engineMismatch) {
       set({ engineMismatch });
     },
+    setSharedReadOnly(sharedReadOnly) {
+      set({ sharedReadOnly });
+    },
     reset() {
       set({ ...INITIAL, framesByBranch: {} });
     },
@@ -139,6 +147,9 @@ export function createStudioStore() {
 }
 
 export const useStudioStore = createStudioStore();
+
+// A refused write token (401/403 from any mutation) switches the open world to read-only.
+onWriteTokenRejected(() => useStudioStore.getState().setSharedReadOnly(true));
 
 export type StudioStore = ReturnType<typeof createStudioStore>;
 

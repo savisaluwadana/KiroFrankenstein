@@ -21,6 +21,7 @@ import {
   getDuelScore,
   getWorld,
   hasEngineMismatch,
+  hasWriteToken,
   injectDuelDisruption,
   listTickFrames,
   submitDuelCommands,
@@ -41,6 +42,7 @@ import { InjectDisruption } from "@/features/decisions/InjectDisruption";
 import { EngineeringToggle } from "@/features/engineering/EngineeringToggle";
 import { AssumptionsPanel } from "@/features/assumptions/AssumptionsPanel";
 import { EngineVersionBanner } from "@/features/studio/EngineVersionBanner";
+import { SharedReadOnlyBanner } from "@/features/studio/SharedReadOnlyBanner";
 import { StagePane } from "@/features/studio/StagePane";
 import { ConnectedTimeline, type TimelineInput } from "@/features/timeline/Timeline";
 import { PlaybackControls, usePlaybackKeybindings } from "@/features/world-view/PlaybackControls";
@@ -176,7 +178,9 @@ export function DuelView({ duelId }: DuelViewProps) {
   const phone = useIsPhone();
 
   const engineering = useUiStore((s) => s.engineering);
-  const mismatch = useStudioStore((s) => s.engineMismatch);
+  const engineMismatch = useStudioStore((s) => s.engineMismatch);
+  const sharedReadOnly = useStudioStore((s) => s.sharedReadOnly);
+  const mismatch = engineMismatch || sharedReadOnly;
   usePlaybackKeybindings(mismatch);
   const markMismatch = useCallback(() => useStudioStore.getState().setEngineMismatch(true), []);
 
@@ -213,6 +217,7 @@ export function DuelView({ duelId }: DuelViewProps) {
           selectedTick: shared,
         });
         studio.setEngineMismatch(hasEngineMismatch(st.warnings) || hasEngineMismatch(w.warnings));
+        studio.setSharedReadOnly(!hasWriteToken(duelId));
         playback.resetForWorld();
         // Both sides advance together through the Duel endpoint; the Branch endpoint answers 409 for a duel Branch.
         playback.setAdvancer(async (_branchId, body): Promise<AdvanceResult> => {
@@ -503,7 +508,11 @@ export function DuelView({ duelId }: DuelViewProps) {
           </button>
         </div>
       ) : null}
-      {mismatch ? <EngineVersionBanner storedVersion={world.engineVersion} engineering={engineering} /> : null}
+      {sharedReadOnly ? (
+        <SharedReadOnlyBanner />
+      ) : engineMismatch ? (
+        <EngineVersionBanner storedVersion={world.engineVersion} engineering={engineering} />
+      ) : null}
 
       <div className="grid flex-1 grid-cols-1 gap-3 min-[1600px]:grid-cols-[minmax(0,1fr)_22.5rem]">
         <div className="flex min-w-0 flex-col gap-3 min-[1600px]:col-start-1 min-[1600px]:row-start-1">

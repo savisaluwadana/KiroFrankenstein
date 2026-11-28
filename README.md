@@ -124,7 +124,7 @@ Tests use a stub provider only: Go `httptest` servers in `internal/policy/llm` a
 
 ### Known limitations
 
-- No authentication. A world, branch or duel ID is a random UUIDv4 capability: anyone who holds it can read and change that world, and nothing lists IDs. Treat IDs like passwords. See `docs/deploy.md` (Capability model).
+- No accounts. A world, branch or duel ID is a random UUIDv4 and works as a **read-only** link: anyone who holds it can read that world. Changing a world needs its write token, returned once when the world is created, kept in that browser tab's `sessionStorage` (losing the tab loses write access) and stored on the server only as a SHA-256 hash. An optional `LLM_ACCESS_CODE` gates the LLM opponent. There is no hard monetary spending cap in the app, only call and token limits; set a credit limit on the provider key. See `docs/security-model.md`.
 - Assumptions are synthetic and uncalibrated.
 - Results are not predictions or guarantees.
 - The LLM manager has only been tested against a stub provider (see below). While it waits for a provider response it holds the service lock, so other requests wait up to the request timeout.

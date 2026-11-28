@@ -8,6 +8,7 @@
  */
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { notifyWriteTokenRejected, rememberWriteToken } from "@/lib/api/writeToken";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { Branch, DemoPlan, TickFrame } from "@/lib/api/client";
 import { selectActiveBranch, useStudioStore } from "@/stores/studio";
@@ -47,6 +48,8 @@ vi.mock("@/features/branches/BranchTree", () => ({
   ),
 }));
 
+const routerPush = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: routerPush }) }));
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
 }));
@@ -353,6 +356,7 @@ beforeEach(() => {
   shownTicks.length = 0;
   vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
   window.sessionStorage.clear();
+  rememberWriteToken("tok-test", WORLD_ID); // this tab created the world
   window.localStorage.removeItem(EXPLORE_HINT_KEY);
   window.history.replaceState(null, "", "/");
   useUiStore.setState({ engineering: false });
@@ -721,6 +725,44 @@ describe("studio flow", () => {
     press("ArrowRight");
     await settle();
     expect(advanceCalls(api.calls)).toHaveLength(0);
+  });
+
+  it("opened by id without a write token: shared read-only banner, no write controls, reads work", async () => {
+    window.sessionStorage.clear(); // a fresh tab with the shared link: no token
+    const api = makeFakeApi();
+    vi.stubGlobal("fetch", vi.fn(api.fetchImpl));
+    render(<StudioPage worldId={WORLD_ID} branchId="r1" />);
+    await settle();
+    expect(screen.getByTestId("shared-read-only-banner").textContent).toContain(
+      "You are viewing a shared, read-only copy. Start your own business to make changes.",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Start your own" }));
+    expect(routerPush).toHaveBeenCalledWith("/briefing");
+    expect(screen.queryByTestId("engine-version-banner")).toBeNull();
+    for (const name of ["Play", "Next moment", "Explore another future", "Add a surprise"]) {
+      expect(screen.queryByRole("button", { name })).toBeNull(); // omitted, not disabled
+    }
+    expect(screen.getByTestId("read-only")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Previous moment" })).toBeTruthy();
+    press(" ");
+    press("ArrowRight");
+    press("f");
+    await settle();
+    expect(api.calls.filter((c) => c.method === "POST")).toHaveLength(0);
+  });
+
+  it("switches to the read-only view when the server refuses the write token", async () => {
+    const api = makeFakeApi();
+    vi.stubGlobal("fetch", vi.fn(api.fetchImpl));
+    render(<StudioPage worldId={WORLD_ID} branchId="r1" />);
+    await settle();
+    expect(screen.queryByTestId("shared-read-only-banner")).toBeNull();
+    expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
+    act(() => notifyWriteTokenRejected());
+    await settle();
+    expect(screen.getByTestId("shared-read-only-banner")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Play" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add a surprise" })).toBeNull();
   });
 
   it("shows no banner and keeps the controls for a matching world", async () => {

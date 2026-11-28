@@ -22,6 +22,7 @@ import {
   getBranchState,
   getWorld,
   hasEngineMismatch,
+  hasWriteToken,
   listBranches,
   listTickFrames,
   type AcceptedCommand,
@@ -48,6 +49,7 @@ import { DecisionPanel, type Prefill, type Suggestion } from "@/features/decisio
 import { EngineeringDrawer } from "@/features/engineering/EngineeringDrawer";
 import { EngineeringToggle } from "@/features/engineering/EngineeringToggle";
 import { EngineVersionBanner } from "./EngineVersionBanner";
+import { SharedReadOnlyBanner } from "./SharedReadOnlyBanner";
 import { useInjectedInputs } from "./injectedInputs";
 import { ConnectedTimeline, type TimelineInput } from "@/features/timeline/Timeline";
 import { Hud, type MoneyFigure } from "@/features/world-view/Hud";
@@ -150,7 +152,10 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
   const initialBranchId = useRef(branchId ?? null);
   const startClockRef = useRef("Thu 00:00");
 
-  const mismatch = useStudioStore((s) => s.engineMismatch);
+  const engineMismatch = useStudioStore((s) => s.engineMismatch);
+  // No write token (shared link, or one the server refused): same read-only view as a version mismatch.
+  const sharedReadOnly = useStudioStore((s) => s.sharedReadOnly);
+  const mismatch = engineMismatch || sharedReadOnly;
   usePlaybackKeybindings(mismatch);
   const engineering = useUiStore((s) => s.engineering);
   const markMismatch = useCallback(() => useStudioStore.getState().setEngineMismatch(true), []);
@@ -187,6 +192,7 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
           selectedTick: chosen.headTick,
         });
         studio.setEngineMismatch(hasEngineMismatch(w.warnings) || hasEngineMismatch(list.warnings));
+        studio.setSharedReadOnly(!hasWriteToken(worldId));
         playback.resetForWorld();
         stopProgress = playback.watchProgress();
         await ensureFrames(chosen.id, chosen.headTick);
@@ -398,7 +404,8 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
     function onKey(e: KeyboardEvent): void {
       if (e.key !== "f" && e.key !== "F") return;
       if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
-      if (useStudioStore.getState().engineMismatch) return;
+      const st = useStudioStore.getState();
+      if (st.engineMismatch || st.sharedReadOnly) return;
       const t = e.target;
       if (t instanceof HTMLElement && (["INPUT", "TEXTAREA", "SELECT", "BUTTON", "A"].includes(t.tagName) || t.isContentEditable)) return;
       e.preventDefault();
@@ -633,7 +640,11 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
             </button>
           </div>
         ) : null}
-        {mismatch ? <EngineVersionBanner storedVersion={world.engineVersion} engineering={engineering} /> : null}
+        {sharedReadOnly ? (
+          <SharedReadOnlyBanner />
+        ) : engineMismatch ? (
+          <EngineVersionBanner storedVersion={world.engineVersion} engineering={engineering} />
+        ) : null}
       </header>
 
       <ExploreHint show={!mismatch && windowOpenHere && !hintDismissed} onShowMe={focusExplore} onDismiss={dismissHint} className="min-[769px]:hidden" />
@@ -657,6 +668,7 @@ export function StudioPage({ worldId, branchId }: StudioPageProps) {
                   waiting={waiting}
                   advancingId={advancingId}
                   onAdvance={(id) => void advancePartner(id)}
+                  readOnly={mismatch}
                   onGoTo={goToPartnerReality}
                   onWhatChanged={() => setDiffPair([left.id, right.id])}
                 />

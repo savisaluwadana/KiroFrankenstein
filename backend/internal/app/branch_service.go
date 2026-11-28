@@ -36,6 +36,9 @@ type CreateWorldRequest struct {
 	Seed         sim.Seed
 	Overrides    map[string]int64 // Assumption path -> value
 	Manager      ManagerKind      // default ManagerHuman
+	// WriteTokenHash is the SHA-256 of the write token issued to the creator
+	// (nil: none, a legacy-style world).
+	WriteTokenHash []byte
 }
 
 // AdvanceRequest advances a Branch. RunToTick nil means "to the next
@@ -220,7 +223,7 @@ func (s *BranchService) CreateWorld(ctx context.Context, req CreateWorldRequest)
 	w := World{
 		ID: WorldID(s.newID()), Name: req.Name, ScenarioHash: sha256.Sum256(canon),
 		ScenarioJSON: canon, Seed: req.Seed,
-		EngineVersion: s.engineVersion, CreatedAt: s.now(),
+		EngineVersion: s.engineVersion, CreatedAt: s.now(), WriteTokenHash: req.WriteTokenHash,
 	}
 	b := Branch{
 		ID: BranchID(s.newID()), WorldID: w.ID, Label: "main", HeadTick: 0,

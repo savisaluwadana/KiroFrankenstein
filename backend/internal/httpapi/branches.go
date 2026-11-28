@@ -96,6 +96,9 @@ func (s *Server) forkBranch(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, badRequest("unknown manager kind", issue("managerKind", "must be human, ai_rule_based or ai_llm")))
 		return
 	}
+	if req.ManagerKind == string(app.ManagerAILLM) && !s.guardLLMCreate(w, r) {
+		return
+	}
 	child, err := s.svc.ForkBranch(r.Context(), app.BranchID(id), sim.Tick(*req.AtTick), *req.Label, app.ManagerKind(req.ManagerKind))
 	if err != nil {
 		s.fail(w, r, withIssueField(err, "label"))

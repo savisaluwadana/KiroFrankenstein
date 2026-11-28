@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { API, branchIdOf, closeSheetOnPhone, continueIfOpen, headTick, monitor, openMoves, playTo, setSpeed, shot, startDemo, worldIdOf } from "./helpers";
+import { API, apiPost, branchIdOf, closeSheetOnPhone, continueIfOpen, headTick, monitor, openMoves, playTo, setSpeed, shot, startDemo, worldIdOf } from "./helpers";
 
 /**
  * (M6) "How this is modelled" in a real browser against the real backend: values, ranges and rationale
@@ -85,13 +85,13 @@ test("assumptions panel equals the API; the surprise script is hidden and never 
 
   /* ---- the full script of an identical world, advanced to the horizon through the API only ---- */
   const full = await (async () => {
-    const w = (await (await request.post(`${API}/worlds`, { data: { name: "reveal oracle", seed: 2026 } })).json()) as { rootBranch: { id: string }; world: { id: string } };
+    const w = (await (await apiPost(page, "/worlds", { name: "reveal oracle", seed: 2026 }, request)).json()) as { rootBranch: { id: string }; world: { id: string } };
     for (let guard = 0; guard < 60; guard++) {
-      const adv = await request.post(`${API}/branches/${w.rootBranch.id}/advance`, { data: { runToTick: 120 } });
+      const adv = await apiPost(page, `/branches/${w.rootBranch.id}/advance`, { runToTick: 120 }, request);
       expect(adv.ok(), await adv.text()).toBe(true);
       const head = ((await adv.json()) as { headTick: number }).headTick;
       if (head >= 120) break;
-      const end = await request.post(`${API}/branches/${w.rootBranch.id}/decision-window/end`, { data: { windowTick: head } });
+      const end = await apiPost(page, `/branches/${w.rootBranch.id}/decision-window/end`, { windowTick: head }, request);
       expect(end.ok(), await end.text()).toBe(true);
     }
     return getAssumptions(page, w.world.id, "?revealScript=true");
@@ -128,7 +128,7 @@ test("assumptions panel equals the API; the surprise script is hidden and never 
   await shot(page, info, "19-assumptions", true);
 
   /* ---- duel world: the reveal is bounded by the lower head and never shows the future ---- */
-  const created = await request.post(`${API}/duels`, { data: { forkTick: 0 } });
+  const created = await apiPost(page, "/duels", { forkTick: 0 }, request);
   expect(created.ok()).toBe(true);
   const duel = (await created.json()) as { world: { id: string }; duel: { id: string; human: { branch: { id: string } }; ai: { branch: { id: string } } } };
   const dWorld = duel.world.id;
@@ -137,7 +137,7 @@ test("assumptions panel equals the API; the surprise script is hidden and never 
   const dAt0 = await getAssumptions(page, dWorld, `?revealScript=true&branchId=${humanId}`);
   expect(dAt0.disruptionScript ?? []).toEqual([]);
   // Try to put one side ahead; the API may refuse a single-side advance, which is also safe.
-  const ahead = await request.post(`${API}/branches/${humanId}/advance`, { data: { runToTick: 120 } });
+  const ahead = await apiPost(page, `/branches/${humanId}/advance`, { runToTick: 120 }, request);
   const heads = await Promise.all(
     [humanId, aiId].map(async (id) => ((await (await request.get(`${API}/branches/${id}`)).json()) as { branch?: { headTick: number }; headTick?: number })),
   );
@@ -151,7 +151,7 @@ test("assumptions panel equals the API; the surprise script is hidden and never 
   }
   info.annotations.push({ type: "single-side advance", description: `HTTP ${ahead.status()}; lower head ${low}` });
   // Then advance the duel in lockstep and check again.
-  const lock = await request.post(`${API}/duels/${duel.duel.id}/advance`, { data: { runToTick: 60 } });
+  const lock = await apiPost(page, `/duels/${duel.duel.id}/advance`, { runToTick: 60 }, request);
   if (lock.ok()) {
     const r = await getAssumptions(page, dWorld, `?revealScript=true&branchId=${humanId}`);
     expect(r.headTick).toBeLessThanOrEqual(60);

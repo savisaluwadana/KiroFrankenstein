@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import {
+  apiPost,
   API,
   apiMetrics,
   branchIdOf,
@@ -96,7 +97,7 @@ async function getJson<T>(page: Page, p: string): Promise<T> {
   return (await r.json()) as T;
 }
 async function postJson<T>(page: Page, p: string, data: unknown): Promise<T> {
-  const r = await page.request.post(`${API}${p}`, { data });
+  const r = await apiPost(page, p, data);
   const text = await r.text();
   expect(r.ok(), `${p} -> ${r.status()} ${text}`).toBe(true);
   return (text === "" ? {} : JSON.parse(text)) as T;
@@ -137,11 +138,11 @@ async function lockIn(page: Page, paced: boolean): Promise<void> {
 /** Runs a world to the horizon through the API only, ending every window with no commands. */
 async function apiRunTo(page: Page, branch: string, to: number): Promise<number> {
   for (let g = 0; g < 80; g++) {
-    const r = await page.request.post(`${API}/branches/${branch}/advance`, { data: { runToTick: to } });
+    const r = await apiPost(page, `/branches/${branch}/advance`, { runToTick: to });
     expect(r.ok(), await r.text()).toBe(true);
     const head = ((await r.json()) as { headTick: number }).headTick;
     if (head >= to) return head;
-    const e = await page.request.post(`${API}/branches/${branch}/decision-window/end`, { data: { windowTick: head } });
+    const e = await apiPost(page, `/branches/${branch}/decision-window/end`, { windowTick: head });
     expect(e.ok(), await e.text()).toBe(true);
   }
   throw new Error("api run did not reach target");

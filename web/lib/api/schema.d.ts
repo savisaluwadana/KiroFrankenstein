@@ -898,6 +898,8 @@ export interface components {
             llmGlobalCallsRemaining?: number;
             /** @description Tokens left in today's (UTC) server-wide LLM limit (LLM_GLOBAL_MAX_TOKENS), after in-flight reservations. Present only on the available LLM AI. */
             llmGlobalTokensRemaining?: number;
+            /** @description True when starting this manager needs the `X-Parallel-LLM-Code` header (the server sets LLM_ACCESS_CODE). Present, and true, only on the available LLM AI. */
+            requiresAccessCode?: boolean;
         };
         ManagerList: {
             managers: components["schemas"]["ManagerInfo"][];
@@ -937,12 +939,13 @@ export interface components {
          * @description URI that identifies the problem type. Status codes: history-immutable 409,
          *     not-yet-simulated 409, stale-head 409, window-not-open 409, branch-limit 409,
          *     horizon-reached 409, duel-branch 409, duel-window-open 409, duel-diverged 409, decision-stale 409, engine-version-mismatch 409, budget-exceeded 422, incomparable-branches 422, validation 422, invalid-tick 422,
-         *     invalid-scenario 400, invalid-name 400, bad-request 400, forbidden 403, not-found 404,
+         *     invalid-scenario 400, invalid-name 400, bad-request 400, forbidden 403, write-token-required 401,
+         *     write-token-invalid 403, llm-access-code-required 403, not-found 404,
          *     payload-too-large 413, rate-limited 429, unavailable 503, internal 500.
          *     An unknown route gives not-found 404. A wrong method gives bad-request with status 405.
          * @enum {string}
          */
-        ProblemType: "urn:parallel:problem:history-immutable" | "urn:parallel:problem:not-yet-simulated" | "urn:parallel:problem:stale-head" | "urn:parallel:problem:window-not-open" | "urn:parallel:problem:budget-exceeded" | "urn:parallel:problem:incomparable-branches" | "urn:parallel:problem:validation" | "urn:parallel:problem:branch-limit" | "urn:parallel:problem:horizon-reached" | "urn:parallel:problem:engine-version-mismatch" | "urn:parallel:problem:duel-branch" | "urn:parallel:problem:duel-window-open" | "urn:parallel:problem:duel-diverged" | "urn:parallel:problem:decision-stale" | "urn:parallel:problem:invalid-tick" | "urn:parallel:problem:invalid-scenario" | "urn:parallel:problem:invalid-name" | "urn:parallel:problem:bad-request" | "urn:parallel:problem:not-found" | "urn:parallel:problem:forbidden" | "urn:parallel:problem:payload-too-large" | "urn:parallel:problem:rate-limited" | "urn:parallel:problem:unavailable" | "urn:parallel:problem:internal";
+        ProblemType: "urn:parallel:problem:history-immutable" | "urn:parallel:problem:not-yet-simulated" | "urn:parallel:problem:stale-head" | "urn:parallel:problem:window-not-open" | "urn:parallel:problem:budget-exceeded" | "urn:parallel:problem:incomparable-branches" | "urn:parallel:problem:validation" | "urn:parallel:problem:branch-limit" | "urn:parallel:problem:horizon-reached" | "urn:parallel:problem:engine-version-mismatch" | "urn:parallel:problem:duel-branch" | "urn:parallel:problem:duel-window-open" | "urn:parallel:problem:duel-diverged" | "urn:parallel:problem:decision-stale" | "urn:parallel:problem:invalid-tick" | "urn:parallel:problem:invalid-scenario" | "urn:parallel:problem:invalid-name" | "urn:parallel:problem:bad-request" | "urn:parallel:problem:not-found" | "urn:parallel:problem:forbidden" | "urn:parallel:problem:write-token-required" | "urn:parallel:problem:write-token-invalid" | "urn:parallel:problem:llm-access-code-required" | "urn:parallel:problem:payload-too-large" | "urn:parallel:problem:rate-limited" | "urn:parallel:problem:unavailable" | "urn:parallel:problem:internal";
         Warning: {
             /** @description Machine-readable code, for example `engine-version-mismatch`. */
             code: string;
@@ -1147,6 +1150,13 @@ export interface components {
             magnitudeBps: number;
         };
         CreateWorldResponse: {
+            /**
+             * @description Random 256-bit write token (base64url), shown only in this response.
+             *     The server stores its SHA-256 hash only. Send it as
+             *     `X-Parallel-Write-Token` on every request that changes the world.
+             *     Anyone with only the world id can read but not change it.
+             */
+            writeToken: string;
             world: components["schemas"]["World"];
             rootBranch: components["schemas"]["Branch"];
         };
@@ -2075,6 +2085,13 @@ export interface components {
             status: components["schemas"]["DuelStatus"];
         };
         CreateDuelResponse: {
+            /**
+             * @description Random 256-bit write token (base64url), shown only in this response.
+             *     The server stores its SHA-256 hash only. Send it as
+             *     `X-Parallel-Write-Token` on every request that changes the world.
+             *     Anyone with only the world id can read but not change it.
+             */
+            writeToken: string;
             world: components["schemas"]["World"];
             duel: components["schemas"]["Duel"];
             status: components["schemas"]["DuelStatus"];
@@ -2174,6 +2191,13 @@ export interface components {
             name?: components["schemas"]["Name"];
         };
         DemoResponse: {
+            /**
+             * @description Random 256-bit write token (base64url), shown only in this response.
+             *     The server stores its SHA-256 hash only. Send it as
+             *     `X-Parallel-Write-Token` on every request that changes the world.
+             *     Anyone with only the world id can read but not change it.
+             */
+            writeToken: string;
             world: components["schemas"]["World"];
             rootBranch: components["schemas"]["Branch"];
             plan: components["schemas"]["DemoPlan"];
@@ -2252,6 +2276,38 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
+        /** @description The request changes a world and has no `X-Parallel-Write-Token` header (type `write-token-required`). Reading the world needs no token. */
+        WriteTokenRequired: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /**
+         * @description The write token does not match the world (type `write-token-invalid`),
+         *     or the world predates write tokens and the server runs in production,
+         *     where such a world is read-only. Repeated invalid tokens from one
+         *     address give 429 `rate-limited`.
+         */
+        WriteTokenInvalid: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description The server requires an LLM access code to start an LLM-backed manager and `X-Parallel-LLM-Code` is missing or wrong (type `llm-access-code-required`). Also possible on a fork that asks for an `ai_llm` manager. */
+        LLMAccessCodeRequired: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
         /** @description The request body exceeds 256 KiB (type `payload-too-large`). */
         PayloadTooLarge: {
             headers: {
@@ -2297,6 +2353,20 @@ export interface components {
         WorldId: components["schemas"]["Uuid"];
         DuelId: components["schemas"]["Uuid"];
         BranchId: components["schemas"]["Uuid"];
+        /**
+         * @description The world's write token, returned once as `writeToken` when the world
+         *     (or demo, or duel) was created. Required on every request that changes
+         *     a world. Reads never need it, so a link that holds only the id is
+         *     read-only. Never put it in a URL.
+         */
+        WriteToken: string;
+        /**
+         * @description The server's LLM access code. Required only to start an LLM-backed
+         *     manager (`ai_llm`) when the server sets `LLM_ACCESS_CODE` (see
+         *     `requiresAccessCode` on `GET /managers`). The rule-based AI never
+         *     needs it.
+         */
+        LLMCode: string;
         /** @description A Tick from 0 through the Head_Tick. */
         TickQuery: components["schemas"]["Tick"];
     };
@@ -2411,7 +2481,15 @@ export interface operations {
     createWorld: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description The server's LLM access code. Required only to start an LLM-backed
+                 *     manager (`ai_llm`) when the server sets `LLM_ACCESS_CODE` (see
+                 *     `requiresAccessCode` on `GET /managers`). The rule-based AI never
+                 *     needs it.
+                 */
+                "X-Parallel-LLM-Code"?: components["parameters"]["LLMCode"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -2431,6 +2509,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            403: components["responses"]["LLMAccessCodeRequired"];
             413: components["responses"]["PayloadTooLarge"];
             429: components["responses"]["RateLimited"];
             503: components["responses"]["ServiceUnavailable"];
@@ -2572,7 +2651,22 @@ export interface operations {
     forkBranch: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /**
+                 * @description The world's write token, returned once as `writeToken` when the world
+                 *     (or demo, or duel) was created. Required on every request that changes
+                 *     a world. Reads never need it, so a link that holds only the id is
+                 *     read-only. Never put it in a URL.
+                 */
+                "X-Parallel-Write-Token": components["parameters"]["WriteToken"];
+                /**
+                 * @description The server's LLM access code. Required only to start an LLM-backed
+                 *     manager (`ai_llm`) when the server sets `LLM_ACCESS_CODE` (see
+                 *     `requiresAccessCode` on `GET /managers`). The rule-based AI never
+                 *     needs it.
+                 */
+                "X-Parallel-LLM-Code"?: components["parameters"]["LLMCode"];
+            };
             path: {
                 branchId: components["parameters"]["BranchId"];
             };
@@ -2594,6 +2688,8 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["WriteTokenRequired"];
+            403: components["responses"]["WriteTokenInvalid"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
@@ -2604,7 +2700,15 @@ export interface operations {
     advanceBranch: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /**
+                 * @description The world's write token, returned once as `writeToken` when the world
+                 *     (or demo, or duel) was created. Required on every request that changes
+                 *     a world. Reads never need it, so a link that holds only the id is
+                 *     read-only. Never put it in a URL.
+                 */
+                "X-Parallel-Write-Token": components["parameters"]["WriteToken"];
+            };
             path: {
                 branchId: components["parameters"]["BranchId"];
             };
@@ -2626,6 +2730,8 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["WriteTokenRequired"];
+            403: components["responses"]["WriteTokenInvalid"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
@@ -2636,7 +2742,14 @@ export interface operations {
     submitCommands: {
         parameters: {
             query?: never;
-            header?: {
+            header: {
+                /**
+                 * @description The world's write token, returned once as `writeToken` when the world
+                 *     (or demo, or duel) was created. Required on every request that changes
+                 *     a world. Reads never need it, so a link that holds only the id is
+                 *     read-only. Never put it in a URL.
+                 */
+                "X-Parallel-Write-Token": components["parameters"]["WriteToken"];
                 /** @description Client-chosen key, 1 to 128 printable ASCII characters. */
                 "Idempotency-Key"?: string;
             };
@@ -2661,6 +2774,8 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["WriteTokenRequired"];
+            403: components["responses"]["WriteTokenInvalid"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
@@ -2670,7 +2785,15 @@ export interface operations {
     endDecisionWindow: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /**
+                 * @description The world's write token, returned once as `writeToken` when the world
+                 *     (or demo, or duel) was created. Required on every request that changes
+                 *     a world. Reads never need it, so a link that holds only the id is
+                 *     read-only. Never put it in a URL.
+                 */
+                "X-Parallel-Write-Token": components["parameters"]["WriteToken"];
+            };
             path: {
                 branchId: components["parameters"]["BranchId"];
             };
@@ -2690,6 +2813,8 @@ export interface operations {
                 content?: never;
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["WriteTokenRequired"];
+            403: components["responses"]["WriteTokenInvalid"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
@@ -2698,7 +2823,14 @@ export interface operations {
     injectDisruption: {
         parameters: {
             query?: never;
-            header?: {
+            header: {
+                /**
+                 * @description The world's write token, returned once as `writeToken` when the world
+                 *     (or demo, or duel) was created. Required on every request that changes
+                 *     a world. Reads never need it, so a link that holds only the id is
+                 *     read-only. Never put it in a URL.
+                 */
+                "X-Parallel-Write-Token": components["parameters"]["WriteToken"];
                 /** @description Client-chosen key, 1 to 128 printable ASCII characters. */
                 "Idempotency-Key"?: string;
             };
@@ -2723,6 +2855,8 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["WriteTokenRequired"];
+            403: components["responses"]["WriteTokenInvalid"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
@@ -3032,7 +3166,15 @@ export interface operations {
     createDuel: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description The server's LLM access code. Required only to start an LLM-backed
+                 *     manager (`ai_llm`) when the server sets `LLM_ACCESS_CODE` (see
+                 *     `requiresAccessCode` on `GET /managers`). The rule-based AI never
+                 *     needs it.
+                 */
+                "X-Parallel-LLM-Code"?: components["parameters"]["LLMCode"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -3052,6 +3194,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            403: components["responses"]["LLMAccessCodeRequired"];
             413: components["responses"]["PayloadTooLarge"];
             422: components["responses"]["Unprocessable"];
             429: components["responses"]["RateLimited"];
@@ -3084,7 +3227,15 @@ export interface operations {
     advanceDuel: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /**
+                 * @description The world's write token, returned once as `writeToken` when the world
+                 *     (or demo, or duel) was created. Required on every request that changes
+                 *     a world. Reads never need it, so a link that holds only the id is
+                 *     read-only. Never put it in a URL.
+                 */
+                "X-Parallel-Write-Token": components["parameters"]["WriteToken"];
+            };
             path: {
                 duelId: components["parameters"]["DuelId"];
             };
@@ -3106,6 +3257,8 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["WriteTokenRequired"];
+            403: components["responses"]["WriteTokenInvalid"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
@@ -3116,7 +3269,14 @@ export interface operations {
     submitDuelCommands: {
         parameters: {
             query?: never;
-            header?: {
+            header: {
+                /**
+                 * @description The world's write token, returned once as `writeToken` when the world
+                 *     (or demo, or duel) was created. Required on every request that changes
+                 *     a world. Reads never need it, so a link that holds only the id is
+                 *     read-only. Never put it in a URL.
+                 */
+                "X-Parallel-Write-Token": components["parameters"]["WriteToken"];
                 /** @description Client-chosen key, 1 to 128 printable ASCII characters. */
                 "Idempotency-Key"?: string;
             };
@@ -3141,6 +3301,8 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["WriteTokenRequired"];
+            403: components["responses"]["WriteTokenInvalid"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
@@ -3150,7 +3312,15 @@ export interface operations {
     endDuelWindow: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /**
+                 * @description The world's write token, returned once as `writeToken` when the world
+                 *     (or demo, or duel) was created. Required on every request that changes
+                 *     a world. Reads never need it, so a link that holds only the id is
+                 *     read-only. Never put it in a URL.
+                 */
+                "X-Parallel-Write-Token": components["parameters"]["WriteToken"];
+            };
             path: {
                 duelId: components["parameters"]["DuelId"];
             };
@@ -3170,6 +3340,8 @@ export interface operations {
                 content?: never;
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["WriteTokenRequired"];
+            403: components["responses"]["WriteTokenInvalid"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
@@ -3178,7 +3350,14 @@ export interface operations {
     injectDuelDisruption: {
         parameters: {
             query?: never;
-            header?: {
+            header: {
+                /**
+                 * @description The world's write token, returned once as `writeToken` when the world
+                 *     (or demo, or duel) was created. Required on every request that changes
+                 *     a world. Reads never need it, so a link that holds only the id is
+                 *     read-only. Never put it in a URL.
+                 */
+                "X-Parallel-Write-Token": components["parameters"]["WriteToken"];
                 /** @description Client-chosen key, 1 to 128 printable ASCII characters. */
                 "Idempotency-Key"?: string;
             };
@@ -3203,6 +3382,8 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["WriteTokenRequired"];
+            403: components["responses"]["WriteTokenInvalid"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
