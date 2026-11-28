@@ -1,6 +1,6 @@
 #!/bin/sh
 # Production smoke test.
-# Usage: scripts/smoke-prod.sh <api-origin> <web-origin>
+# Usage: [CURL_OPTS="--cacert ca.crt"] scripts/smoke-prod.sh <api-origin> <web-origin>
 #   e.g. scripts/smoke-prod.sh https://api.example.com https://parallel.example.com
 # Read-only except for ONE small demo world created through POST /api/v1/demo
 # (worlds are never deleted by this script). Exits non-zero on the first failed
@@ -12,7 +12,8 @@ FAILS=0
 ok()   { echo "ok   $*"; }
 bad()  { echo "FAIL $*" >&2; FAILS=$((FAILS+1)); }
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
-CT="--connect-timeout 5 --max-time 30"
+# CURL_OPTS passes extra curl flags, e.g. CURL_OPTS="--cacert ca.crt" or "-k" for a local self-signed rehearsal.
+CT="--connect-timeout 5 --max-time 30 ${CURL_OPTS:-}"
 
 status() { curl -s $CT -o /dev/null -w '%{http_code}' "$@"; }
 # check_status <name> <expected> <curl args...>
@@ -60,16 +61,17 @@ else bad "GET /api/v1/managers: $(head -c 200 "$TMP/mgr")"; fi
 # 5. Demo world: create, advance to first decision window, read state, stream
 curl -s $CT -X POST "$API/api/v1/demo" -H 'Content-Type: application/json' -d '{}' > "$TMP/demo"
 WID=$(grep -o '"world":{"id":"[^"]*"' "$TMP/demo" | head -1 | sed 's/.*"id":"//;s/"//')
+WTOK=$(grep -o '"writeToken":"[^"]*"' "$TMP/demo" | head -1 | sed 's/.*:"//;s/"//')
 BID=$(grep -o '"rootBranch":{"id":"[^"]*"' "$TMP/demo" | head -1 | sed 's/.*"id":"//;s/"//')
 if [ -n "$WID" ] && [ -n "$BID" ]; then
   ok "POST /api/v1/demo created world $WID"
-  curl -s $CT -X POST "$API/api/v1/branches/$BID/advance" -H 'Content-Type: application/json' -d '{"runToTick":4}' > "$TMP/adv"
+  curl -s $CT -X POST "$API/api/v1/branches/$BID/advance" -H 'Content-Type: application/json' -H "X-Parallel-Write-Token: $WTOK" -d '{"runToTick":4}' > "$TMP/adv"
   grep -q '"headTick":4' "$TMP/adv" && grep -q '"stateHash":"[0-9a-f]\{64\}"' "$TMP/adv" \
     && ok "advance to tick 4 (first decision window)" || bad "advance: $(head -c 300 "$TMP/adv")"
   curl -s $CT "$API/api/v1/branches/$BID/state?tick=4" > "$TMP/st"
   grep -q '"tick":4\|"headTick":4' "$TMP/st" && ok "GET state at tick 4" || bad "GET state: $(head -c 300 "$TMP/st")"
   # SSE: connect briefly, expect a tick event
-  curl -s -N --connect-timeout 5 --max-time 3 -H "Origin: $WEB" "$API/api/v1/branches/$BID/progress" > "$TMP/sse" 2>/dev/null
+  curl -s -N --connect-timeout 5 --max-time 3 ${CURL_OPTS:-} -H "Origin: $WEB" "$API/api/v1/branches/$BID/progress" > "$TMP/sse" 2>/dev/null
   grep -q '^event: tick' "$TMP/sse" && ok "SSE progress stream delivers 'event: tick'" || bad "SSE: no 'event: tick' within 3 s ($(head -c 120 "$TMP/sse"))"
 else
   bad "POST /api/v1/demo: $(head -c 300 "$TMP/demo")"

@@ -144,9 +144,75 @@ Rollback: redeploy the previous image tag (and the previous Vercel deployment). 
 scripts/smoke-prod.sh https://api.example.com https://parallel.example.com
 ```
 
-It needs only `curl`. It creates **one small demo world** through `POST /api/v1/demo` (it never deletes worlds) and advances it to tick 4. Checks: `/healthz`, `/readyz`, `/api/v1/health` (engine version), CORS preflight allows exactly the web origin and refuses `https://evil.example`, API security headers (HSTS over https), no `unsafe-eval`, `/api/v1/managers` and LLM state, demo creation, advance to the first decision window, state read, an SSE connection of 3 s that must deliver `event: tick`, and the web `/` returns 200 with a CSP that has no `unsafe-eval` and whose `connect-src` includes the API origin. Exit status is non-zero if any check fails, and every failure is listed.
+It needs only `curl`. Extra curl flags go in `CURL_OPTS` (for a local self-signed CA: `CURL_OPTS="--cacert ca.crt"`). It creates **one small demo world** through `POST /api/v1/demo` (it never deletes worlds) and advances it to tick 4 with the `writeToken` from that response (the rehearsal found that the earlier version sent no token and would have got 401 in production). Checks: `/healthz`, `/readyz`, `/api/v1/health` (engine version), CORS preflight allows exactly the web origin and refuses `https://evil.example`, API security headers (HSTS over https), no `unsafe-eval`, `/api/v1/managers` and LLM state, demo creation, advance to the first decision window, state read, an SSE connection of 3 s that must deliver `event: tick`, and the web `/` returns 200 with a CSP that has no `unsafe-eval` and whose `connect-src` includes the API origin. Exit status is non-zero if any check fails, and every failure is listed.
 
 Local rehearsal (ports other than 3000, 3100, 8000 and 8080): build the web app with `NEXT_PUBLIC_API_BASE_URL=http://localhost:18099/api/v1`, run `npx next start -p 13100`, run the container with `-p 18099:8080 -e WEB_ORIGIN=http://localhost:13100`, then run the script with those two origins. Over plain http the HSTS check is skipped.
+
+## Local production rehearsal results (2026-11-28)
+
+Everything below ran on one macOS machine with Docker. Nothing was deployed and no cloud CLI was used. Repeat it with `scripts/rehearse-prod.sh up | smoke | down` (local only; containers `rh-db`, `rh-api`, `rh-caddy`, network `rh-net`, scratch dir `/tmp/parallel-rehearsal`; `down` removes all of it and never touches other containers). Setup: Postgres 16 with `ssl=on` and a self-signed certificate on 127.0.0.1:55433 (`pg_stat_ssl` showed `TLSv1.3` for the runtime role); the `parallel-api` image from `docker build -t parallel-api ./backend`; Caddy 2 with a self-signed certificate in front (`https://api.localtest.me:18443` to the API with `flush_interval -1`, `https://parallel.localtest.me:18444` to `next start -p 13100`); API with `ENV=production`, `WEB_ORIGIN=https://parallel.localtest.me:18444`, `TRUSTED_PROXY_HOPS=1`, `sslmode=require`. The web app was built with `NEXT_PUBLIC_API_BASE_URL=https://api.localtest.me:18443/api/v1 npm run build`.
+
+| # | Check | Result |
+|---|---|---|
+| 1 | `migrate up` as `parallel_migrator` over TLS (`sslmode=require`) from the built image | PASS, version 7 |
+| 2 | Startup rejects `sslmode=disable`, missing `sslmode`, http `WEB_ORIGIN`, localhost `WEB_ORIGIN`, missing `WEB_ORIGIN`, missing `TRUSTED_PROXY_HOPS`, missing `DATABASE_URL`, partial LLM variables, http `LLM_BASE_URL` | PASS: exit 1, each message names the variable. A wrong password gives a generic "cannot connect to PostgreSQL" message; neither the password nor the key appeared in any output |
+| 3 | `/healthz`, `/readyz` over HTTPS through the proxy | PASS |
+| 4 | HSTS: absent on plain http without `X-Forwarded-Proto`, present with `X-Forwarded-Proto: https` and through Caddy | PASS |
+| 5 | CORS preflight from the exact `WEB_ORIGIN` allowed (incl. `X-Parallel-Write-Token`), from `https://evil.example` denied | PASS |
+| 6 | Security headers (nosniff, no-referrer, CSP without `unsafe-eval`, no-store) | PASS |
+| 7 | Rate limit with `RATE_LIMIT_RPS=1 BURST=5` through the proxy, spoofed `X-Forwarded-For` prefix changed on every request | PASS: 5 x 200 then 429 (the spoofed prefix did not change the bucket). Probes are exempt (8 x 200) |
+| 8 | Direct access to the container with hops=1 | Expected weakness confirmed: each distinct `X-Forwarded-For` value is a new bucket (10 x 200). Never publish the container port; only the proxy |
+| 9 | SSE through Caddy (`curl -N --max-time 20`) | PASS: `event: tick` frames immediately, `: heartbeat` at +15 s |
+| 10 | Web production build against the https API; CSP `connect-src 'self' https://api.localtest.me:18443`, HSTS, `X-Frame-Options: DENY` | PASS |
+| 11 | `scripts/smoke-prod.sh` against the https API and web origins (20 checks) | PASS after fixing the script (see below) |
+| 12 | Real Chromium (`web/playwright.rehearsal.config.ts`, `ignoreHTTPSErrors`): start the demo, Continue, Play against the https API, no console errors, no failed requests, no 4xx/5xx | PASS (write token in `sessionStorage`, cross-origin advance and SSE worked) |
+| 13 | Restart persistence: demo world, advance to tick 24, fork at 12, advance the fork; `docker stop`; start | PASS: state hashes at ticks 0, 12, 24 of both branches byte-identical after restart (`cmp`); same write token advances (to 36); no token gives 401, wrong token 403 |
+| 14 | Graceful stop | PASS: SIGTERM, exit code 0, 0.29 s idle, log line `shutting down timeout=25s`, no secrets in logs. The `/readyz` 503 during drain was not observable on an idle server (the listener closes at once); it is covered by `TestShutdownEndsStreams` and `TestReadiness` |
+| 15 | Postgres stopped | PASS: `/readyz` 503 problem+json, `/healthz` 200, reads and writes answer 500 `internal` problem+json with a generic detail (no stack trace, no connection string in the body; the log lines name the database user, not the password). Note these are 500, not 503 |
+| 16 | Postgres restarted, API not restarted | PASS: `/readyz` 200 within 1 s of the poll, reads and an advance (to tick 40) work (pgx pool reconnects) |
+| 17 | `docker kill` (SIGKILL) during 6 concurrent advances to the horizon | PASS: 4 requests were cut off and their branches stayed at tick 0 (no partial write), 2 had finished (tick 48, the first disruption onset). After restart all 6 hashes at the head tick matched `parallel-sim verify` on the exported inputs (`MATCH`). The kill landed after the earlier single-world advance had already finished, so this is a window of about 30 ms, not a proof for every interleaving |
+| 18 | Migration drill on a scratch database: `status` (empty), `up` to 7, `status`, `down` one step (7 to 6), `up` again, `up` again (no-op) | PASS |
+| 19 | Runtime role `parallel_app`: `CREATE TABLE` denied, `DROP/TRUNCATE/UPDATE/DELETE` on `input_log` denied (psql over TLS); `migrate up` with the runtime role fails | PASS |
+
+Findings and fixes:
+
+- `scripts/smoke-prod.sh` sent the advance without `X-Parallel-Write-Token`, so against any production-mode API it would fail at the advance step. Fixed: it reads `writeToken` from the demo response. It also gained `CURL_OPTS`.
+- The Postgres server in the rehearsal accepts non-TLS connections (default `pg_hba.conf`); `sslmode=require` is enforced on the client side by the API's startup check. On a managed database, also require TLS on the server side.
+- The owner-role `DELETE FROM input_log` printed `DELETE 0` because the table was empty (no commands had been submitted), so the trigger was not exercised by this drill; the triggers are covered by `immutability_test.go` in `internal/store/postgres`.
+- With the database down the API answers 500, not 503. Left as is (feature freeze). The readiness probe is the signal for load balancers.
+- The existing Playwright journey spec cannot run in "external servers" mode against these servers: `e2e/helpers.ts` hard-codes `http://localhost:18080/api/v1`. The small `web/rehearsal/https.spec.ts` covers the https path instead.
+
+`migrate down` is destructive: the first migration drops the input log. It is for scratch databases only. A rollback in production is a restore from backup or PITR.
+
+### Verified locally and not verified
+
+| Verified locally | NOT verified (needs the real platform) |
+|---|---|
+| Image builds, runs non-root, `scripts/check-image-secrets.sh parallel-api` passes | Vercel build and deploy of `web/`, Vercel environment variable handling, preview URLs |
+| Production startup validation, TLS to Postgres, role separation, migrations | A real container host (Fly, Render, Railway, Cloud Run): health-check wiring, grace period, secret store, min instances, sleep behaviour |
+| Reverse proxy behaviour with one hop: forwarded IP, HSTS from `X-Forwarded-Proto`, SSE with buffering off | The platform proxy's real hop count, idle timeout and buffering for SSE (`docs/deploy-templates/*` are still untested) |
+| CORS, CSP and the write-token flow in a real browser over https with a self-signed CA | Real DNS, a publicly trusted certificate, HTTP/2 or HTTP/3 edge behaviour |
+| Restart, SIGKILL and database outage recovery on a local container | A managed Postgres: provider TLS chain and `verify-full`, role creation limits, backups and PITR, failover |
+| Smoke script and rehearsal Playwright spec | Behaviour under real load or several replicas (limits are per process) |
+
+Managed Postgres and poolers. The store takes only transaction-scoped advisory locks (`pg_advisory_xact_lock(hashtext(branch id))` inside the append transaction, `store/postgres/inputs.go`); there is no `LISTEN/NOTIFY`, no session-level lock and no `SET`. Those are compatible with transaction pooling. However `pgxpool` uses pgx's default query mode, which prepares and caches named statements, and a transaction-mode pooler (PgBouncer, Neon's pooled endpoint, Supabase's pooler on port 6543) can break that. This was not tested. Use the provider's direct (non-pooled) connection string for `DATABASE_URL` and `MIGRATE_DATABASE_URL`. If you must use a pooler, try adding `default_query_exec_mode=exec` (or `simple_protocol`) to the URL and re-run the smoke test; treat that as unverified until you do. The migration step should always use the direct connection. Neon and Supabase need `sslmode=require` or stronger; both accept `verify-full` with their published CA.
+
+### Deployment checklist (for a person, in order)
+
+1. Provision managed PostgreSQL 16 with TLS, backups and PITR on. Note the direct (non-pooled) host.
+2. Create the roles and database (see "Managed PostgreSQL setup") with long random passwords.
+3. `docker build -t parallel-api ./backend`, run `scripts/check-image-secrets.sh parallel-api`, push the image under an immutable tag.
+4. Run `migrate status`, then `migrate up` with `MIGRATE_DATABASE_URL` (owner role, `sslmode=require` or stronger). Confirm version 7.
+5. Deploy the API container with `ENV=production`, `DATABASE_URL` (runtime role), a placeholder `WEB_ORIGIN` you will correct in step 7, and `TRUSTED_PROXY_HOPS` set to the real number (test with a forged `X-Forwarded-For`). Set the grace period above 25 s, liveness `/healthz`, readiness `/readyz`, proxy buffering off and idle timeout of 60 s or more, and at least one instance that never sleeps.
+6. Note the public API URL. In Vercel create the project with root directory `web`, set `NEXT_PUBLIC_API_BASE_URL=https://<api-host>/api/v1` for Production, deploy.
+7. Set the API's `WEB_ORIGIN` to the exact Vercel production URL (no path, no trailing slash) and redeploy the API.
+8. Run `scripts/smoke-prod.sh https://<api-host> https://<web-host>`. All checks must pass.
+9. Optional LLM: set `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` and a long random `LLM_ACCESS_CODE`; redeploy; run the smoke test again. Set a spending limit on the provider key first (the app limits calls and tokens, not currency).
+10. Write down the previous image tag and the previous Vercel deployment for rollback.
+
+Cost and availability warnings: free tiers often put the API to sleep or cap connections. A sleeping API drops open SSE streams and resets the per-process rate-limit and world-creation counters. Keep at least one instance running, and expect a cost for managed Postgres with PITR and for LLM usage.
+
+Rollback: redeploy the previous API image tag and the previous Vercel deployment. Migrations are additive, so the older API runs on the newer schema. If a migration itself was wrong, stop the API, restore the database from backup or PITR to a point before it, and redeploy the previous tag. Do not use `migrate down` on production data.
 
 ## Reference
 
