@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "test": "vitest --run",
     "gen:api": "openapi-typescript ../backend/api/openapi.yaml -o lib/api/schema.d.ts",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "e2e:prod": "playwright test -c playwright.prod.config.ts"
   },
   "dependencies": {
     "@xyflow/react": "13.0.3",

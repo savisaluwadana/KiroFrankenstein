@@ -1,0 +1,19 @@
+# TEMPLATE, NOT TESTED ON THE PLATFORM (Railway). Checked against docs.railway.com on 2026-11-28 only.
+# Use: set the service Root Directory to /backend, copy this file to backend/railway.toml and set the
+# service's "Config file path" to /backend/railway.toml (the config file does not follow the root directory).
+# Config as code is marked deprecated in the Railway docs (existing files keep working until 2027-01-01);
+# every value below can instead be entered in the dashboard (Settings) or as the variables noted.
+# Secrets and the environment variables of the API are set in the Railway Variables tab, never here.
+# Migrations are NOT run here (no preDeployCommand): run `parallel-api migrate up` yourself with the owner role.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"        # relative to Root Directory /backend; or variable RAILWAY_DOCKERFILE_PATH
+
+[deploy]
+healthcheckPath = "/readyz"          # checks the database; Railway only calls it while a deployment goes live
+healthcheckTimeout = 120             # seconds; Railway default is 300 (or variable RAILWAY_HEALTHCHECK_TIMEOUT_SEC)
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+drainingSeconds = 30                 # > SHUTDOWN_TIMEOUT_SECONDS (25); Railway default is 0 (or variable RAILWAY_DEPLOYMENT_DRAINING_SECONDS)
+overlapSeconds = 10                  # old deployment keeps running briefly (or variable RAILWAY_DEPLOYMENT_OVERLAP_SECONDS)

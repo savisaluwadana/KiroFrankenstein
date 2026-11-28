@@ -1,63 +1,89 @@
 # Submission checklist (Kiroween 2026, Frankenstein)
 
-**Source of the requirements, and its limits.** `https://kiroween.devpost.com/rules` and `https://kiroween.devpost.com/` returned HTTP 403 to our fetch tool, so we did **not** read the 2026 official rules. Items below come from (a) `.kiro/steering/hackathon.md` (the repository's own summary), (b) web-search snippets of the 2026 pages, and (c) secondary summaries of the **2025** edition (`dev.to/brian_mk/decoding-kiroween-4nm`, `kiroween-2025.devpost.com`). The 2026 text may differ. Each row says where it came from. **Read the live rules page yourself before submitting.** We never submitted anything.
+**Final pre-deployment state, audit of 2026-11-28.** Development is frozen. Nothing is deployed, no video is recorded, and nothing has been submitted to Devpost.
+
+## Source of the requirements, and its limits
+
+`https://kiroween.devpost.com/rules` and the overview page `https://kiroween.devpost.com/` returned HTTP 403 to automated fetches on 2026-11-28. **The official 2026 text could not be read.** What we know comes from:
+
+- (a) the search-engine index snippet of `https://kiroween.devpost.com/` (paraphrased): only new projects are eligible; the project must be built during the Submission Period, October 30 to December 4, 2026; projects started before October 30 (including Kiroween 2025 projects) are not eligible;
+- (b) `.kiro/steering/hackathon.md` (the repository's own summary);
+- (c) secondary sources and the 2025 edition.
+
+Every row below marked UNVERIFIED must be checked against the official page by the user. **Open the official rules in a browser and tick each item yourself.**
 
 ## Requirements and current status
 
 | # | Requirement | Source | Status | Evidence or what is missing |
 |---|---|---|---|---|
-| 1 | New project built during the submission period (search snippet: October 30 to December 4, 2026; projects started before October 30 are not eligible) | 2026 snippet; `hackathon.md` ("must be new") | ✓ by dates, user to confirm | First commit 2026-11-10 (`git log --reverse`). Note the first four commits (2026-11-10) are scaffolding for a different, removed concept; Parallel was approved 2026-11-26. Confirm the rules treat that as compliant. |
-| 2 | Public repository | `hackathon.md`; 2025 summary | ✓ per remote | Remote `https://github.com/savisaluwadana/KiroFrankenstein`; `gh run list` works against it. **Verify visibility is Public** in repository settings (we did not check). |
-| 3 | Open-source license, visible | `hackathon.md`; 2025 summary says OSI-approved | ✓ | `LICENSE` (MIT, "Copyright (c) 2026 Savi Saluwadana"). Confirm GitHub shows the license in the repo sidebar. |
-| 4 | `.kiro/` directory at the root, tracked | `hackathon.md` | ✓ | `git ls-files .kiro` lists 12 files (7 steering, 5 spec files). `.gitignore` says not to ignore it. |
-| 5 | Built using Kiro (2025 text: vibe coding, agent hooks, steering docs, MCP or specs) | 2025 snippet | ✓ steering and specs; no hooks or MCP | `docs/hackathon/kiro-evidence.md`. |
-| 6 | Working demo (or working software) | `hackathon.md` | ◐ local only | Runs locally (`docs/demo-script.md`). **No public deployment.** |
-| 7 | Setup instructions | `hackathon.md` | ✓ draft; README is being rewritten by another worker | `README.md`, `docs/demo-script.md` "Before you record". Re-read once the rewrite lands. |
-| 8 | Demo video under three minutes, publicly accessible | `hackathon.md`; 2025 summary ("Judges are not required to watch past the three-minute mark") | ✗ pending | Script ready: `docs/hackathon/demo-video-script.md` (2:55 plan). Video not recorded or uploaded. |
-| 9 | Project description (what it does, how built, etc.) | Devpost form | ✓ draft | `docs/hackathon/devpost-submission.md`. |
-| 10 | Category selected: Frankenstein | `hackathon.md` | ✓ draft | `docs/hackathon/frankenstein-justification.md`. Select it in the Devpost form. |
-| 11 | Team info (a 2026 snippet says teams of up to three) | secondary snippet | ✗ pending | `{{TEAM_NAMES}}`. Confirm team size and eligibility (age, residence) in the rules. |
-| 12 | Submit on Devpost before the deadline | `hackathon.md`; 2026 snippet gives December 4, 2026, 2:00 pm Pacific Time as the end of the submission period | ✗ pending | The user submits. Confirm the exact deadline and timezone on the rules page. |
-| 13 | Log real Kiro sessions accurately | `hackathon.md` | ✓ with caveats | `docs/kiro-build-log.md`. Stale items: its checklist is unchecked for "first Kiro implementation commit", "working public demo", "submission write-up"; post-M7 work (`a2f6119` onward) has no log entry. Update before submitting. |
+| 1 | New project built during the Submission Period (Oct 30 to Dec 4, 2026) | 2026 snippet; `hackathon.md` | ✓ by dates; UNVERIFIED against official text | First commit `8cb6215`, 2026-11-10 09:33 +0530; all commits fall inside the period. The first four commits (2026-11-10) are pre-implementation scaffolding for a removed concept (see `docs/kiro-build-log.md`). Implementation started 2026-11-26 (`ddc7c1d`). Confirm the rules accept this. |
+| 2 | Public repository | `hackathon.md` | ✓ repository is PUBLIC | `https://github.com/savisaluwadana/KiroFrankenstein` |
+| 3 | OSI-approved open-source license, visible | `hackathon.md`; UNVERIFIED for 2026 | ✓ | `LICENSE` (MIT) at the repository root. |
+| 4 | Tracked `.kiro/` directory at the repository root | `hackathon.md`; UNVERIFIED for 2026 | ✓ | `.kiro/specs` and `.kiro/steering` are tracked. No hooks, no MCP configuration. |
+| 5 | Built using Kiro | `hackathon.md` | ✓ steering and specs; no hooks or MCP | `docs/hackathon/kiro-evidence.md`. |
+| 6 | Working, functional application URL | `hackathon.md`; whether a live URL is required, and until when, is UNKNOWN | ✗ PENDING: not deployed | Runs locally (`docs/demo-script.md`). Deployment target and runbook in "Deployment status" below. |
+| 7 | Setup and testing instructions | `hackathon.md` | ✓ | `README.md`, `docs/demo-script.md`. |
+| 8 | Public demo video under three minutes | `hackathon.md`; UNVERIFIED for 2026 (hosting rules unknown) | ✗ not recorded | Script ready: `docs/hackathon/demo-video-script.md` (2:55 plan). Record it with the deployed URL. |
+| 9 | Devpost text | Devpost form | ✓ drafted, not submitted | `docs/hackathon/devpost-submission.md`. |
+| 10 | Category: Frankenstein | `hackathon.md` | ✓ drafted, not submitted | `docs/hackathon/frankenstein-justification.md`. Select it in the Devpost form. |
+| 11 | Team information | UNVERIFIED (secondary snippet says up to three) | ✗ pending | `{{TEAM_NAMES}}`. Confirm team size and eligibility in the rules. |
+| 12 | Submit on Devpost before the deadline | Snippet: December 4, 2026 | ✗ not submitted | Time zone not verified (an earlier snippet said 2:00 pm Pacific; unconfirmed). Verify on the official page. |
+| 13 | Log real Kiro sessions accurately | `hackathon.md` | ✓ with caveats | `docs/kiro-build-log.md`. Re-check its checklist and post-M7 entries before submitting. |
 
-## Things the rules text may require that we could not confirm
+## Rules audit: what we could not confirm
 
-- Whether a live, publicly reachable demo URL is required, or whether a runnable repository plus a video is enough. We assume the latter is acceptable only if the rules say so.
-- Whether the video must be on a specific platform, and whether it must be free of third-party music or trademarks.
-- Whether AI-generated code and pre-submission planning files need to be disclosed. The build log already states what preceded Kiro.
-- Judging criteria. `hackathon.md` says "Judges weigh impact, technological implementation with Kiro, product design, innovation, and presentation equally"; verify.
-- Eligibility of a project whose repository has commits from before the submission period (the 2026-11-10 commits are inside the stated period, but the "Initial commit" concept differed).
+Check these on the official rules page, in a browser:
 
-## Current project status to mention honestly
+- The exact deadline and its time zone.
+- Whether the application URL must be live during judging, and until when.
+- Testing-access requirements: whether judges need credentials or an access code (for us, the LLM access code `LLM_ACCESS_CODE`; the rule-based AI needs none).
+- Team composition and eligibility (size, age, residence).
+- Video hosting rules (platform, music, trademarks).
+- Whether a third-party API (OpenRouter) needs disclosure, and whether AI-generated code and pre-submission planning need disclosure. The build log states what preceded Kiro.
+- Judging criteria. `hackathon.md` says impact, technological implementation with Kiro, product design, innovation and presentation are weighted equally; verify.
+- Eligibility given that the repository's first four commits were scaffolding for a different, removed concept.
 
-- ✓ Local CI mirror passes (`scripts/ci-local.sh`, per the build log).
-- ✓ GitHub Actions run 46133835646 (commit `0d1a192`): conclusion success, all six jobs passed (`openapi lint`, `go (amd64)`, `go (arm64)`, `web`, `docker build`, `e2e`). Earlier run 46126448247 (`e666480`) failed in `e2e` only (a test race, fixed). Re-check `gh run list --branch main` before submitting.
-- ✓ Release candidate: `v0.1.0-rc.1` (tag); notes in `docs/release-notes-rc1.md`.
-- ✗ Live LLM verification pending (optional; `docs/live-llm-verification.md`).
-- ✗ Not deployed (`docs/deploy.md`: "Nothing in the repository deploys itself").
-- ✗ Open tasks: fork transition timing (1.5 s vs 600 ms, 8.6) and duel reveal (8.7) in `tasks.md`; M8 tasks 9.1 to 9.4 are done.
+## Release and CI status (verified)
+
+- **Release candidate:** tag `v0.1.0-rc.1` points to commit `5ea46e5`. That commit equalled `origin/main` HEAD at the time of the audit, before any later docs-only commits. Notes: `docs/release-notes-rc1.md`.
+- **GitHub Actions run 46136137307** for `5ea46e5`: success, all six jobs (openapi lint, go amd64, go arm64, web, docker build, e2e playwright). Honest note: attempt 1's e2e job was cancelled without logs after about 55 minutes. Attempt 2 passed. It was a re-run of the failed job with no code change.
+- **Previous run 46133835646** (`0d1a192`): success on the first attempt.
+- Earlier run 46126448247 (`e666480`) failed in e2e only (a test race, since fixed).
+- Re-run `gh run list --branch main --limit 5` before submitting; later docs-only commits are not covered by the RC tag.
+
+## Deployment status (nothing provisioned)
+
+- **Target:** Vercel (web), Railway (API, Hobby plan), Supabase Postgres, OpenRouter (optional LLM). Runbook: `docs/deploy-railway-supabase-vercel.md`.
+- **Provisioned:** nothing. No account, project, database, domain or key has been created.
+- **Production acceptance suite:** ready (`npm run e2e:prod`). A dry run passed locally against Postgres: 7 passed before a restart and 1 passed after; the LLM test was skipped. It has **not** been run against a real deployment.
+- **Live LLM verification:** PENDING. No credentials exist, and it needs the user's approval of a paid call. The LLM manager is tested only with stub providers (`docs/live-llm-verification.md`).
+- **Known deployment risks:**
+  - Railway `X-Forwarded-For` layout: verify `TRUSTED_PROXY_HOPS` after deploy (start with 2).
+  - Supabase dedicated schema is not usable without a code change (`CheckMigrated` checks `public.<table>`). Use `public` and disable the Supabase Data API.
+  - LLM prompt size: with `LLM_MAX_PROMPT_BYTES=32768`, 12 of 31 decision windows in a flagship duel exceed the cap and fall back to the rule-based manager with reason `budget_exhausted`. Raising it to 262144 covers all windows at about 4x token cost. This is the user's decision.
+  - Supabase Free pauses after one week of inactivity and has no backups.
+- **Costs** (researched 2026-11-28; verify on the pricing pages): Railway Hobby $5/month including $5 usage; Supabase Free $0, or Pro from $25/month; Vercel Hobby $0; OpenRouter pay-per-token, where the credit limit on the key is the only hard monetary cap.
 
 ## Placeholders to fill
 
 | Placeholder | Where used | Who supplies it |
 |---|---|---|
-| `{{DEMO_URL}}` | `devpost-submission.md` Links; Devpost "Try it out" | The user, after deploying (or leave blank and say "run locally") |
+| `{{DEMO_URL}}` | `devpost-submission.md` Links; Devpost "Try it out" | The user, after deploying |
 | `{{VIDEO_URL}}` | `devpost-submission.md` Links; Devpost video field | The user, after recording and uploading |
 | `{{TEAM_NAMES}}` | `devpost-submission.md` Team | The user |
-| Deployment platform, API origin, web origin | `docs/deploy.md` steps | The user |
-| Live LLM provider, model and key (optional) | `docs/live-llm-verification.md` | The user (credentials only they can supply); then update the "pending" statements |
-| Repository visibility confirmation | Row 2 above | The user |
-| Deadline and timezone confirmation | Row 12 above | The user |
+| Platform account details, API and web origins | runbook steps | The user |
+| LLM provider, model, key, access code (optional) | `docs/live-llm-verification.md` | The user |
+| Deadline and time zone confirmation | Row 12 | The user |
+
+After deployment, change every "not deployed" statement (`devpost-submission.md`, `demo-video-script.md`, this file). After a real live LLM check, change "pending" to the recorded result.
 
 ## Final manual steps for the human, in order
 
-1. Read the live rules at https://kiroween.devpost.com/rules and fix any item in this file that differs. Confirm the deadline and your timezone.
-2. Confirm the GitHub repository is public and the license shows. Re-run `gh run list --limit 5` and confirm the latest `main` run is green. Fix or note any failure.
-3. Update stale status text: `docs/ci.md`, `README.md` (another worker is rewriting it), `docs/kiro-build-log.md` (add post-M7 sessions only if they were really Kiro sessions; tick the checklist honestly).
-4. Optional: deploy (`docs/deploy.md`, `scripts/smoke-prod.sh`, `scripts/rehearse-prod.sh`). If you do, fill `{{DEMO_URL}}` and change "not deployed" statements everywhere they appear (`devpost-submission.md`, `demo-video-script.md`, this file).
-5. Optional: run the live LLM verification (`parallel-sim llm-check`) with your own provider key. Only then change "pending" to a result, and record the result in `docs/live-llm-verification.md`.
-6. Re-run `scripts/demo-numbers.sh` against a fresh API and compare with `docs/demo-script.md`. Rehearse the click path.
-7. Record the video (under 3:00) following `demo-video-script.md`. Upload it (public) and open it in a private window to confirm access. Fill `{{VIDEO_URL}}`.
-8. Choose the gallery images from `screenshots.md`. Re-check each against the narration numbers.
-9. Create the Devpost project: paste from `devpost-submission.md`, choose the Frankenstein category, add the repository link, video link, demo link (if any), team members.
-10. Read the final text once for claims that are not in the repository. Submit yourself, and confirm the submission shows as submitted, not draft.
+1. Re-read the official rules at https://kiroween.devpost.com/rules in a browser and tick every item above, especially the unknowns in "Rules audit". Fix any row that differs.
+2. Approve the paid resources (Railway Hobby, optionally Supabase Pro, OpenRouter credit).
+3. Follow `docs/deploy-railway-supabase-vercel.md`. Verify `TRUSTED_PROXY_HOPS` and decide `LLM_MAX_PROMPT_BYTES`.
+4. Run the smoke test, then `npm run e2e:prod` with `PHASE=before`, redeploy the API, then `PHASE=after`.
+5. Optional: create an OpenRouter key with a credit limit, set `LLM_ACCESS_CODE`, run `parallel-sim llm-check --confirm-paid-call`, and run one live duel. Record the result in `docs/live-llm-verification.md`.
+6. Record the video (under 3:00) following `docs/hackathon/demo-video-script.md`, using the deployed URL. Upload it publicly and open it in a private window to confirm access.
+7. Fill `{{DEMO_URL}}`, `{{VIDEO_URL}}` and `{{TEAM_NAMES}}`.
+8. Read the final Devpost text once for claims not backed by the repository. Submit only after your approval, and confirm the submission shows as submitted, not draft.
